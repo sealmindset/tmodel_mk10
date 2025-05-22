@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | Threat Modeling Tool</title>
+  <link rel="stylesheet" href="/css/bootstrap.min.css">
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/chart.js"></script>
+  <style>
+    .analytics-card {
+      margin-bottom: 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .card-header {
+      background-color: #f8f9fa;
+      border-bottom: 1px solid #e9ecef;
+      padding: 15px 20px;
+      font-weight: 600;
+      border-radius: 8px 8px 0 0;
+    }
+    .card-body {
+      padding: 20px;
+    }
+    .stat-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid #e9ecef;
+    }
+    .stat-label {
+      font-weight: 500;
+      color: #6c757d;
+    }
+    .stat-value {
+      font-weight: 600;
+    }
+    .chart-container {
+      position: relative;
+      height: 300px;
+      margin-top: 15px;
+    }
+    .loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(255, 255, 255, 0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    .loading-spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #3498db;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 2s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .date-range-selector {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+    .date-range-selector .btn-group {
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    .date-range-selector .btn {
+      padding: 8px 16px;
+    }
+    .error-message {
+      color: #dc3545;
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 4px;
+      background-color: #f8d7da;
+      border: 1px solid #f5c6cb;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <%- include('../partials/header') %>
+  
+  <div class="container mt-4">
+    <div class="row mb-4">
+      <div class="col-12">
+        <h1 class="mb-3">Analytics Dashboard</h1>
+        <p class="lead">Track usage metrics, LLM response quality, and implementation status changes.</p>
+        
+        <!-- Date Range Selector -->
+        <div class="date-range-selector">
+          <div class="btn-group" role="group" aria-label="Date range">
+            <button type="button" class="btn btn-outline-primary date-range-btn" data-days="7">Last 7 Days</button>
+            <button type="button" class="btn btn-outline-primary date-range-btn active" data-days="30">Last 30 Days</button>
+            <button type="button" class="btn btn-outline-primary date-range-btn" data-days="90">Last 90 Days</button>
+            <button type="button" class="btn btn-outline-primary date-range-btn" data-days="365">Last Year</button>
+          </div>
+        </div>
+        
+        <!-- Optional Project Filter -->
+        <div class="form-group mb-4">
+          <label for="projectFilter">Filter by Project:</label>
+          <select class="form-control" id="projectFilter">
+            <option value="">All Projects</option>
+            <!-- Projects will be loaded dynamically -->
+          </select>
+        </div>
+        
+        <!-- Error message placeholder -->
+        <div class="error-message" id="errorMessage">
+          An error occurred while loading analytics data. Please try again.
+        </div>
+      </div>
+    </div>
+    
+    <div class="row">
+      <!-- Report Generation Stats -->
+      <div class="col-md-6">
+        <div class="card analytics-card">
+          <div class="card-header">
+            Report Generation
+          </div>
+          <div class="card-body">
+            <div class="loading-overlay" id="reportLoadingOverlay">
+              <div class="loading-spinner"></div>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Total Reports Generated</span>
+              <span class="stat-value" id="totalReportsValue">--</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Reports with LLM Processing</span>
+              <span class="stat-value" id="llmReportsValue">--</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Average Processing Time</span>
+              <span class="stat-value" id="avgProcessingTimeValue">--</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Average Safeguard Count</span>
+              <span class="stat-value" id="avgSafeguardCountValue">--</span>
+            </div>
+            <div class="chart-container">
+              <canvas id="reportGenerationChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- LLM Response Stats -->
+      <div class="col-md-6">
+        <div class="card analytics-card">
+          <div class="card-header">
+            LLM Response Quality
+          </div>
+          <div class="card-body">
+            <div class="loading-overlay" id="llmLoadingOverlay">
+              <div class="loading-spinner"></div>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Total LLM Requests</span>
+              <span class="stat-value" id="totalLlmRequestsValue">--</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Error Rate</span>
+              <span class="stat-value" id="llmErrorRateValue">--</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Average Processing Time</span>
+              <span class="stat-value" id="llmAvgProcessingTimeValue">--</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Average Tokens Used</span>
+              <span class="stat-value" id="avgTokensUsedValue">--</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Providers</span>
+              <span class="stat-value" id="llmProvidersValue">--</span>
+            </div>
+            <div class="chart-container">
+              <canvas id="llmResponseChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="row mt-4">
+      <!-- Status Change Stats -->
+      <div class="col-md-12">
+        <div class="card analytics-card">
+          <div class="card-header">
+            Implementation Status Changes
+          </div>
+          <div class="card-body">
+            <div class="loading-overlay" id="statusLoadingOverlay">
+              <div class="loading-spinner"></div>
+            </div>
+            <div class="row">
+              <div class="col-md-6">
+                <div class="stat-item">
+                  <span class="stat-label">Total Status Changes</span>
+                  <span class="stat-value" id="totalStatusChangesValue">--</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Changed to "Implemented"</span>
+                  <span class="stat-value" id="toImplementedValue">--</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Changed to "In Progress"</span>
+                  <span class="stat-value" id="toInProgressValue">--</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Changed to "Not Started"</span>
+                  <span class="stat-value" id="toNotStartedValue">--</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Unique Safeguards Updated</span>
+                  <span class="stat-value" id="uniqueSafeguardsValue">--</span>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="chart-container">
+                  <canvas id="statusChangesChart"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Default settings
+      let currentDays = 30;
+      let currentProjectId = '';
+      
+      // Charts
+      let reportGenerationChart;
+      let llmResponseChart;
+      let statusChangesChart;
+      
+      // Initialize the page
+      initCharts();
+      loadAnalyticsData();
+      
+      // Event listeners
+      document.querySelectorAll('.date-range-btn').forEach(button => {
+        button.addEventListener('click', function() {
+          // Update active button
+          document.querySelectorAll('.date-range-btn').forEach(btn => {
+            btn.classList.remove('active');
+          });
+          this.classList.add('active');
+          
+          // Update current days and reload data
+          currentDays = parseInt(this.getAttribute('data-days'));
+          loadAnalyticsData();
+        });
+      });
+      
+      document.getElementById('projectFilter').addEventListener('change', function() {
+        currentProjectId = this.value;
+        loadAnalyticsData();
+      });
+      
+      // Load projects for filter
+      loadProjects();
+      
+      // Function to initialize charts
+      function initCharts() {
+        // Report Generation Chart (Bar chart)
+        reportGenerationChart = new Chart(
+          document.getElementById('reportGenerationChart').getContext('2d'),
+          {
+            type: 'bar',
+            data: {
+              labels: ['Reports Generated'],
+              datasets: [
+                {
+                  label: 'With LLM',
+                  backgroundColor: '#4e73df',
+                  data: [0]
+                },
+                {
+                  label: 'Without LLM',
+                  backgroundColor: '#36b9cc',
+                  data: [0]
+                }
+              ]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  ticks: {
+                    precision: 0
+                  }
+                }
+              }
+            }
+          }
+        );
+        
+        // LLM Response Chart (Doughnut chart)
+        llmResponseChart = new Chart(
+          document.getElementById('llmResponseChart').getContext('2d'),
+          {
+            type: 'doughnut',
+            data: {
+              labels: ['Successful', 'Errors'],
+              datasets: [
+                {
+                  backgroundColor: ['#1cc88a', '#e74a3b'],
+                  data: [0, 0]
+                }
+              ]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              cutout: '70%',
+              plugins: {
+                legend: {
+                  position: 'bottom'
+                }
+              }
+            }
+          }
+        );
+        
+        // Status Changes Chart (Pie chart)
+        statusChangesChart = new Chart(
+          document.getElementById('statusChangesChart').getContext('2d'),
+          {
+            type: 'pie',
+            data: {
+              labels: ['To Implemented', 'To In Progress', 'To Not Started'],
+              datasets: [
+                {
+                  backgroundColor: ['#1cc88a', '#f6c23e', '#e74a3b'],
+                  data: [0, 0, 0]
+                }
+              ]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: {
+                  position: 'bottom'
+                }
+              }
+            }
+          }
+        );
+      }
+      
+      // Function to load analytics data
+      function loadAnalyticsData() {
+        // Show loading overlays
+        document.getElementById('reportLoadingOverlay').style.display = 'flex';
+        document.getElementById('llmLoadingOverlay').style.display = 'flex';
+        document.getElementById('statusLoadingOverlay').style.display = 'flex';
+        
+        // Hide error message
+        document.getElementById('errorMessage').style.display = 'none';
+        
+        // Build URL with query parameters
+        let url = `/safeguard-report/analytics/data?days=${currentDays}`;
+        if (currentProjectId) {
+          url += `&projectId=${currentProjectId}`;
+        }
+        
+        // Fetch analytics data
+        fetch(url)
+          .then(response => {
+            if (!response.ok) {
+              throw new Error('Network response was not ok');
+            }
+            return response.json();
+          })
+          .then(data => {
+            if (data.success) {
+              updateReportGenerationStats(data.data.reportGeneration);
+              updateLLMResponseStats(data.data.llmResponse);
+              updateStatusChangeStats(data.data.statusChanges);
+            } else {
+              throw new Error(data.error || 'Unknown error');
+            }
+          })
+          .catch(error => {
+            console.error('Error fetching analytics data:', error);
+            document.getElementById('errorMessage').textContent = 
+              `Error loading analytics data: ${error.message}`;
+            document.getElementById('errorMessage').style.display = 'block';
+          })
+          .finally(() => {
+            // Hide loading overlays
+            document.getElementById('reportLoadingOverlay').style.display = 'none';
+            document.getElementById('llmLoadingOverlay').style.display = 'none';
+            document.getElementById('statusLoadingOverlay').style.display = 'none';
+          });
+      }
+      
+      // Function to update report generation stats
+      function updateReportGenerationStats(stats) {
+        // Update stat values
+        document.getElementById('totalReportsValue').textContent = stats.total_count || 0;
+        document.getElementById('llmReportsValue').textContent = stats.llm_count || 0;
+        document.getElementById('avgProcessingTimeValue').textContent = 
+          stats.avg_processing_time ? `${Math.round(stats.avg_processing_time)}ms` : '0ms';
+        document.getElementById('avgSafeguardCountValue').textContent = 
+          stats.avg_safeguard_count ? Math.round(stats.avg_safeguard_count) : 0;
+        
+        // Update chart
+        const withLLM = stats.llm_count || 0;
+        const withoutLLM = (stats.total_count || 0) - withLLM;
+        
+        reportGenerationChart.data.datasets[0].data = [withLLM];
+        reportGenerationChart.data.datasets[1].data = [withoutLLM];
+        reportGenerationChart.update();
+      }
+      
+      // Function to update LLM response stats
+      function updateLLMResponseStats(stats) {
+        // Update stat values
+        document.getElementById('totalLlmRequestsValue').textContent = stats.total_count || 0;
+        
+        const errorRate = stats.total_count ? 
+          ((stats.error_count || 0) / stats.total_count * 100).toFixed(1) : 0;
+        document.getElementById('llmErrorRateValue').textContent = `${errorRate}%`;
+        
+        document.getElementById('llmAvgProcessingTimeValue').textContent = 
+          stats.avg_processing_time ? `${Math.round(stats.avg_processing_time)}ms` : '0ms';
+        document.getElementById('avgTokensUsedValue').textContent = 
+          stats.avg_tokens_used ? Math.round(stats.avg_tokens_used) : 0;
+        document.getElementById('llmProvidersValue').textContent = 
+          stats.providers || 'None';
+        
+        // Update chart
+        const successful = (stats.total_count || 0) - (stats.error_count || 0);
+        const errors = stats.error_count || 0;
+        
+        llmResponseChart.data.datasets[0].data = [successful, errors];
+        llmResponseChart.update();
+      }
+      
+      // Function to update status change stats
+      function updateStatusChangeStats(stats) {
+        // Update stat values
+        document.getElementById('totalStatusChangesValue').textContent = stats.total_count || 0;
+        document.getElementById('toImplementedValue').textContent = stats.to_implemented_count || 0;
+        document.getElementById('toInProgressValue').textContent = stats.to_in_progress_count || 0;
+        document.getElementById('toNotStartedValue').textContent = stats.to_not_started_count || 0;
+        document.getElementById('uniqueSafeguardsValue').textContent = stats.unique_safeguards_count || 0;
+        
+        // Update chart
+        const toImplemented = stats.to_implemented_count || 0;
+        const toInProgress = stats.to_in_progress_count || 0;
+        const toNotStarted = stats.to_not_started_count || 0;
+        
+        statusChangesChart.data.datasets[0].data = [toImplemented, toInProgress, toNotStarted];
+        statusChangesChart.update();
+      }
+      
+      // Function to load projects for filter
+      function loadProjects() {
+        // In a real implementation, this would fetch projects from an API
+        // For simplicity, we're using a setTimeout to simulate an API call
+        setTimeout(() => {
+          const projectSelect = document.getElementById('projectFilter');
+          
+          // Sample project data (in a real app, this would come from an API)
+          const projects = [
+            { id: 'project1', name: 'E-commerce Platform' },
+            { id: 'project2', name: 'Banking App' },
+            { id: 'project3', name: 'Healthcare Portal' },
+            { id: 'project4', name: 'IoT Control System' }
+          ];
+          
+          // Add options to select
+          projects.forEach(project => {
+            const option = document.createElement('option');
+            option.value = project.id;
+            option.textContent = project.name;
+            projectSelect.appendChild(option);
+          });
+        }, 500);
+      }
+    });
+  </script>
+  
+  <%- include('../partials/footer') %>
+</body>
+</html>

@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<%- include('./partials/header.ejs') %>
+
+<div class="container mt-4">
+  <div class="row">
+    <div class="col-12">
+      <div class="card mb-4">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+          <h2 class="mb-0">Rapid7 API Explorer</h2>
+          <div class="d-flex align-items-center">
+            <div class="me-2">Status:</div>
+            <div class="status-indicator <%= rapid7Status ? 'online' : 'offline' %>" 
+                data-bs-toggle="tooltip" 
+                title="<%= rapid7Status ? 'Rapid7 API is accessible' : 'Rapid7 API is not accessible' %>"></div>
+            <div class="ms-2 text-<%= rapid7Status ? 'success' : 'danger' %>">
+              <%= rapid7Status ? 'Connected' : 'Disconnected' %>
+            </div>
+          </div>
+        </div>
+        <div class="card-body">
+          <% if (!rapid7Status) { %>
+            <div class="alert alert-warning">
+              <h4 class="alert-heading">Connection Failed</h4>
+              <p>Could not connect to the Rapid7 API at <code><%= rapid7ApiUrl %></code>.</p>
+              <p>Error: <%= error %></p>
+              <hr>
+              <p class="mb-0">Please check your API settings and ensure the Rapid7 API server is running.</p>
+              <a href="/settings" class="btn btn-primary mt-3">Go to API Settings</a>
+            </div>
+          <% } else { %>
+            <div class="row">
+              <div class="col-md-4">
+                <div class="card">
+                  <div class="card-header">
+                    Available Endpoints
+                  </div>
+                  <div class="card-body p-0">
+                    <div class="list-group list-group-flush endpoint-list">
+                      <% if (endpoints && endpoints.length > 0) { %>
+                        <% endpoints.forEach(endpoint => { %>
+                          <button 
+                            class="list-group-item list-group-item-action endpoint-item" 
+                            data-path="<%= endpoint.path %>" 
+                            data-method="<%= endpoint.method || 'GET' %>">
+                            <div class="d-flex justify-content-between align-items-center">
+                              <span><%= endpoint.path %></span>
+                              <span class="badge bg-primary text-uppercase"><%= endpoint.method || 'GET' %></span>
+                            </div>
+                            <% if (endpoint.description) { %>
+                              <small class="text-muted"><%= endpoint.description %></small>
+                            <% } %>
+                          </button>
+                        <% }); %>
+                      <% } else { %>
+                        <div class="list-group-item">
+                          <p class="mb-0">No endpoints available.</p>
+                        </div>
+                      <% } %>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-8">
+                <div class="card">
+                  <div class="card-header d-flex justify-content-between">
+                    <div>
+                      Endpoint Response
+                      <span id="selected-endpoint" class="ms-2 fw-bold"></span>
+                    </div>
+                    <div>
+                      <button id="refresh-endpoint" class="btn btn-sm btn-outline-primary" disabled>
+                        <i class="fas fa-sync-alt"></i> Refresh
+                      </button>
+                    </div>
+                  </div>
+                  <div class="card-body">
+                    <div id="endpoint-placeholder" class="text-center p-5">
+                      <i class="fas fa-arrow-left fa-2x mb-3 text-muted"></i>
+                      <p class="text-muted">Select an endpoint from the list to view its data</p>
+                    </div>
+                    <div id="endpoint-loading" class="text-center p-5 d-none">
+                      <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                      </div>
+                      <p class="mt-2">Loading data...</p>
+                    </div>
+                    <div id="endpoint-error" class="alert alert-danger d-none">
+                      <h5 class="alert-heading">Error</h5>
+                      <p id="error-message"></p>
+                      <p id="error-details" class="small text-monospace"></p>
+                    </div>
+                    <div id="endpoint-content" class="d-none">
+                      <div class="mb-3">
+                        <div class="d-flex justify-content-between">
+                          <h5>Response</h5>
+                          <div>
+                            <span class="badge bg-success" id="response-status"></span>
+                          </div>
+                        </div>
+                        <pre id="response-data" class="bg-light p-3 border rounded" style="max-height: 600px; overflow: auto;"></pre>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          <% } %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const endpointItems = document.querySelectorAll('.endpoint-item');
+    const endpointPlaceholder = document.getElementById('endpoint-placeholder');
+    const endpointLoading = document.getElementById('endpoint-loading');
+    const endpointContent = document.getElementById('endpoint-content');
+    const endpointError = document.getElementById('endpoint-error');
+    const responseData = document.getElementById('response-data');
+    const responseStatus = document.getElementById('response-status');
+    const errorMessage = document.getElementById('error-message');
+    const errorDetails = document.getElementById('error-details');
+    const selectedEndpoint = document.getElementById('selected-endpoint');
+    const refreshButton = document.getElementById('refresh-endpoint');
+    
+    let currentEndpoint = null;
+    let currentMethod = null;
+    
+    function loadEndpointData(path, method) {
+      // Update UI state
+      endpointPlaceholder.classList.add('d-none');
+      endpointContent.classList.add('d-none');
+      endpointError.classList.add('d-none');
+      endpointLoading.classList.remove('d-none');
+      selectedEndpoint.textContent = `${method} ${path}`;
+      refreshButton.removeAttribute('disabled');
+      
+      // Store the current endpoint info
+      currentEndpoint = path;
+      currentMethod = method;
+      
+      // Make API call
+      fetch(`/api-explorer/endpoint-data?path=${encodeURIComponent(path)}&method=${method}`)
+        .then(response => response.json())
+        .then(data => {
+          endpointLoading.classList.add('d-none');
+          
+          if (data.success) {
+            // Show response data
+            endpointContent.classList.remove('d-none');
+            responseData.textContent = JSON.stringify(data.data, null, 2);
+            responseStatus.textContent = `Status: ${data.status}`;
+            
+            // Ensure the badge color matches the status
+            if (data.status >= 200 && data.status < 300) {
+              responseStatus.className = 'badge bg-success';
+            } else if (data.status >= 300 && data.status < 400) {
+              responseStatus.className = 'badge bg-info';
+            } else if (data.status >= 400 && data.status < 500) {
+              responseStatus.className = 'badge bg-warning';
+            } else {
+              responseStatus.className = 'badge bg-danger';
+            }
+          } else {
+            // Show error
+            endpointError.classList.remove('d-none');
+            errorMessage.textContent = data.error || 'Unknown error occurred';
+            errorDetails.textContent = `Status: ${data.status || 'Unknown'}`;
+          }
+        })
+        .catch(error => {
+          endpointLoading.classList.add('d-none');
+          endpointError.classList.remove('d-none');
+          errorMessage.textContent = 'Network error occurred';
+          errorDetails.textContent = error.message;
+        });
+    }
+    
+    // Add click handlers for endpoints
+    endpointItems.forEach(item => {
+      item.addEventListener('click', function() {
+        // Update selected state
+        endpointItems.forEach(i => i.classList.remove('active'));
+        this.classList.add('active');
+        
+        const path = this.getAttribute('data-path');
+        const method = this.getAttribute('data-method');
+        loadEndpointData(path, method);
+      });
+    });
+    
+    // Add refresh button handler
+    refreshButton.addEventListener('click', function() {
+      if (currentEndpoint) {
+        loadEndpointData(currentEndpoint, currentMethod);
+      }
+    });
+    
+    // Initialize tooltips
+    const tooltips = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+    tooltips.forEach(tooltip => {
+      new bootstrap.Tooltip(tooltip);
+    });
+  });
+</script>
+
+<%- include('./partials/footer.ejs') %>
+</html>

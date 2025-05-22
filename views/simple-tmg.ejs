@@ -1,0 +1,61 @@
+<%- include('partials/header') %>
+
+<div class="container mt-5">
+  <div class="row">
+    <div class="col-md-8 offset-md-2">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h4 class="mb-0">Quick Threat Model Generation</h4>
+        </div>
+        <div class="card-body">
+          <form action="/ask" method="POST" id="directThreatModelForm">
+            <div class="mb-3">
+              <label for="subject" class="form-label">System/Component to Analyze</label>
+              <input type="text" class="form-control" id="subject" name="subject" 
+                     value="<%= subject || '' %>" required>
+              <div class="form-text">Enter the name of the system or component you want to analyze</div>
+            </div>
+            
+            <div class="mb-3">
+              <label for="model" class="form-label">AI Model</label>
+              <select class="form-select" id="model" name="model">
+                <option value="gpt-3.5-turbo">GPT-3.5 Turbo (Faster)</option>
+                <option value="gpt-4" selected>GPT-4 (More Comprehensive)</option>
+                <option value="gpt-4-turbo">GPT-4 Turbo (Latest)</option>
+              </select>
+            </div>
+            
+            <div class="d-grid">
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-lightning-fill me-1"></i>Generate Threat Model
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+      
+      <div class="card mt-4">
+        <div class="card-header bg-light">
+          <h5 class="mb-0">About Threat Modeling</h5>
+        </div>
+        <div class="card-body">
+          <p>Threat modeling helps identify and address potential security threats to your systems and applications. The AI-assisted approach will:</p>
+          
+          <ul>
+            <li>Analyze your system architecture</li>
+            <li>Identify potential threats and vulnerabilities</li>
+            <li>Recommend mitigation strategies</li>
+            <li>Provide a comprehensive threat model report</li>
+          </ul>
+          
+          <p class="alert alert-info">
+            <i class="bi bi-info-circle me-2"></i>
+            <strong>Tip:</strong> For best results, provide a descriptive name for your system or component.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%- include('partials/footer') %>

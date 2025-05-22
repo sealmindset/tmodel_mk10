@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Safeguard Report | Threat Modeling Tool</title>
+  <link rel="stylesheet" href="/css/bootstrap.min.css">
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/jquery.min.js"></script>
+  <style>
+    .safeguard-card {
+      margin-bottom: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .safeguard-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+    .status-badge {
+      padding: 5px 10px;
+      border-radius: 12px;
+      font-size: 0.8em;
+      font-weight: bold;
+    }
+    .status-not-started {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+    .status-in-progress {
+      background-color: #fff3cd;
+      color: #856404;
+    }
+    .status-implemented {
+      background-color: #d4edda;
+      color: #155724;
+    }
+    .priority-high {
+      border-left: 5px solid #dc3545;
+    }
+    .priority-medium {
+      border-left: 5px solid #ffc107;
+    }
+    .priority-low {
+      border-left: 5px solid #28a745;
+    }
+    .category-badge {
+      background-color: #e9ecef;
+      color: #495057;
+      padding: 3px 8px;
+      border-radius: 10px;
+      font-size: 0.75em;
+      margin-right: 5px;
+    }
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(255, 255, 255, 0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+    .loading-spinner {
+      width: 50px;
+      height: 50px;
+      border: 5px solid #f3f3f3;
+      border-top: 5px solid #3498db;
+      border-radius: 50%;
+      animation: spin 2s linear infinite;
+    }
+    .skeleton-card {
+      height: 180px;
+      margin-bottom: 15px;
+      border-radius: 8px;
+      background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+      background-size: 200% 100%;
+      animation: loading 1.5s infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    @keyframes loading {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    .export-btn {
+      margin-right: 10px;
+    }
+    .offline-alert {
+      display: none;
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 9999;
+      padding: 15px 20px;
+      border-radius: 8px;
+      background-color: #f8d7da;
+      color: #721c24;
+      box-shadow: 0 0 15px rgba(0,0,0,0.2);
+    }
+    .error-container {
+      display: none;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 8px;
+      background-color: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    .cache-indicator {
+      display: inline-block;
+      padding: 5px 10px;
+      border-radius: 4px;
+      font-size: 0.8em;
+      background-color: #e9ecef;
+      color: #495057;
+      margin-left: 10px;
+    }
+    .refresh-btn {
+      margin-left: 10px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Include header -->
+  <%- include('../partials/header') %>
+  
+  <div class="container mt-4">
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+      <div class="loading-spinner"></div>
+    </div>
+    
+    <!-- Offline Alert -->
+    <div class="offline-alert" id="offlineAlert">
+      <strong>You are offline!</strong> Some features may not be available.
+    </div>
+    
+    <!-- Error Container -->
+    <div class="error-container" id="errorContainer">
+      <h4>Error</h4>
+      <p id="errorMessage">An error occurred while processing your request.</p>
+      <button class="btn btn-sm btn-outline-danger" onclick="retryReport()">Retry</button>
+    </div>
+    
+    <div class="row mb-4">
+      <div class="col-md-8">
+        <h1 id="reportTitle">Safeguard Report</h1>
+        <p class="lead" id="reportDescription">
+          Comprehensive analysis of security safeguards for this project.
+        </p>
+        <div id="cacheStatus"></div>
+      </div>
+      <div class="col-md-4 text-right">
+        <div class="btn-group" role="group">
+          <button class="btn btn-sm btn-outline-primary export-btn" onclick="exportReport('pdf')">Export as PDF</button>
+          <button class="btn btn-sm btn-outline-primary export-btn" onclick="exportReport('csv')">Export as CSV</button>
+          <button class="btn btn-sm btn-outline-primary export-btn" onclick="exportReport('json')">Export as JSON</button>
+        </div>
+        <button class="btn btn-sm btn-outline-secondary refresh-btn" id="refreshBtn" onclick="refreshReport()">
+          <i class="fas fa-sync-alt"></i> Refresh
+        </button>
+      </div>
+    </div>
+    
+    <div class="row mb-4">
+      <div class="col-md-4">
+        <div class="card">
+          <div class="card-header">
+            <h5 class="mb-0">Summary</h5>
+          </div>
+          <div class="card-body">
+            <div id="summaryContainer">
+              <div class="skeleton-line" id="skeleton-summary-1"></div>
+              <div class="skeleton-line" id="skeleton-summary-2"></div>
+              <div class="skeleton-line" id="skeleton-summary-3"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-8">
+        <div class="card">
+          <div class="card-header">
+            <h5 class="mb-0">Settings</h5>
+          </div>
+          <div class="card-body">
+            <div class="form-check form-switch mb-3">
+              <input class="form-check-input" type="checkbox" id="useLLMSwitch" checked>
+              <label class="form-check-label" for="useLLMSwitch">Use LLM for safeguard analysis</label>
+            </div>
+            <div class="d-grid">
+              <button class="btn btn-primary" id="generateBtn" onclick="generateReport()">Generate Report</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="row">
+      <div class="col-12 mb-4">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Safeguards</h5>
+            <div>
+              <select class="form-select form-select-sm" id="filterCategory">
+                <option value="">All Categories</option>
+                <!-- Categories will be populated dynamically -->
+              </select>
+            </div>
+          </div>
+          <div class="card-body">
+            <div id="safeguardsContainer">
+              <!-- Skeleton loading UI -->
+              <div class="skeleton-card" id="skeleton-card-1"></div>
+              <div class="skeleton-card" id="skeleton-card-2"></div>
+              <div class="skeleton-card" id="skeleton-card-3"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Include footer -->
+  <%- include('../partials/footer') %>
+  
+  <script>
+    // Global variables
+    let projectId = '<%= projectId %>';
+    let currentReport = null;
+    
+    // Check for network status
+    function updateOnlineStatus() {
+      const offlineAlert = document.getElementById('offlineAlert');
+      if (navigator.onLine) {
+        offlineAlert.style.display = 'none';
+      } else {
+        offlineAlert.style.display = 'block';
+      }
+    }
+    
+    // Add event listeners for online/offline events
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+    
+    // Initialize on document load
+    document.addEventListener('DOMContentLoaded', function() {
+      updateOnlineStatus();
+      loadFromCache();
+      fetchReportData();
+    });
+    
+    // Fetch report data from the server
+    function fetchReportData() {
+      const useLLM = document.getElementById('useLLMSwitch').checked;
+      showLoading(true);
+      hideError();
+      
+      // Get cache version for ETag comparison
+      const cachedReport = getCachedReport();
+      const etag = cachedReport ? cachedReport.etag : null;
+      
+      // Prepare headers for ETag support
+      const headers = {};
+      if (etag) {
+        headers['If-None-Match'] = etag;
+      }
+      
+      fetch(`/safeguard-report/${projectId}/data?useLLM=${useLLM}`, { headers })
+        .then(response => {
+          if (response.status === 304) {
+            // Not modified, use cached data
+            showCachedIndicator(true);
+            return { notModified: true };
+          }
+          
+          // Get ETag from response for caching
+          const newEtag = response.headers.get('ETag');
+          return response.json().then(data => {
+            data.etag = newEtag;
+            return data;
+          });
+        })
+        .then(data => {
+          if (data.notModified) {
+            // Use cached report
+            showLoading(false);
+            return;
+          }
+          
+          if (!data.success) {
+            throw new Error(data.error || 'Failed to fetch report data');
+          }
+          
+          currentReport = data.report;
+          
+          // Cache the report data
+          cacheReport({
+            report: currentReport,
+            timestamp: data.timestamp,
+            etag: data.etag
+          });
+          
+          renderReport(currentReport);
+          showLoading(false);
+          showCachedIndicator(false);
+        })
+        .catch(error => {
+          console.error('Error fetching report:', error);
+          
+          // Try to load from cache if fetch fails
+          if (loadFromCache()) {
+            showCachedIndicator(true);
+          } else {
+            showError('Could not fetch report data: ' + error.message);
+          }
+          
+          showLoading(false);
+        });
+    }
+    
+    // Render the report data
+    function renderReport(report) {
+      if (!report) return;
+      
+      // Update title and description
+      document.getElementById('reportTitle').textContent = 
+        `Safeguard Report: ${report.project.name || 'Unknown Project'}`;
+      document.getElementById('reportDescription').textContent = 
+        report.project.description || 'No description available';
+      
+      // Render summary
+      const summaryContainer = document.getElementById('summaryContainer');
+      summaryContainer.innerHTML = `
+        <p><strong>Total Safeguards:</strong> ${report.summary.totalSafeguards}</p>
+        <p><strong>Threat Models:</strong> ${report.summary.threatModelsCount}</p>
+        <p><strong>Generated:</strong> ${new Date(report.summary.generatedAt).toLocaleString()}</p>
+      `;
+      
+      // Render safeguards
+      const safeguardsContainer = document.getElementById('safeguardsContainer');
+      safeguardsContainer.innerHTML = '';
+      
+      // Collect unique categories
+      const categories = new Set();
+      
+      report.safeguards.forEach(safeguard => {
+        const category = safeguard.category || 'Uncategorized';
+        categories.add(category);
+        
+        const priorityClass = safeguard.priority ? 
+          `priority-${safeguard.priority.toLowerCase()}` : '';
+        
+        const statusClass = safeguard.implementation_status ? 
+          `status-${safeguard.implementation_status.toLowerCase().replace(/\s+/g, '-')}` : 'status-not-started';
+        
+        const cardHtml = `
+          <div class="card safeguard-card ${priorityClass}" data-category="${category}">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <h5 class="mb-0">${safeguard.id}</h5>
+              <span class="status-badge ${statusClass}" id="status-${safeguard.id}">
+                ${safeguard.implementation_status || 'Not Started'}
+              </span>
+            </div>
+            <div class="card-body">
+              <p>${safeguard.description}</p>
+              <div class="mb-2">
+                <span class="category-badge">${category}</span>
+                ${safeguard.security_domain ? 
+                  `<span class="category-badge">${safeguard.security_domain}</span>` : ''}
+                ${safeguard.priority ? 
+                  `<span class="category-badge">${safeguard.priority} Priority</span>` : ''}
+              </div>
+              <div class="mt-3">
+                <select class="form-select form-select-sm status-select" 
+                  data-safeguard-id="${safeguard.id}" 
+                  onchange="updateSafeguardStatus(this)">
+                  <option value="Not Started" ${(safeguard.implementation_status === 'Not Started' || !safeguard.implementation_status) ? 'selected' : ''}>
+                    Not Started
+                  </option>
+                  <option value="In Progress" ${safeguard.implementation_status === 'In Progress' ? 'selected' : ''}>
+                    In Progress
+                  </option>
+                  <option value="Implemented" ${safeguard.implementation_status === 'Implemented' ? 'selected' : ''}>
+                    Implemented
+                  </option>
+                </select>
+              </div>
+            </div>
+          </div>
+        `;
+        
+        safeguardsContainer.innerHTML += cardHtml;
+      });
+      
+      // Update category filter
+      const filterCategory = document.getElementById('filterCategory');
+      filterCategory.innerHTML = '<option value="">All Categories</option>';
+      
+      Array.from(categories).sort().forEach(category => {
+        filterCategory.innerHTML += `<option value="${category}">${category}</option>`;
+      });
+      
+      // Add event listener for category filter
+      filterCategory.addEventListener('change', function() {
+        const selectedCategory = this.value;
+        const safeguardCards = document.querySelectorAll('.safeguard-card');
+        
+        safeguardCards.forEach(card => {
+          if (!selectedCategory || card.dataset.category === selectedCategory) {
+            card.style.display = 'block';
+          } else {
+            card.style.display = 'none';
+          }
+        });
+      });
+    }
+    
+    // Update safeguard implementation status
+    function updateSafeguardStatus(selectElement) {
+      const safeguardId = selectElement.dataset.safeguardId;
+      const newStatus = selectElement.value;
+      const statusBadge = document.getElementById(`status-${safeguardId}`);
+      
+      // Optimistically update UI
+      statusBadge.textContent = newStatus;
+      statusBadge.className = `status-badge status-${newStatus.toLowerCase().replace(/\s+/g, '-')}`;
+      
+      // Send update to server
+      fetch(`/safeguard-report/${projectId}/safeguard/${safeguardId}/status`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: newStatus })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to update status');
+        }
+        
+        // Update cache with new status
+        updateCachedSafeguardStatus(safeguardId, newStatus);
+        
+        console.log('Status updated successfully');
+      })
+      .catch(error => {
+        console.error('Error updating status:', error);
+        // Revert UI on error
+        alert('Failed to update status. Please try again.');
+      });
+    }
+    
+    // Export report in different formats
+    function exportReport(format) {
+      window.location.href = `/safeguard-report/${projectId}/export/${format}`;
+    }
+    
+    // Generate a new report
+    function generateReport() {
+      const useLLM = document.getElementById('useLLMSwitch').checked;
+      clearCache();
+      fetchReportData(useLLM);
+    }
+    
+    // Show/hide loading overlay
+    function showLoading(show) {
+      const loadingOverlay = document.getElementById('loadingOverlay');
+      loadingOverlay.style.display = show ? 'flex' : 'none';
+    }
+    
+    // Show/hide error container with message
+    function showError(message) {
+      const errorContainer = document.getElementById('errorContainer');
+      const errorMessage = document.getElementById('errorMessage');
+      
+      errorMessage.textContent = message;
+      errorContainer.style.display = 'block';
+    }
+    
+    // Hide error container
+    function hideError() {
+      const errorContainer = document.getElementById('errorContainer');
+      errorContainer.style.display = 'none';
+    }
+    
+    // Retry report generation
+    function retryReport() {
+      hideError();
+      fetchReportData();
+    }
+    
+    // Refresh report data
+    function refreshReport() {
+      clearCache();
+      fetchReportData();
+    }
+    
+    // Cache report data in localStorage
+    function cacheReport(data) {
+      try {
+        localStorage.setItem(`safeguard-report-${projectId}`, JSON.stringify(data));
+        localStorage.setItem(`safeguard-report-${projectId}-timestamp`, new Date().toISOString());
+      } catch (error) {
+        console.error('Error caching report:', error);
+        // If localStorage is full, clear it and try again
+        if (error.name === 'QuotaExceededError') {
+          localStorage.clear();
+          try {
+            localStorage.setItem(`safeguard-report-${projectId}`, JSON.stringify(data));
+          } catch (e) {
+            console.error('Failed to cache report even after clearing localStorage:', e);
+          }
+        }
+      }
+    }
+    
+    // Get cached report from localStorage
+    function getCachedReport() {
+      try {
+        const cachedData = localStorage.getItem(`safeguard-report-${projectId}`);
+        return cachedData ? JSON.parse(cachedData) : null;
+      } catch (error) {
+        console.error('Error reading cache:', error);
+        return null;
+      }
+    }
+    
+    // Load report from cache
+    function loadFromCache() {
+      const cachedData = getCachedReport();
+      if (cachedData && cachedData.report) {
+        currentReport = cachedData.report;
+        renderReport(currentReport);
+        return true;
+      }
+      return false;
+    }
+    
+    // Clear cached report
+    function clearCache() {
+      localStorage.removeItem(`safeguard-report-${projectId}`);
+      localStorage.removeItem(`safeguard-report-${projectId}-timestamp`);
+    }
+    
+    // Update cached safeguard status
+    function updateCachedSafeguardStatus(safeguardId, newStatus) {
+      const cachedData = getCachedReport();
+      if (cachedData && cachedData.report && cachedData.report.safeguards) {
+        const safeguard = cachedData.report.safeguards.find(s => s.id === safeguardId);
+        if (safeguard) {
+          safeguard.implementation_status = newStatus;
+          cacheReport(cachedData);
+        }
+      }
+    }
+    
+    // Show cached indicator
+    function showCachedIndicator(show) {
+      const cacheStatus = document.getElementById('cacheStatus');
+      if (show) {
+        const cachedTimestamp = localStorage.getItem(`safeguard-report-${projectId}-timestamp`);
+        const timestamp = cachedTimestamp ? new Date(cachedTimestamp).toLocaleString() : 'unknown time';
+        cacheStatus.innerHTML = `<span class="cache-indicator">Using cached data from ${timestamp}</span>`;
+      } else {
+        cacheStatus.innerHTML = '';
+      }
+    }
+  </script>
+</body>
+</html>

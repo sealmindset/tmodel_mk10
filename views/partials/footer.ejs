@@ -1,0 +1,211 @@
+  </div><!-- Close main-content container -->
+
+  <!-- Include modals -->
+  <%- include('./prompts-modal') %>
+
+  <!-- Footer -->
+  <footer class="footer mt-auto py-3">
+    <div class="container">
+      <div class="row">
+        <div class="col-md-6">
+          <h5>Threat Model Generator</h5>
+          <p class="text-muted">A tool for identifying and mitigating security threats in your systems.</p>
+        </div>
+        <div class="col-md-6 text-md-end">
+          <p class="text-muted mb-0">&copy; <%= new Date().getFullYear() %> Threat Model Generator MK4</p>
+          <p class="text-muted mb-0">
+            <small>Environment: <%= process.env.NODE_ENV || 'development' %></small>
+          </p>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Bootstrap Bundle with Popper -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- Common App JS -->
+  <script src="/js/app.js"></script>
+
+  <!-- Flash message initialization -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Check for flash messages in sessionStorage
+      const flashMessage = sessionStorage.getItem('flashMessage');
+      const flashType = sessionStorage.getItem('flashType') || 'info';
+      
+      if (flashMessage) {
+        // Create alert element
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${flashType} alert-dismissible fade show`;
+        alertDiv.role = 'alert';
+        alertDiv.innerHTML = `
+          ${flashMessage}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        `;
+        
+        // Add to flash container
+        const flashContainer = document.querySelector('.flash-container');
+        if (flashContainer) {
+          flashContainer.appendChild(alertDiv);
+        }
+        
+        // Clear the flash message
+        sessionStorage.removeItem('flashMessage');
+        sessionStorage.removeItem('flashType');
+        
+        // Auto dismiss after 5 seconds
+        setTimeout(() => {
+          const bsAlert = bootstrap.Alert.getInstance(alertDiv);
+          if (bsAlert) {
+            bsAlert.close();
+          } else {
+            alertDiv.remove();
+          }
+        }, 5000);
+      }
+    });
+  </script>
+
+  <!-- Service Status Checker (needs bootstrap) -->
+  <script src="/js/service-status-checker.js"></script>
+  
+  <!-- Flash message initialization -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Check for flash messages in sessionStorage
+      const flashMessage = sessionStorage.getItem('flashMessage');
+      const flashType = sessionStorage.getItem('flashType') || 'info';
+      
+      if (flashMessage) {
+        // Create alert element
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${flashType} alert-dismissible fade show`;
+        alertDiv.role = 'alert';
+        alertDiv.innerHTML = `
+          ${flashMessage}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        `;
+        
+        // Add to flash container
+        const flashContainer = document.querySelector('.flash-container');
+        if (flashContainer) {
+          flashContainer.appendChild(alertDiv);
+        }
+        
+        // Clear the flash message
+        sessionStorage.removeItem('flashMessage');
+        sessionStorage.removeItem('flashType');
+        
+        // Auto dismiss after 5 seconds
+        setTimeout(() => {
+          const bsAlert = bootstrap.Alert.getInstance(alertDiv);
+          if (bsAlert) {
+            bsAlert.close();
+          } else {
+            alertDiv.remove();
+          }
+        }, 5000);
+      }
+    });
+  </script>
+  
+  <% if (typeof extraJs !== 'undefined') { %>
+    <% extraJs.forEach(function(js) { %>
+      <script src="<%= js %>"></script>
+    <% }) %>
+  <% } %>
+  
+  <!-- Include the API Monitors Modals -->
+  <%- include('./openai-monitor-modal') %>
+  
+  <!-- Fixed buttons to open API Monitors -->
+  <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1030;">
+    
+  </div>
+  
+  <!-- API Monitor Scripts -->
+  <script src="/js/openai-monitor.js"></script>
+  <!-- CSS for API Monitors -->
+  <link rel="stylesheet" href="/css/ollama-monitor.css">
+  
+  <!-- AI Assistant Script -->
+  <script src="/assistantFrontend.js"></script>
+  
+  <!-- Script to toggle visibility of monitor buttons based on selected provider -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Function to update monitor button visibility
+      function updateMonitorButtons() {
+        // First try to get from sessionStorage
+        let currentProvider = sessionStorage.getItem('currentLlmProvider');
+        
+        // If not in sessionStorage, try to fetch it from the server
+        if (!currentProvider) {
+          // Use the server-provided value as fallback
+          currentProvider = '<%= typeof llmProvider !== "undefined" ? llmProvider : "openai" %>';
+          
+          // Store it in sessionStorage for future use
+          sessionStorage.setItem('currentLlmProvider', currentProvider);
+          
+          // Also fetch the latest from the server in the background
+          fetch('/api/settings/provider')
+            .then(response => response.json())
+            .then(data => {
+              if (data && data.provider) {
+                console.log('Got provider from server:', data.provider);
+                sessionStorage.setItem('currentLlmProvider', data.provider);
+                // Update UI immediately if different from current
+                if (data.provider !== currentProvider) {
+                  updateButtonsForProvider(data.provider);
+                }
+              }
+            })
+            .catch(err => console.error('Error fetching provider:', err));
+        }
+        
+        updateButtonsForProvider(currentProvider);
+      }
+      
+      // Helper function to update the UI based on provider
+      function updateButtonsForProvider(provider) {
+        // Get the monitor buttons
+        const openaiButton = document.querySelector('.openai-monitor-btn');
+        const ollamaButton = document.querySelector('.ollama-monitor-btn');
+        
+        if (openaiButton && ollamaButton) {
+          // Show/hide based on provider
+          if (provider === 'ollama') {
+            openaiButton.classList.add('d-none');
+            ollamaButton.classList.remove('d-none');
+            console.log('Showing Ollama monitor button');
+          } else {
+            openaiButton.classList.remove('d-none');
+            ollamaButton.classList.add('d-none');
+            console.log('Showing OpenAI monitor button');
+          }
+        }
+      }
+      
+      // Initial update
+      updateMonitorButtons();
+      
+      // Listen for provider changes (triggered when settings are saved)
+      window.addEventListener('providerChanged', function(event) {
+        const provider = event.detail && event.detail.provider ? event.detail.provider : null;
+        if (provider) {
+          console.log('Provider changed event:', provider);
+          sessionStorage.setItem('currentLlmProvider', provider);
+          updateButtonsForProvider(provider);
+        } else {
+          // If no provider specified in event, refresh from sessionStorage
+          updateMonitorButtons();
+        }
+      });
+      
+      // Check periodically (for page loads)
+      setInterval(updateMonitorButtons, 10000);
+    });
+  </script>
+</body>
+</html>

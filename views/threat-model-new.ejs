@@ -1,0 +1,296 @@
+<%- include('partials/header', { pageTitle, active: 'projects', extraCss: [] }) %>
+
+<%
+// Helper functions for badges and styling
+function getCriticalityClass(criticality) {
+  switch(criticality) {
+    case 'Critical': return 'danger';
+    case 'High': return 'warning';
+    case 'Medium': return 'info';
+    case 'Low': return 'success';
+    default: return 'secondary';
+  }
+}
+
+function getStatusClass(status) {
+  switch(status) {
+    case 'Active': return 'success';
+    case 'Planning': return 'info';
+    case 'Development': return 'primary';
+    case 'Maintenance': return 'warning';
+    case 'Archived': return 'secondary';
+    default: return 'secondary';
+  }
+}
+
+function getComponentTypeClass(type) {
+  switch(type) {
+    case 'Web Application': return 'primary';
+    case 'Mobile Application': return 'info';
+    case 'API': return 'success';
+    case 'Desktop Application': return 'warning';
+    case 'Database': return 'danger';
+    case 'Server': return 'dark';
+    case 'Network': return 'secondary';
+    default: return 'light';
+  }
+}
+%>
+
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="mb-0">New Threat Model for <%= project.name %></h1>
+    <div class="btn-group">
+      <a href="/projects/<%= project.id %>" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back to Project
+      </a>
+    </div>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0">Project Information</h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-6">
+          <p><strong>Name:</strong> <%= project.name %></p>
+          <p><strong>Business Unit:</strong> <%= project.business_unit || 'Not specified' %></p>
+          <p><strong>Criticality:</strong> 
+            <span class="badge bg-<%= getCriticalityClass(project.criticality) %>">
+              <%= project.criticality %>
+            </span>
+          </p>
+        </div>
+        <div class="col-md-6">
+          <p><strong>Description:</strong> <%= project.description || 'No description provided' %></p>
+          <p><strong>Status:</strong> 
+            <span class="badge bg-<%= getStatusClass(project.status) %>">
+              <%= project.status %>
+            </span>
+          </p>
+          <p><strong>Data Classification:</strong> <%= project.data_classification || 'Not specified' %></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0">Create Threat Model</h5>
+    </div>
+    <div class="card-body">
+      <form id="threatModelForm" action="/ask" method="POST" onsubmit="console.log('Form submitting with subject:', document.getElementById('subject').value)">
+        <input type="hidden" name="projectId" value="<%= project.id %>">
+        
+        <div class="mb-3">
+          <label for="subject" class="form-label">System to Analyze</label>
+          <input type="text" class="form-control" id="subject" name="subject" placeholder="e.g., Web Application, Mobile App, API Service">
+        </div>
+        
+        <script>
+          // Handle query parameter for pre-filling the subject field
+          document.addEventListener('DOMContentLoaded', function() {
+            // Get the subject from URL query parameters if present
+            const urlParams = new URLSearchParams(window.location.search);
+            const subjectParam = urlParams.get('subject');
+            
+            if (subjectParam) {
+              // Pre-fill the subject field
+              const subjectField = document.getElementById('subject');
+              if (subjectField) {
+                subjectField.value = decodeURIComponent(subjectParam);
+              }
+            }
+          });
+        </script>
+
+        <div class="mb-3">
+          <label for="aiModel" class="form-label">AI Model to Use</label>
+          <select class="form-select" id="aiModel" name="model">
+            <% if (llmProvider === 'ollama') { %>
+              <% availableOllamaModels.forEach(model => { %>
+                <option value="<%= model.name %>" <%= ollamaModel === model.name ? 'selected' : '' %>><%= model.name %></option>
+              <% }); %>
+            <% } else { %>
+              <option value="gpt-3.5-turbo" <%= openaiModel === 'gpt-3.5-turbo' ? 'selected' : '' %>>GPT-3.5 Turbo</option>
+              <option value="gpt-4" <%= openaiModel === 'gpt-4' ? 'selected' : '' %>>GPT-4</option>
+              <option value="gpt-4-turbo" <%= openaiModel === 'gpt-4-turbo' ? 'selected' : '' %>>GPT-4 Turbo</option>
+            <% } %>
+          </select>
+          <div class="form-text">
+            <% if (llmProvider === 'ollama') { %>
+              Using local Ollama models. <a href="/settings">Change provider in settings</a>.
+            <% } else { %>
+              Using OpenAI API. <a href="/settings">Change provider in settings</a>.
+            <% } %>
+          </div>
+        </div>
+
+        <!-- Prompt selection fields -->
+        <div class="mb-3">
+          <label for="promptId" class="form-label">Prompt Template</label>
+          <div class="input-group">
+            <input type="hidden" id="promptId" name="selectedPromptId">
+            <input type="text" class="form-control" id="promptTitle" name="promptTitle" placeholder="Select a prompt template" readonly>
+            <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#promptsModal">
+              <i class="bi bi-list"></i> Select
+            </button>
+          </div>
+        </div>
+
+        <div class="d-grid gap-2 mb-3">
+          <button type="button" class="btn btn-primary" id="submitBtn">
+            <i class="bi bi-lightning me-1"></i>Generate Threat Model
+          </button>
+        </div>
+
+        <script>
+          console.log('Script loaded - setting up event handlers');
+
+          // Check if button exists
+          console.log('Submit button exists:', !!document.getElementById('submitBtn'));
+          
+          // Store server-provided settings
+          const serverSettings = {
+            llmProvider: '<%= llmProvider %>',
+            openaiModel: '<%= openaiModel %>',
+            ollamaModel: '<%= ollamaModel %>'
+          };
+          
+          console.log('Server settings:', serverSettings);
+
+          // Function to handle form submission
+          function submitThreatModelForm() {
+            // Get essential values
+            const subjectText = document.getElementById('subject').value;
+            const modelValue = document.getElementById('aiModel').value;
+            const projectId = document.querySelector('input[name="projectId"]').value;
+            
+            // Validate essential fields
+            if (!subjectText) {
+              alert('Please enter a system to analyze');
+              return false;
+            }
+            
+            console.log('Submitting with subject:', subjectText);
+            console.log('Model:', modelValue);
+            console.log('Project ID:', projectId);
+            
+            // Get the selected prompt if applicable
+            const selectedPromptId = document.getElementById('promptId').value;
+            
+            console.log('Selected prompt ID:', selectedPromptId || 'none (using default template)');
+            console.log('Using LLM Provider:', serverSettings.llmProvider);
+            
+            // Create a simplified form with only the essential fields
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/ask';
+            
+            // Add the subject field
+            const subjectField = document.createElement('input');
+            subjectField.type = 'hidden';
+            subjectField.name = 'subject';
+            subjectField.value = subjectText;
+            form.appendChild(subjectField);
+            
+            // Add the model field
+            const modelField = document.createElement('input');
+            modelField.type = 'hidden';
+            modelField.name = 'model';
+            modelField.value = modelValue;
+            form.appendChild(modelField);
+            
+            // Add the selected prompt ID
+            if (selectedPromptId) {
+              const promptIdField = document.createElement('input');
+              promptIdField.type = 'hidden';
+              promptIdField.name = 'selectedPromptId';
+              promptIdField.value = selectedPromptId;
+              form.appendChild(promptIdField);
+              console.log('Added promptId to form:', selectedPromptId);
+            } else {
+              console.log('No prompt ID selected, using default template');
+            }
+            
+            // Add the LLM provider
+            const providerField = document.createElement('input');
+            providerField.type = 'hidden';
+            providerField.name = 'llmProvider';
+            providerField.value = serverSettings.llmProvider;
+            form.appendChild(providerField);
+            
+            // Add the project ID
+            const projectIdField = document.createElement('input');
+            projectIdField.type = 'hidden';
+            projectIdField.name = 'projectId';
+            projectIdField.value = projectId;
+            form.appendChild(projectIdField);
+            console.log('Added projectId to form:', projectId);
+            
+            // Submit the form
+            document.body.appendChild(form);
+            form.submit();
+            return false;
+          }
+          
+          // Initialize the model select based on settings
+          function initializeModelSelect() {
+            const modelSelect = document.getElementById('aiModel');
+            if (!modelSelect) return;
+            
+            // The template already handles the selected attribute, but let's make sure it's reflected in the UI
+            if (serverSettings.llmProvider === 'ollama') {
+              console.log('Setting default Ollama model:', serverSettings.ollamaModel);
+              // The template should have already set the selected attribute
+            } else {
+              console.log('Setting default OpenAI model:', serverSettings.openaiModel);
+              // The template should have already set the selected attribute
+            }
+          }
+          
+          // Make sure all handlers are registered once DOM is fully loaded
+          document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM fully loaded - setting up additional handlers');
+            
+            // Initialize the model select
+            initializeModelSelect();
+            
+            // Add event handler for the main submit button
+            const submitBtn = document.getElementById('submitBtn');
+            if (submitBtn) {
+              console.log('Adding click handler to submit button');
+              submitBtn.addEventListener('click', function() {
+                console.log('Submit button clicked!');
+                submitThreatModelForm();
+              });
+              console.log('Submit button handler added successfully');
+            } else {
+              console.error('Submit button not found in DOM!');
+            }
+          });
+          
+          // Add direct click handler as well for redundancy
+          if (document.getElementById('submitBtn')) {
+            document.getElementById('submitBtn').onclick = function() { 
+              console.log('Submit button clicked via onclick property');
+              submitThreatModelForm();
+              return false;
+            };
+          }
+          
+          // Handle form submission (as a fallback)
+          document.getElementById('threatModelForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            console.log('Form submission event triggered');
+            submitThreatModelForm();
+          });
+        </script>
+      </form>
+    </div>
+  </div>
+</div>
+
+<%- include('partials/prompts-modal') %>
+<%- include('partials/footer', { extraJs: ['/js/app.js', '/js/prompts-manager.js'] }) %>

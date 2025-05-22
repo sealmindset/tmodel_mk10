@@ -1,0 +1,587 @@
+<%
+// Helper functions for badges and styling
+function getCriticalityClass(criticality) {
+  switch(criticality) {
+    case 'Critical': return 'danger';
+    case 'High': return 'warning';
+    case 'Medium': return 'info';
+    case 'Low': return 'success';
+    default: return 'secondary';
+  }
+}
+
+function getStatusClass(status) {
+  switch(status) {
+    case 'Active': return 'success';
+    case 'Planning': return 'info';
+    case 'Development': return 'primary';
+    case 'Maintenance': return 'warning';
+    case 'Archived': return 'secondary';
+    default: return 'secondary';
+  }
+}
+
+function getComponentTypeClass(type) {
+  switch(type) {
+    case 'Web Application': return 'primary';
+    case 'Mobile Application': return 'info';
+    case 'API': return 'success';
+    case 'Desktop Application': return 'warning';
+    case 'Database': return 'danger';
+    case 'Server': return 'dark';
+    case 'Network': return 'secondary';
+    default: return 'light';
+  }
+}
+
+function getRiskClass(riskScore) {
+  if (riskScore >= 80) return 'bg-danger';
+  else if (riskScore >= 50) return 'bg-warning';
+  else if (riskScore >= 20) return 'bg-info';
+  else return 'bg-success';
+}
+
+function getScanStatusClass(status) {
+  switch(status ? status.toLowerCase() : '') {
+    case 'completed': return 'success';
+    case 'running': return 'primary';
+    case 'scheduled': return 'info';
+    case 'failed': return 'danger';
+    case 'cancelled': return 'secondary';
+    default: return 'secondary';
+  }
+}
+%>
+
+<%- include('partials/header', { pageTitle: `${project.name} - Project Details`, active: 'projects', extraCss: [] }) %>
+
+<div class="container mt-4">
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <% if (project.status === 'Archived') { %>
+        <li class="breadcrumb-item"><a href="/projects">Projects</a></li>
+        <li class="breadcrumb-item"><a href="/projects/archived">Archived Projects</a></li>
+        <li class="breadcrumb-item active" aria-current="page"><%= project.name %></li>
+      <% } else { %>
+        <li class="breadcrumb-item"><a href="/projects">Projects</a></li>
+        <li class="breadcrumb-item active" aria-current="page"><%= project.name %></li>
+      <% } %>
+    </ol>
+  </nav>
+
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="mb-0 d-inline-block"><%= project.name %></h1>
+      <% if (project.status === 'Archived') { %>
+        <span class="badge bg-secondary ms-2">Archived</span>
+      <% } %>
+    </div>
+    <div class="btn-group">
+      <button type="button" class="btn btn-primary" id="newThreatModelBtn">
+        <i class="bi bi-file-earmark-plus me-1"></i>Create New Model
+      </button>
+      <button type="button" class="btn btn-success" id="addComponentBtn">
+        <i class="bi bi-plus-circle me-1"></i>Add Component
+      </button>
+      <button type="button" class="btn btn-warning text-white" id="scanProjectBtn">
+        <i class="bi bi-radar me-1"></i>Scan for Vulnerabilities
+      </button>
+    </div>
+  </div>
+  
+  <!-- Alert container for notifications -->
+  <div id="projectDetailAlertContainer"></div>
+  
+  <!-- Project Overview Card -->
+  <div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">Project Overview</h5>
+      <button class="btn btn-sm btn-outline-primary" id="editProjectDetailsBtn">
+        <i class="bi bi-pencil me-1"></i>Edit
+      </button>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-8">
+          <h3><%= project.name %></h3>
+          <p class="mb-3"><%= project.description || 'No description provided' %></p>
+          
+          <div class="row mb-3">
+            <div class="col-md-4">
+              <small class="text-muted d-block">Business Unit</small>
+              <p><%= project.business_unit || 'Not specified' %></p>
+            </div>
+            <div class="col-md-4">
+              <small class="text-muted d-block">Criticality</small>
+              <span class="badge bg-<%= getCriticalityClass(project.criticality) %>">
+                <%= project.criticality %>
+              </span>
+            </div>
+            <div class="col-md-4">
+              <small class="text-muted d-block">Data Classification</small>
+              <p><%= project.data_classification || 'Not specified' %></p>
+            </div>
+          </div>
+          
+          <div class="row">
+            <div class="col-md-4">
+              <small class="text-muted d-block">Status</small>
+              <span class="badge bg-<%= getStatusClass(project.status) %>">
+                <%= project.status %>
+              </span>
+            </div>
+            <div class="col-md-4">
+              <small class="text-muted d-block">Created</small>
+              <p><%= new Date(project.created_at).toLocaleDateString() %></p>
+            </div>
+            <div class="col-md-4">
+              <small class="text-muted d-block">Last Updated</small>
+              <p><%= new Date(project.updated_at).toLocaleDateString() %></p>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card h-100 bg-light">
+            <div class="card-body">
+              <h5 class="card-title">Security Summary</h5>
+              
+              <div class="d-flex justify-content-between mb-2">
+                <span>Threat Models:</span>
+                <strong><%= (stats && stats.threat_model_count) ? stats.threat_model_count : threatModels.length %></strong>
+              </div>
+              
+              <div class="d-flex justify-content-between mb-2">
+                <span>Components:</span>
+                <strong><%= components.length %></strong>
+              </div>
+              
+              <div class="d-flex justify-content-between mb-2">
+                <span>Threats:</span>
+                <strong><%= (stats && stats.threat_count) ? stats.threat_count : 0 %></strong>
+              </div>
+              
+              <div class="d-flex justify-content-between mb-2">
+                <span>Vulnerabilities:</span>
+                <strong><%= (stats && stats.vulnerability_count) ? stats.vulnerability_count : 0 %></strong>
+              </div>
+              
+              <div class="d-flex justify-content-between mb-2">
+                <span>Open:</span>
+                <strong class="text-danger"><%= (stats && stats.open_vulnerability_count) ? stats.open_vulnerability_count : 0 %></strong>
+              </div>
+              
+              <div class="mt-3">
+                <small class="text-muted d-block mb-1">Average Risk Score</small>
+                <div class="progress" style="height: 20px;">
+                  <% const riskScore = (stats && stats.avgRiskScore) ? stats.avgRiskScore : 0; %>
+                  <div class="progress-bar <%= getRiskClass(riskScore) %>" 
+                       role="progressbar" 
+                       style="width: <%= riskScore %>%" 
+                       aria-valuenow="<%= Math.round(riskScore) %>" 
+                       aria-valuemin="0" 
+                       aria-valuemax="100">
+                    <%= Math.round(riskScore) %>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Components & Architecture -->
+  <div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">Components & Architecture</h5>
+      <button class="btn btn-sm btn-outline-primary" id="addComponentBtn2">
+        <i class="bi bi-plus-circle me-1"></i>Add Component
+      </button>
+    </div>
+    <div class="card-body">
+      <% if (components && components.length > 0) { %>
+        <div class="row">
+          <% components.forEach(component => { %>
+            <div class="col-md-4 mb-4">
+              <div class="card h-100">
+                <div class="card-body">
+                  <h5 class="card-title"><%= component.name %></h5>
+                  <p class="card-text"><%= component.description || 'No description provided' %></p>
+                  
+                  <div class="mb-2">
+                    <span class="badge bg-<%= getComponentTypeClass(component.type) %>">
+                      <%= component.type %>
+                    </span>
+                    <% if (component.tags && component.tags.length > 0) { %>
+                      <% component.tags.forEach(tag => { %>
+                        <span class="badge bg-secondary"><%= tag %></span>
+                      <% }); %>
+                    <% } %>
+                  </div>
+                  
+                  <div class="mb-3">
+                    <small class="text-muted d-block">Vulnerabilities</small>
+                    <% if (component.vulnerability_count > 0) { %>
+                      <div class="d-flex align-items-center">
+                        <div class="me-2">
+                          <span class="badge bg-danger"><%= component.critical_count || 0 %></span>
+                          <span class="badge bg-warning text-dark"><%= component.high_count || 0 %></span>
+                          <span class="badge bg-info"><%= component.medium_count || 0 %></span>
+                          <span class="badge bg-success"><%= component.low_count || 0 %></span>
+                        </div>
+                        <span class="ms-auto"><%= component.vulnerability_count %> total</span>
+                      </div>
+                    <% } else { %>
+                      <span class="text-muted">None detected</span>
+                    <% } %>
+                  </div>
+                  
+                  <div class="d-grid">
+                    <a href="/components/<%= component.id %>" class="btn btn-outline-primary btn-sm">
+                      View Details
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          <% }); %>
+        </div>
+      <% } else { %>
+        <div class="text-center py-5">
+          <i class="bi bi-boxes display-4 text-muted"></i>
+          <p class="mt-3 mb-0 text-muted">No components defined for this project</p>
+          <button class="btn btn-primary mt-3" id="addFirstComponentBtn">
+            Add Your First Component
+          </button>
+        </div>
+      <% } %>
+    </div>
+  </div>
+  
+  <!-- Threat Model Assignments -->
+  <div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">Threat Models</h5>
+      <div class="btn-group">
+        <button type="button" class="btn btn-sm btn-primary" id="assignThreatModelsBtn">
+          <i class="bi bi-link me-1"></i>Assign Threat Models
+        </button>
+        <a href="/create" class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-file-earmark-plus me-1"></i>Create New Model
+        </a>
+        <a href="/models?project_id=<%= project.id %>" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-search me-1"></i>View All Models
+        </a>
+      </div>
+    </div>
+    <div class="card-body">
+      <p class="text-muted mb-3">
+        <i class="bi bi-info-circle me-1"></i>
+        Manage threat models for this project. Assigned models will appear in the list below.
+      </p>
+      
+      <!-- Container for dynamically loaded threat models -->
+      <div id="threatModelAssignmentsContainer" style="visibility: visible;">
+  <!-- Batch Threat Model Assignment UI will be rendered here -->
+  <div id="batchAssignThreatModels"></div>
+</div>
+      
+      <!-- Server-side rendered threat models (fallback) -->
+      <% if (threatModels && threatModels.length > 0) { %>
+        <div class="row threat-models-server-rendered" style="display: none;">
+          <% threatModels.forEach(function(model) { %>
+            <div class="col-md-6 col-lg-4 mb-3">
+              <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                  <h6 class="card-title">
+                    <a href="/models/<%= model.id %>"><%= model.name %></a>
+                  </h6>
+                  <p class="mb-1 text-muted small">Created: <%= new Date(model.created_at).toLocaleDateString() %></p>
+                  <p class="mb-2"><%= model.description || 'No description provided' %></p>
+                  <div class="mb-2">
+                    <span class="badge bg-<%= getThreatModelStatusClass(model.status) %>"><%= model.status %></span>
+                    <span class="badge bg-info">Threats: <%= model.threat_count || 0 %></span>
+                    <span class="badge bg-warning">Risk: <%= typeof model.avg_risk_score === 'number' ? Math.round(model.avg_risk_score) : 'N/A' %></span>
+                  </div>
+                  <div class="d-flex justify-content-between">
+                    <a href="/models/<%= model.id %>" class="btn btn-sm btn-outline-primary">View Details</a>
+                    <button class="btn btn-sm btn-outline-danger remove-model-btn" 
+                            data-model-id="<%= model.id %>" 
+                            data-project-id="<%= project.id %>">
+                      <i class="bi bi-x-circle"></i> Remove
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          <% }); %>
+        </div>
+      <% } %>
+    </div>
+  </div>
+  
+  <!-- Vulnerability Summary -->
+  <div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">Vulnerability Summary</h5>
+      <a href="/vulnerabilities?project_id=<%= project.id %>" class="btn btn-sm btn-outline-primary">
+        <i class="bi bi-search me-1"></i>View All
+      </a>
+    </div>
+    <div class="card-body">
+      <div class="row mb-4">
+        <div class="col-lg-8">
+          <canvas id="vulnerabilitySeverityChart" 
+                 data-critical="<%= vulnerabilityStats ? (vulnerabilityStats.Critical || 0) : 0 %>"
+                 data-high="<%= vulnerabilityStats ? (vulnerabilityStats.High || 0) : 0 %>"
+                 data-medium="<%= vulnerabilityStats ? (vulnerabilityStats.Medium || 0) : 0 %>"
+                 data-low="<%= vulnerabilityStats ? (vulnerabilityStats.Low || 0) : 0 %>"
+                 height="250"></canvas>
+        </div>
+        <div class="col-lg-4">
+          <div class="card h-100 bg-light">
+            <div class="card-body">
+              <h6 class="card-title">Latest Scan</h6>
+              
+              <% if (latestScan) { %>
+                <p class="mb-1"><strong>Date:</strong> <%= new Date(latestScan.completed_at || latestScan.created_at).toLocaleDateString() %></p>
+                <p class="mb-1"><strong>Source:</strong> <%= latestScan.source %></p>
+                <p class="mb-1"><strong>Status:</strong> <span class="badge bg-<%= getScanStatusClass(latestScan.status) %>"><%= latestScan.status %></span></p>
+                <p class="mb-1"><strong>Found:</strong> <%= latestScan.vulnerabilities_found %> vulnerabilities</p>
+                
+                <button class="btn btn-sm btn-primary mt-2 w-100" id="refreshScanBtn">
+                  <i class="bi bi-arrow-repeat me-1"></i>Refresh Data
+                </button>
+              <% } else { %>
+                <p class="text-muted">No scans performed yet</p>
+                <button class="btn btn-sm btn-primary mt-2 w-100" id="startScanBtn">
+                  <i class="bi bi-radar me-1"></i>Start First Scan
+                </button>
+              <% } %>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <h6>Top Vulnerabilities</h6>
+      <% if (vulnerabilities && vulnerabilities.length > 0) { %>
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Component</th>
+                <th>Severity</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% vulnerabilities.slice(0, 5).forEach(vuln => { %>
+                <tr class="<%= vuln.severity === 'Critical' ? 'table-danger' : (vuln.severity === 'High' ? 'table-warning' : '') %>">
+                  <td><%= vuln.name %></td>
+                  <td><%= vuln.component_name || 'Unassigned' %></td>
+                  <td><%= vuln.severity %></td>
+                  <td><span class="badge bg-<%= getVulnStatusClass(vuln.status) %>"><%= vuln.status %></span></td>
+                  <td>
+                    <a href="/vulnerabilities/<%= vuln.id %>" class="btn btn-sm btn-outline-primary">View</a>
+                  </td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+      <% } else { %>
+        <div class="alert alert-info">
+          No vulnerabilities found for this project. Run a vulnerability scan to check for security issues.
+        </div>
+      <% } %>
+    </div>
+  </div>
+</div>
+
+<!-- Add Component Modal -->
+<div class="modal fade" id="addComponentModal" tabindex="-1" aria-labelledby="addComponentModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="addComponentModalLabel">Add Component</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="addComponentForm">
+          <div class="mb-3">
+            <label for="componentName" class="form-label">Component Name *</label>
+            <input type="text" class="form-control" id="componentName" required>
+          </div>
+          
+          <div class="mb-3">
+            <label for="componentDescription" class="form-label">Description</label>
+            <textarea class="form-control" id="componentDescription" rows="3"></textarea>
+          </div>
+          
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="componentType" class="form-label">Type</label>
+              <select class="form-select" id="componentType">
+                <option value="Web Application">Web Application</option>
+                <option value="API">API</option>
+                <option value="Mobile App">Mobile App</option>
+                <option value="Desktop Application">Desktop Application</option>
+                <option value="Database">Database</option>
+                <option value="Server">Server</option>
+                <option value="Network">Network</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            
+            <div class="col-md-6">
+              <label for="componentTags" class="form-label">Tags (comma separated)</label>
+              <input type="text" class="form-control" id="componentTags" placeholder="e.g., auth, frontend, docker">
+            </div>
+          </div>
+          
+          <div class="mb-3">
+            <label for="componentTechnology" class="form-label">Technology Stack</label>
+            <input type="text" class="form-control" id="componentTechnology" placeholder="e.g., React, Node.js, PostgreSQL">
+          </div>
+          
+          <div class="mb-3 form-check">
+            <input type="checkbox" class="form-check-input" id="isThirdParty">
+            <label class="form-check-label" for="isThirdParty">Third-party Component</label>
+          </div>
+          
+          <div id="thirdPartyFields" style="display: none;">
+            <div class="mb-3">
+              <label for="vendorName" class="form-label">Vendor</label>
+              <input type="text" class="form-control" id="vendorName">
+            </div>
+            
+            <div class="mb-3">
+              <label for="version" class="form-label">Version</label>
+              <input type="text" class="form-control" id="version">
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="saveComponentBtn">Add Component</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+  <!-- Chart.js for dashboard -->
+  <% if (typeof active !== 'undefined' && active === 'dashboard') { %>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <% } %>
+  
+  <!-- React libraries for components -->
+  <script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/prop-types@15.7.2/prop-types.min.js"></script>
+  
+  <!-- Component loader for React components -->
+  <script src="/js/component-loader.js"></script>
+  
+  <!-- Fetch interceptor to fix authentication issues -->
+  <script src="/js/fetch-interceptor.js"></script>
+  
+  <!-- Mock Rapid7 service for development environment -->
+  <script src="/js/mock-rapid7-service.js"></script>
+  
+  <!-- Prompts manager script -->
+  <script src="/js/prompts-manager.js" defer></script>
+  <!-- Prompts fix script -->
+  <script src="/js/fix-prompts.js" defer></script>
+  <!-- Service status checker -->
+  <script src="/js/service-status-checker.js" defer></script>
+
+<!-- Additional Chart.js version for specific features -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+
+<%- include('partials/footer', { extraJs: [] }) %>
+
+<!-- Project detail scripts -->
+<script src="/js/projectDetail.js"></script>
+
+<!-- Threat Model Assignment Components (Vanilla JS) -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+<script src="/js/threat-model-assignments-vanilla.js" defer></script>
+
+<!-- No additional initialization needed - handled by threat-model-assignments-vanilla.js -->
+
+<script>
+  // Define helper functions globally so they're available in the EJS template
+  function getCriticalityClass(criticality) {
+    switch(criticality) {
+      case 'Critical': return 'danger';
+      case 'High': return 'warning';
+      case 'Medium': return 'info';
+      case 'Low': return 'success';
+      default: return 'secondary';
+    }
+  }
+  
+  function getStatusClass(status) {
+    switch(status) {
+      case 'Active': return 'success';
+      case 'Planning': return 'info';
+      case 'Development': return 'primary';
+      case 'Maintenance': return 'warning';
+      case 'Archived': return 'secondary';
+      default: return 'secondary';
+    }
+  }
+  
+  function getComponentTypeClass(type) {
+    switch(type) {
+      case 'Web Application': return 'primary';
+      case 'API': return 'info';
+      case 'Mobile App': return 'success';
+      case 'Desktop Application': return 'warning';
+      case 'Database': return 'danger';
+      case 'Server': return 'dark';
+      case 'Network': return 'secondary';
+      default: return 'light';
+    }
+  }
+  
+  function getThreatModelStatusClass(status) {
+    switch(status) {
+      case 'Draft': return 'warning';
+      case 'Active': return 'success';
+      case 'Archived': return 'secondary';
+      case 'Reviewed': return 'info';
+      default: return 'primary';
+    }
+  }
+  
+  function getRiskClass(score) {
+    if (score >= 75) return 'bg-danger';
+    if (score >= 50) return 'bg-warning';
+    if (score >= 25) return 'bg-info';
+    return 'bg-success';
+  }
+  
+  function getVulnStatusClass(status) {
+    switch(status) {
+      case 'Open': return 'danger';
+      case 'In Progress': return 'warning';
+      case 'Fixed': return 'success';
+      default: return 'secondary';
+    }
+  }
+  
+  function getScanStatusClass(status) {
+    switch(status) {
+      case 'Completed': return 'success';
+      case 'Running': return 'primary';
+      case 'Failed': return 'danger';
+      case 'Scheduled': return 'info';
+      default: return 'secondary';
+    }
+  }
+</script>

@@ -1,0 +1,461 @@
+/**
+ * Project Assignment Service
+ * Handles the assignment of threat models to projects
+ */
+const db = require('../database');
+
+const pool = require('../database').pool;
+
+/**
+ * Get threat models assigned to a project
+ * @param {number} projectId - Project ID
+ * @param {Object} filters - Optional filters (e.g., status)
+ * @returns {Promise<Array>} - Array of threat models
+ */
+
+async function getThreatModelsForProject(projectId, filters = {}) {
+  if (!projectId) {
+    throw new Error('Project ID is required');
+
+  try {
+    // Query Postgres for threat models using direct SQL
+    const queryParams = [projectId];
+    if (filters.status) {
+      queryParams.push(filters.status);
+    }
+    const query = `
+      SELECT tm.* 
+      FROM threat_model.threat_models tm
+      JOIN threat_model.project_threat_models ptm ON tm.id = ptm.threat_model_id
+      WHERE ptm.project_id = $1
+      ${filters.status ? 'AND tm.status = $2' : ''}
+      ORDER BY tm.created_at DESC
+    `;
+    
+    const pgResult = await pool.query(query, queryParams);
+    const pgModels = pgResult.rows;
+    console.log('[DEBUG] Postgres models:', pgModels); // Debug: log Postgres models
+    
+    // Only return PostgreSQL threat models
+    return pgModels;
+  }
+  catch (error) {
+    console.error('Error getting threat models for project:', error);
+    throw error;
+  }
+}
+
+/**
+ * Assign threat models to a project
+ * @param {number} projectId - Project ID
+ * @param {Array<string|number>} threatModelIds - Array of threat model IDs to assign (can be numeric or string IDs)
+ * @param {string} assignedBy - Username of the user making the assignment
+ * @returns {Promise<Array>} - Array of assigned threat model IDs
+ */
+async function assignThreatModelsToProject(projectId, threatModelIds, assignedBy) {
+  // Validate inputs
+  if (!projectId || !Array.isArray(threatModelIds) || threatModelIds.length === 0) {
+    throw new Error('Invalid input parameters');
+
+  try {
+    // First, check if the project exists - use a cached check to improve performance
+    const projectQuery = 'SELECT id FROM threat_model.projects WHERE id = $1';
+    const projectResult = await pool.query(projectQuery, [projectId]);
+    
+    if (projectResult.rows.length === 0) {
+      throw new Error(`Project with ID ${projectId} not found`);
+    
+    // Separate PostgreSQL threat model IDs from invalid IDs
+    const pgThreatModelIds = threatModelIds.filter(id =>
+      typeof id === 'string' && id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
+    );
+    
+    // Keep IDs in their original format - PostgreSQL will handle type conversion
+    const pgIds = pgThreatModelIds;
+    
+    // Verify PostgreSQL threat models exist (if any)
+    let pgModelsValid = true;
+    if (pgIds.length > 0) {
+      try {
+        const placeholders = pgIds.map((_, i) => `$${i + 1}`).join(', ');
+        const threatModelQuery = `SELECT id FROM threat_model.threat_models WHERE id IN (${placeholders})`;
+        const threatModelResult = await pool.query(threatModelQuery, pgIds);
+        
+        if (threatModelResult.rows.length !== pgIds.length) {
+          // Find which threat models don't exist
+          const foundIds = threatModelResult.rows.map(row => row.id);
+          const missingIds = pgIds.filter(id => !foundIds.includes(id));
+          console.warn(`Some PostgreSQL threat models not found: ${missingIds.join(', ')}`);
+          pgModelsValid = false;
+        } 
+      } catch (error) {
+        console.error('Error verifying PostgreSQL threat models:', error);
+        pgModelsValid = false;
+      }
+    }
+    
+    // Start a database transaction
+    const dbClient = await db.getClient();
+    try {
+      await dbClient.query('BEGIN');
+      
+      // Only validate if we have no IDs to process at all
+      if (pgIds.length === 0) {
+        console.error('No threat models provided for assignment');
+        throw new Error('No threat models provided for assignment');
+      }
+      const insertedIds = [];
+      // Handle PostgreSQL threat models - batch insert for better performance
+      if (pgIds.length > 0) {
+        try {
+          // First check if these models exist in the database to avoid foreign key errors
+          const checkQuery = `
+            SELECT id FROM threat_model.threat_models 
+            WHERE id = ANY($1)
+          `;
+          const checkResult = await dbClient.query(checkQuery, [pgIds]);
+          
+          // Filter to only include IDs that actually exist in the threat_models table
+          const validPgIds = checkResult.rows.map(row => row.id);
+          const invalidPgIds = pgIds.filter(id => !validPgIds.includes(id));
+          
+          if (invalidPgIds.length > 0) {
+            console.warn(`Skipping ${invalidPgIds.length} invalid PostgreSQL IDs:`, invalidPgIds);
+          }
+          
+          if (validPgIds.length > 0) {
+            // Build a single query with multiple value sets for better performance
+            const values = validPgIds.map((id, index) => `($1, $${index + 2}, $${validPgIds.length + 2})`);
+            const params = [projectId, ...validPgIds, assignedBy];
+            
+            const insertQuery = `
+              INSERT INTO threat_model.project_threat_models (project_id, threat_model_id, assigned_by)
+              VALUES ${values.join(', ')}
+              ON CONFLICT (project_id, threat_model_id) DO NOTHING
+              RETURNING threat_model_id
+            `;
+            
+            console.log(`Batch inserting ${validPgIds.length} PostgreSQL threat models`);
+            const insertResult = await dbClient.query(insertQuery, params);
+            
+            // Add all inserted IDs to the result
+            insertResult.rows.forEach(row => {
+              insertedIds.push(row.threat_model_id);
+            });
+            
+            console.log(`Successfully inserted ${insertResult.rows.length} PostgreSQL threat models`);
+          } else {
+            console.log('No valid PostgreSQL threat model IDs to insert');
+          }
+        } catch (error) {
+          console.error(`Error batch inserting threat models for project ${projectId}:`, error);
+          // Continue with other models even if one fails
+        }
+      }
+      
+      await dbClient.query('COMMIT');
+      return insertedIds;
+    } catch (error) {
+      await dbClient.query('ROLLBACK');
+      throw error;
+    } finally {
+      dbClient.release();
+    }
+  } catch (error) {
+    console.error('Error assigning threat models to project:', error);
+    throw error;
+  }
+}
+
+/**
+ * Remove a threat model assignment from a project
+ * @param {number} projectId - Project ID
+ * @param {string|number} threatModelId - Threat model ID to remove (can be numeric or string ID)
+ * @returns {Promise<boolean>} - True if removed, false if not found
+ */
+async function removeThreatModelFromProject(projectId, threatModelId) {
+  if (!projectId || !threatModelId) {
+    throw new Error('Project ID and threat model ID are required');
+
+  try {
+    let removed = false;
+    
+    // Handle PostgreSQL threat model removal
+    // Keep the ID in its original format - PostgreSQL will handle type conversion
+    const pgId = threatModelId;
+    
+    // Delete the assignment
+    const query = `
+      DELETE FROM threat_model.project_threat_models
+      WHERE project_id = $1 AND threat_model_id = $2
+      RETURNING threat_model_id
+    `;
+    
+    const result = await pool.query(query, [projectId, pgId]);
+    removed = result.rows.length > 0;
+    
+    return removed;
+  } catch (error) {
+    console.error('Error removing threat model from project:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get threat models assigned to a component
+ * @param {number} componentId - Component ID
+ * @param {Object} filters - Optional filters (e.g., status)
+ * @returns {Promise<Array>} - Array of threat models
+ */
+async function getThreatModelsForComponent(componentId, filters = {}) {
+  console.log(`Getting threat models for component ${componentId} with filters:`, filters);
+  
+  try {
+    // Only fetch from PostgreSQL
+    // Now get models from PostgreSQL
+    try {
+      const pool = require('../db/db');
+      let queryText = `
+        SELECT tm.*, 
+            (SELECT COUNT(*) FROM threat_model.threat_model_threats tmt WHERE tmt.threat_model_id = tm.id) AS threat_count,
+            (SELECT AVG(t.risk_score) FROM threat_model.threats t 
+             JOIN threat_model.threat_model_threats tmt ON t.id = tmt.threat_id 
+             WHERE tmt.threat_model_id = tm.id) AS avg_risk_score
+        FROM threat_model.threat_models tm
+        JOIN threat_model.component_threat_models ctm ON tm.id = ctm.threat_model_id
+        WHERE ctm.component_id = $1
+      `;
+      const queryParams = [componentId];
+      if (filters.status) {
+        queryText += ' AND tm.status = $2';
+        queryParams.push(filters.status);
+      }
+      console.log('Executing PostgreSQL query for component threat models:', { queryText, queryParams });
+      const result = await pool.query(queryText, queryParams);
+      const allThreatModels = result.rows;
+      console.log(`Returning ${allThreatModels.length} total threat models for component ${componentId}`);
+      return allThreatModels;
+    } catch (pgError) {
+      console.error('PostgreSQL error when getting component threat models:', pgError);
+      throw pgError;
+    }
+  } catch (error) {
+    console.error(`Error in getThreatModelsForComponent for componentId ${componentId}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Assign threat models to a component
+ * Handles both Redis and PostgreSQL assignments
+ */
+async function assignThreatModelsToComponent(componentId, threatModelIds) {
+  console.log(`Assigning ${threatModelIds.length} threat models to component ${componentId}`);
+  
+  if (!componentId || !threatModelIds || !Array.isArray(threatModelIds) || threatModelIds.length === 0) {
+    console.error('Invalid input for assignThreatModelsToComponent');
+    throw new Error('Invalid input: componentId and threatModelIds are required');
+  
+  try {
+    // Split the threat model IDs into Redis models and PostgreSQL models
+    const redisModels = [];
+    const pgModels = [];
+    
+    // We need to check in PostgreSQL which models exist there
+    try {
+      // First check which of these models exist in PostgreSQL
+      const pool = require('../db/db');
+      const query = 'SELECT id FROM threat_model.threat_models WHERE id = ANY($1::uuid[])';
+      
+      // Convert all IDs to lowercase for consistency
+      const normalizedIds = threatModelIds.map(id => id.toLowerCase());
+      
+      try {
+        // Try to query PostgreSQL for these IDs
+        const result = await pool.query(query, [normalizedIds]);
+        
+        // Create a Set of IDs that exist in PostgreSQL for fast lookup
+        const pgModelIds = new Set(result.rows.map(row => row.id.toLowerCase()));
+        
+        // Categorize each model ID
+        threatModelIds.forEach(id => {
+          // If it exists in PostgreSQL, add to PG models list
+          if (pgModelIds.has(id.toLowerCase())) {
+            pgModels.push(id);
+          } else {
+            // Otherwise it's either a Redis model or doesn't exist
+            redisModels.push(id);
+              });
+      } catch (error) {
+        // If the query fails, assume all are Redis models
+        console.error('Error checking for PostgreSQL models:', error);
+        redisModels.push(...threatModelIds);
+      } catch (error) {
+      // Fall back to the old method if there's an issue with the database connection
+      console.error('Error connecting to PostgreSQL:', error);
+      
+      // Regex pattern for UUIDs
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      
+      // Categorize each model ID using the old method as a fallback
+      threatModelIds.forEach(id => {
+        if (id.startsWith('subj-') || !uuidPattern.test(id)) {
+          redisModels.push(id);
+        } else {
+          // Try both - we'll filter out ones that don't exist in PostgreSQL later
+          pgModels.push(id);
+          redisModels.push(id); // Also add to Redis for safety
+          });
+    
+    console.log(`Categorized models: ${redisModels.length} Redis models, ${pgModels.length} PostgreSQL models`);
+    
+    // Handle PostgreSQL models
+    if (pgModels.length > 0) {
+      const pool = require('../db/db');
+      
+      // First check if the component exists
+      const componentQuery = 'SELECT id FROM threat_model.components WHERE id = $1';
+      const componentResult = await pool.query(componentQuery, [componentId]);
+      
+      if (componentResult.rows.length === 0) {
+        throw new Error(`Component with ID ${componentId} not found in PostgreSQL`);
+        
+      // Batch insert all threat models to improve performance
+      try {
+        // Build the values string for a parameterized query
+        const values = [];
+        const params = [componentId];
+        let paramIndex = 2;
+        
+        for (const threatModelId of pgModels) {
+          values.push(`($1, $${paramIndex})`); 
+          params.push(threatModelId);
+          paramIndex++;
+            
+        // Insert all at once using ON CONFLICT to avoid duplicates
+        const batchInsertQuery = `
+          INSERT INTO threat_model.component_threat_models (component_id, threat_model_id)
+          VALUES ${values.join(', ')}
+          ON CONFLICT (component_id, threat_model_id) DO NOTHING
+        `;
+        
+        const result = await pool.query(batchInsertQuery, params);
+        console.log(`Successfully assigned ${result.rowCount} PostgreSQL threat models to component ${componentId}`);
+      } catch (error) {
+        // Fall back to one-by-one insertion if batch insert fails
+        console.error('Batch insert failed, falling back to individual inserts:', error);
+        
+        // Add each threat model to the component_threat_models table  
+        for (const threatModelId of pgModels) {
+          try {
+            // First verify the threat model exists
+            const threatModelQuery = 'SELECT id FROM threat_model.threat_models WHERE id = $1';
+            const threatModelResult = await pool.query(threatModelQuery, [threatModelId]);
+            
+            if (threatModelResult.rows.length === 0) {
+              console.warn(`Threat model with ID ${threatModelId} not found in PostgreSQL, skipping`);
+              continue;
+                  
+            // Check if the assignment already exists
+          const checkQuery = `
+            SELECT 1 FROM threat_model.component_threat_models 
+            WHERE component_id = $1 AND threat_model_id = $2
+          `;
+          const checkResult = await pool.query(checkQuery, [componentId, threatModelId]);
+          
+          if (checkResult.rows.length > 0) {
+            console.log(`Assignment between component ${componentId} and threat model ${threatModelId} already exists, skipping`);
+            continue;
+                
+          // Insert the new assignment
+          const insertQuery = `
+            INSERT INTO threat_model.component_threat_models (component_id, threat_model_id)
+            VALUES ($1, $2)
+          `;
+          await pool.query(insertQuery, [componentId, threatModelId]);
+          console.log(`Successfully assigned PostgreSQL threat model ${threatModelId} to component ${componentId}`);
+        } catch (error) {
+          console.error(`Error assigning PostgreSQL threat model ${threatModelId} to component ${componentId}:`, error);
+          // Continue with other models even if one fails
+          
+    // Handle Redis models
+    if (redisModels.length > 0) {
+        // Add each Redis subject to the component's subjects set
+        for (const subjectId of redisModels) {
+          // Use both plural and singular keys to be thorough
+          await redisClient.sAdd(`component:${componentId}:subjects`, subjectId);
+          await redisClient.sAdd(`component:${componentId}:subject`, subjectId);
+          
+          // Also set up the reverse relationship
+          await redisClient.sAdd(`subject:${subjectId}:components`, componentId);
+          
+          console.log(`Successfully assigned Redis subject ${subjectId} to component ${componentId}`);
+    
+    
+    return true;
+  } catch (error) {
+    console.error(`Error in assignThreatModelsToComponent for componentId ${componentId}:`, error);
+    throw error;
+}
+
+/**
+ * Remove a threat model from a component
+ * Handles both Redis and PostgreSQL removals
+ */
+async function removeThreatModelFromComponent(componentId, threatModelId) {
+  console.log(`Removing threat model ${threatModelId} from component ${componentId}`);
+  
+  if (!componentId || !threatModelId) {
+    console.error('Invalid input for removeThreatModelFromComponent');
+    throw new Error('Invalid input: componentId and threatModelId are required');
+  
+  try {
+    // Determine if this is a Redis model or PostgreSQL model
+    const isRedisModel = threatModelId.startsWith('subj-') || 
+                         !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(threatModelId);
+    
+    if (isRedisModel) {
+      // Handle Redis model removal
+      try {
+        // Remove from both plural and singular sets to be thorough
+        await redisClient.sRem(`component:${componentId}:subjects`, threatModelId);
+        await redisClient.sRem(`component:${componentId}:subject`, threatModelId);
+        
+        // Also remove the reverse relationship
+        await redisClient.sRem(`subject:${threatModelId}:components`, componentId);
+        
+        console.log(`Successfully removed Redis subject ${threatModelId} from component ${componentId}`);
+      } catch (redisError) {
+        console.error('Redis error when removing subject from component:', redisError);
+        throw redisError;
+      } else {
+      // Handle PostgreSQL model removal
+      const pool = require('../db/db');
+      
+      // Delete the assignment
+      const deleteQuery = `
+        DELETE FROM threat_model.component_threat_models 
+        WHERE component_id = $1 AND threat_model_id = $2
+      `;
+      const result = await pool.query(deleteQuery, [componentId, threatModelId]);
+      
+      if (result.rowCount === 0) {
+        console.warn(`No assignment found between component ${componentId} and threat model ${threatModelId}`);
+      } else {
+        console.log(`Successfully removed PostgreSQL threat model ${threatModelId} from component ${componentId}`);
+      
+    return true;
+  } catch (error) {
+    console.error(`Error in removeThreatModelFromComponent for componentId ${componentId} and threatModelId ${threatModelId}:`, error);
+    throw error;
+}
+
+
+module.exports = {
+  getThreatModelsForProject,
+  getThreatModelsForComponent,
+  assignThreatModelsToProject,
+  assignThreatModelsToComponent,
+  removeThreatModelFromProject,
+  removeThreatModelFromComponent
+};

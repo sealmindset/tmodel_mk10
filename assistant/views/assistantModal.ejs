@@ -1,0 +1,49 @@
+<!-- assistantModal.ejs -->
+<div id="assistant-modal" style="display:none;">
+  <div id="assistant-modal-bg">
+    <div class="assistant-modal-inner">
+      <div class="assistant-modal-header">
+        <h3>AI Chat Assistant</h3>
+        <button id="assistant-modal-close">&times;</button>
+      </div>
+      <div class="assistant-modal-controls">
+        <label>Provider:
+          <select id="assistant-provider">
+            <option value="openai">OpenAI</option>
+            <option value="ollama">Ollama (Local)</option>
+          </select>
+        </label>
+        <label>Model:
+          <select id="assistant-model"></select>
+        </label>
+        <label><input type="checkbox" id="assistant-mirror-mode"> Mirror Mode (Show both)</label>
+        <label><input type="checkbox" id="assistant-context-enabled"> Contextual Awareness</label>
+      </div>
+      <div id="assistant-chat-history" class="assistant-chat-history"></div>
+      <div class="assistant-modal-input">
+        <input id="assistant-chat-input" type="text" placeholder="Type your message...">
+        <button id="assistant-chat-send">Send</button>
+      </div>
+    </div>
+  </div>
+</div>
+<style>
+#assistant-modal-bg {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; width: 100vw; height: 100vh;
+  background: rgba(0,0,0,0.5); z-index: 10000;
+  align-items: center; justify-content: center;
+}
+.assistant-modal-inner {
+  background: white; padding: 24px; border-radius: 10px;
+  min-width: 320px; max-width: 90vw; max-height: 80vh; overflow: auto;
+}
+.assistant-modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.assistant-modal-controls { margin-bottom: 12px; display: flex; gap: 12px; flex-wrap: wrap; }
+.assistant-chat-history { background: #f4f4f4; padding: 12px; height: 180px; overflow-y: auto; margin-bottom: 12px; border-radius: 6px; font-size: 0.98em; }
+.assistant-modal-input { display: flex; gap: 8px; }
+.assistant-modal-input input { flex: 1; padding: 8px; border-radius: 4px; border: 1px solid #ccc; }
+.assistant-modal-input button { padding: 8px 14px; border-radius: 4px; background: #3a3a3a; color: white; border: none; }
+</style>
+<script src="/public/assistantFrontend.js"></script>

@@ -1,0 +1,68 @@
+/* Ollama API Monitor Styles */
+
+/* Container for API events */
+.api-events-container {
+  height: 400px;
+  overflow-y: auto;
+  border: 1px solid #dee2e6;
+  border-radius: 0.25rem;
+  padding: 0.5rem;
+}
+
+/* Event item styles */
+.event-item {
+  border-left: 4px solid #6c757d;
+}
+
+/* Event type-specific styles */
+.event-request {
+  border-left-color: #0d6efd; /* primary color */
+  background-color: rgba(13, 110, 253, 0.05);
+}
+
+.event-response {
+  border-left-color: #198754; /* success color */
+  background-color: rgba(25, 135, 84, 0.05);
+}
+
+.event-error {
+  border-left-color: #dc3545; /* danger color */
+  background-color: rgba(220, 53, 69, 0.05);
+}
+
+/* Ollama Monitor button in the corner */
+.ollama-monitor-btn {
+  position: fixed;
+  bottom: 80px; /* Position above the OpenAI Monitor button */
+  right: 20px;
+  width: 50px;
+  height: 50px;
+  z-index: 1030;
+  background-color: #343a40 !important; /* Dark background for Ollama */
+  border-color: #343a40 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Animation for monitor button */
+.ollama-monitor-btn.pulse {
+  animation: ollama-pulse 2s infinite;
+}
+
+@keyframes ollama-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(52, 58, 64, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(52, 58, 64, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(52, 58, 64, 0);
+  }
+}
+
+/* Hide the Ollama Monitor button when Ollama is not the provider */
+.ollama-monitor-btn.hidden {
+  display: none;
+}

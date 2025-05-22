@@ -1,0 +1,834 @@
+<%- include('partials/header', { pageTitle: 'Merge Threat Models', active: 'threat-models', extraCss: [] }) %>
+
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="mb-0">Merge Threat Models</h1>
+    <div class="btn-group">
+      <a href="/models" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back to Threat Models
+      </a>
+    </div>
+  </div>
+  
+  <!-- Alert container for notifications -->
+  <div id="mergeAlertContainer"></div>
+  
+  <div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0">Merge Configuration</h5>
+    </div>
+    <div class="card-body">
+      <p class="text-muted mb-3">
+        <i class="bi bi-info-circle me-1"></i>
+        Select a primary threat model and one or more source models to merge. The source models' threats will be added to the primary model.
+      </p>
+      
+      <form id="mergeForm">
+        <div class="mb-3">
+          <label class="form-label">Primary Threat Model</label>
+          <div class="primary-model-container border rounded p-3">
+            <div class="mb-3">
+              <div class="input-group">
+                <input type="text" class="form-control" id="primaryModelSearchInput" placeholder="Search primary models...">
+                <button class="btn btn-outline-secondary" type="button" id="clearPrimarySearchBtn">
+                  <i class="bi bi-x"></i>
+                </button>
+              </div>
+            </div>
+            
+            <div class="row" id="primaryPgModelsContainer">
+              <% if (pgModels && pgModels.length > 0) { %>
+                <% pgModels.forEach(model => { %>
+                  <div class="col-md-6 mb-2 primary-model-item" data-name="<%= model.name.toLowerCase() %>">
+                    <div class="form-check">
+                      <input class="form-check-input primary-model-radio" type="radio" 
+                             name="primaryModel" value="<%= model.id %>" id="primary-pg-<%= model.id %>" 
+                             data-type="pg" data-name="<%= model.name %>" required>
+                      <label class="form-check-label" for="primary-pg-<%= model.id %>">
+                        <%= model.name %> 
+                        <span class="badge bg-primary"><%= model.threat_count || 0 %> threats</span>
+                        <small class="text-muted d-block">PostgreSQL Model</small>
+                      </label>
+                    </div>
+                  </div>
+                <% }); %>
+              <% } %>
+            </div>
+            
+            <div class="row" id="primaryRedisModelsContainer">
+              <% if (redisModels && redisModels.length > 0) { %>
+                <% redisModels.forEach(model => { %>
+                  <div class="col-md-6 mb-2 primary-model-item" data-name="<%= model.title.toLowerCase() %>">
+                    <div class="form-check">
+                      <input class="form-check-input primary-model-radio" type="radio" 
+                             name="primaryModel" value="subj-<%= model.subjectid %>" id="primary-redis-<%= model.subjectid %>" 
+                             data-type="redis" data-name="<%= model.title %>" required>
+                      <label class="form-check-label" for="primary-redis-<%= model.subjectid %>">
+                        <%= model.title %> 
+                        <span class="badge bg-info"><%= model.threatCount || 0 %> threats</span>
+                        <small class="text-muted d-block">Redis Model</small>
+                      </label>
+                    </div>
+                  </div>
+                <% }); %>
+              <% } %>
+            </div>
+            
+            <% if ((!pgModels || pgModels.length === 0) && (!redisModels || redisModels.length === 0)) { %>
+              <div class="alert alert-info">
+                No threat models available for merging. Please create some threat models first.
+              </div>
+            <% } %>
+          </div>
+          <div class="form-text">Select the primary model that will receive threats from the source models.</div>
+        </div>
+        
+        <div class="mb-3">
+          <label class="form-label">Source Threat Models</label>
+          <div class="source-models-container border rounded p-3">
+            <div class="mb-3">
+              <div class="input-group">
+                <input type="text" class="form-control" id="modelSearchInput" placeholder="Search models...">
+                <button class="btn btn-outline-secondary" type="button" id="clearSearchBtn">
+                  <i class="bi bi-x"></i>
+                </button>
+              </div>
+            </div>
+            
+            <div class="row" id="pgModelsContainer">
+              <% if (pgModels && pgModels.length > 0) { %>
+                <% pgModels.forEach(model => { %>
+                  <div class="col-md-6 mb-2 model-item" data-name="<%= model.name.toLowerCase() %>">
+                    <div class="form-check">
+                      <input class="form-check-input source-model-checkbox" type="checkbox" 
+                             value="<%= model.id %>" id="pg-<%= model.id %>" 
+                             data-type="pg" data-name="<%= model.name %>">
+                      <label class="form-check-label" for="pg-<%= model.id %>">
+                        <%= model.name %> 
+                        <span class="badge bg-primary"><%= model.threat_count || 0 %> threats</span>
+                        <small class="text-muted d-block">PostgreSQL Model</small>
+                      </label>
+                    </div>
+                  </div>
+                <% }); %>
+              <% } %>
+            </div>
+            
+            <div class="row" id="redisModelsContainer">
+              <% if (redisModels && redisModels.length > 0) { %>
+                <% redisModels.forEach(model => { %>
+                  <div class="col-md-6 mb-2 model-item" data-name="<%= model.title.toLowerCase() %>">
+                    <div class="form-check">
+                      <input class="form-check-input source-model-checkbox" type="checkbox" 
+                             value="subj-<%= model.subjectid %>" id="redis-<%= model.subjectid %>" 
+                             data-type="redis" data-name="<%= model.title %>">
+                      <label class="form-check-label" for="redis-<%= model.subjectid %>">
+                        <%= model.title %> 
+                        <span class="badge bg-info"><%= model.threatCount || 0 %> threats</span>
+                        <small class="text-muted d-block">Redis Model</small>
+                      </label>
+                    </div>
+                  </div>
+                <% }); %>
+              <% } %>
+            </div>
+            
+            <% if ((!pgModels || pgModels.length === 0) && (!redisModels || redisModels.length === 0)) { %>
+              <div class="alert alert-info">
+                No threat models available for merging. Please create some threat models first.
+              </div>
+            <% } %>
+          </div>
+        </div>
+        
+        <div class="mb-3">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="confirmMerge" required>
+            <label class="form-check-label" for="confirmMerge">
+              I understand that this operation will add threats from source models to the primary model and cannot be undone.
+            </label>
+          </div>
+        </div>
+        
+        <div class="d-grid gap-2">
+          <button type="submit" class="btn btn-primary" id="mergeBtn">
+            <i class="bi bi-arrow-repeat me-1"></i>Merge Threat Models
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+  
+  <!-- Merge Preview -->
+  <div class="card mb-4 d-none" id="mergePreviewCard">
+    <div class="card-header bg-info text-white">
+      <h5 class="mb-0">Merge Preview</h5>
+    </div>
+    <div class="card-body">
+      <div class="mb-3">
+        <h6>Primary Model</h6>
+        <div class="alert alert-primary" id="primaryModelPreview"></div>
+      </div>
+      
+      <div class="mb-3">
+        <h6>Source Models</h6>
+        <div id="sourceModelsPreview"></div>
+      </div>
+      
+      <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle me-1"></i>
+        This operation will add threats from the source models to the primary model. Duplicate threats will be skipped.
+      </div>
+    </div>
+  </div>
+  
+  <!-- Merge Results -->
+  <div class="card mb-4 d-none" id="mergeResultsCard">
+    <div class="card-header bg-success text-white">
+      <h5 class="mb-0">Merge Results</h5>
+    </div>
+    <div class="card-body" id="mergeResultsContent">
+      <!-- Results will be populated here -->
+    </div>
+  </div>
+  
+  <!-- Detailed Merge Results Modal -->
+  <div class="modal fade" id="mergeResultsModal" tabindex="-1" aria-labelledby="mergeResultsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header bg-success text-white">
+          <h5 class="modal-title" id="mergeResultsModalLabel">Merge Completed Successfully</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" id="mergeResultsModalBody">
+          <!-- Detailed results will be populated here -->
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <a href="#" class="btn btn-primary" id="viewMergedModelBtn">View Merged Model</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Merge Confirmation Modal -->
+<div class="modal fade" id="confirmMergeModal" tabindex="-1" aria-labelledby="confirmMergeModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-warning text-dark">
+        <h5 class="modal-title" id="confirmMergeModalLabel">Confirm Merge</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>You are about to merge the following threat models:</p>
+        <div id="confirmMergeDetails"></div>
+        <p class="mt-3">This operation cannot be undone. Are you sure you want to proceed?</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-warning" id="confirmMergeBtn">Confirm Merge</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const mergeForm = document.getElementById('mergeForm');
+    const primaryModelRadios = document.querySelectorAll('.primary-model-radio');
+    const sourceModelCheckboxes = document.querySelectorAll('.source-model-checkbox');
+    const mergePreviewCard = document.getElementById('mergePreviewCard');
+    const primaryModelPreview = document.getElementById('primaryModelPreview');
+    const sourceModelsPreview = document.getElementById('sourceModelsPreview');
+    const mergeResultsCard = document.getElementById('mergeResultsCard');
+    const mergeResultsContent = document.getElementById('mergeResultsContent');
+    const mergeAlertContainer = document.getElementById('mergeAlertContainer');
+    const confirmMergeModal = new bootstrap.Modal(document.getElementById('confirmMergeModal'));
+    const confirmMergeDetails = document.getElementById('confirmMergeDetails');
+    const confirmMergeBtn = document.getElementById('confirmMergeBtn');
+    const modelSearchInput = document.getElementById('modelSearchInput');
+    const clearSearchBtn = document.getElementById('clearSearchBtn');
+    
+    // Handle primary model selection change
+    document.querySelectorAll('.primary-model-radio').forEach(radio => {
+      radio.addEventListener('change', function() {
+        updateMergePreview();
+        
+        // Disable the selected primary model in the source models list
+        const selectedValue = this.value;
+        sourceModelCheckboxes.forEach(checkbox => {
+          if (checkbox.value === selectedValue) {
+            checkbox.checked = false;
+            checkbox.disabled = true;
+          } else {
+            checkbox.disabled = false;
+          }
+        });
+      });
+    });
+    
+    // Handle source model selection change
+    sourceModelCheckboxes.forEach(checkbox => {
+      checkbox.addEventListener('change', updateMergePreview);
+    });
+    
+    // Handle form submission
+    mergeForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      // Get selected models
+      const selectedPrimaryModel = document.querySelector('.primary-model-radio:checked');
+      const primaryModelId = selectedPrimaryModel ? selectedPrimaryModel.value : null;
+      const sourceModelIds = Array.from(document.querySelectorAll('.source-model-checkbox:checked')).map(cb => cb.value);
+      
+      if (!primaryModelId) {
+        showAlert('Please select a primary model.', 'danger');
+        return;
+      }
+      
+      if (sourceModelIds.length === 0) {
+        showAlert('Please select at least one source model.', 'danger');
+        return;
+      }
+      
+      // Show confirmation modal
+      const primaryModelName = selectedPrimaryModel.dataset.name;
+      const sourceModelNames = Array.from(document.querySelectorAll('.source-model-checkbox:checked')).map(cb => cb.dataset.name);
+      
+      let confirmHtml = `<div class="alert alert-primary">Primary: ${primaryModelName}</div>`;
+      confirmHtml += '<div class="alert alert-secondary">Sources:</div>';
+      confirmHtml += '<ul>';
+      sourceModelNames.forEach(name => {
+        confirmHtml += `<li>${name}</li>`;
+      });
+      confirmHtml += '</ul>';
+      
+      confirmMergeDetails.innerHTML = confirmHtml;
+      confirmMergeModal.show();
+      
+      // Handle confirm button click
+      confirmMergeBtn.onclick = function() {
+        confirmMergeModal.hide();
+        performMerge(primaryModelId, sourceModelIds);
+      };
+    });
+    
+    // Source models search functionality
+    modelSearchInput.addEventListener('input', function() {
+      const searchTerm = this.value.toLowerCase();
+      const modelItems = document.querySelectorAll('.model-item');
+      
+      modelItems.forEach(item => {
+        const modelName = item.dataset.name;
+        if (modelName.includes(searchTerm)) {
+          item.style.display = '';
+        } else {
+          item.style.display = 'none';
+        }
+      });
+    });
+    
+    // Clear source models search
+    clearSearchBtn.addEventListener('click', function() {
+      modelSearchInput.value = '';
+      const modelItems = document.querySelectorAll('.model-item');
+      modelItems.forEach(item => {
+        item.style.display = '';
+      });
+    });
+    
+    // Primary model search functionality
+    const primaryModelSearchInput = document.getElementById('primaryModelSearchInput');
+    const clearPrimarySearchBtn = document.getElementById('clearPrimarySearchBtn');
+    
+    primaryModelSearchInput.addEventListener('input', function() {
+      const searchTerm = this.value.toLowerCase();
+      const modelItems = document.querySelectorAll('.primary-model-item');
+      
+      modelItems.forEach(item => {
+        const modelName = item.dataset.name;
+        if (modelName.includes(searchTerm)) {
+          item.style.display = '';
+        } else {
+          item.style.display = 'none';
+        }
+      });
+    });
+    
+    // Clear primary model search
+    clearPrimarySearchBtn.addEventListener('click', function() {
+      primaryModelSearchInput.value = '';
+      const modelItems = document.querySelectorAll('.primary-model-item');
+      modelItems.forEach(item => {
+        item.style.display = '';
+      });
+    });
+    
+    // Update merge preview
+    function updateMergePreview() {
+      const selectedPrimaryModel = document.querySelector('.primary-model-radio:checked');
+      const primaryModelId = selectedPrimaryModel ? selectedPrimaryModel.value : null;
+      const sourceModelIds = Array.from(document.querySelectorAll('.source-model-checkbox:checked')).map(cb => cb.value);
+      
+      if (primaryModelId && sourceModelIds.length > 0) {
+        mergePreviewCard.classList.remove('d-none');
+        
+        // Update primary model preview
+        const primaryModelName = selectedPrimaryModel.dataset.name;
+        primaryModelPreview.textContent = primaryModelName;
+        
+        // Update source models preview
+        let sourceHtml = '';
+        sourceModelIds.forEach(id => {
+          const checkbox = document.querySelector(`.source-model-checkbox[value="${id}"]`);
+          const modelName = checkbox.dataset.name;
+          sourceHtml += `<div class="alert alert-secondary mb-2">${modelName}</div>`;
+        });
+        
+        sourceModelsPreview.innerHTML = sourceHtml;
+      } else {
+        mergePreviewCard.classList.add('d-none');
+      }
+    }
+    
+    // Perform the merge operation
+    async function performMerge(primaryModelId, sourceModelIds) {
+      // Show loading state
+      showAlert('Merging threat models... This may take a moment.', 'info');
+      
+      // Check if we're working with Redis models
+      const isRedisModel = primaryModelId.startsWith('subj-');
+      
+      if (isRedisModel) {
+        // For Redis models, implement direct client-side merging
+        try {
+          await mergeRedisModels(primaryModelId, sourceModelIds);
+        } catch (error) {
+          console.error('Error merging Redis models:', error);
+          showAlert('Error merging Redis models: ' + error.message, 'danger');
+          return;
+        }
+      } else {
+        // For PostgreSQL models, use the server endpoint
+        fetch('/api/threat-models/merge', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            primaryModelId,
+            sourceModelIds
+          })
+        })
+        .then(response => {
+          if (!response.ok) {
+            return response.json().then(data => {
+              throw new Error(data.error || 'Error merging threat models');
+            });
+          }
+          return response.json();
+        })
+        .then(data => {
+          if (data.success) {
+            console.log('Merge successful:', data);
+            
+            // Show success message
+            showAlert('Threat models merged successfully!', 'success');
+            
+            // Show merge results
+            mergeResultsCard.classList.remove('d-none');
+            
+            // Get metrics from response
+            const metrics = data.data.metrics || {};
+            const model = data.data.model || {};
+            
+            // Show results summary in the card
+            let resultsHtml = `
+              <div class="alert alert-success">
+                <h6>Merge Completed Successfully</h6>
+                <p>The threat models have been merged successfully.</p>
+              </div>
+              
+              <div class="card mb-3">
+                <div class="card-header">Merge Statistics</div>
+                <div class="card-body">
+                  <ul>
+                    <li><strong>Threats Added:</strong> ${metrics.total_threats_added || 0}</li>
+                    <li><strong>Threats Skipped (Duplicates):</strong> ${metrics.total_threats_skipped || 0}</li>
+                    <li><strong>Models Processed:</strong> ${metrics.source_models_processed || 0}</li>
+                  </ul>
+                </div>
+              </div>
+              
+              <div class="d-grid gap-2 d-md-flex justify-content-md-between">
+                <button type="button" class="btn btn-info" id="showDetailedResultsBtn">
+                  <i class="bi bi-list-check me-1"></i>View Detailed Results
+                </button>
+                <a href="${model.is_redis_model ? `/results?subjectid=${model.id}` : `/models/${model.id}`}" class="btn btn-primary">
+                  <i class="bi bi-eye me-1"></i>View Merged Model
+                </a>
+              </div>
+            `;
+            
+            // Prepare detailed results for the modal
+            let detailedResultsHtml = `
+              <div class="row mb-3">
+                <div class="col-md-6">
+                  <div class="alert alert-primary">
+                    <h6>Summary</h6>
+                    <ul class="list-unstyled mb-0">
+                      <li><strong>Total Threats Added:</strong> ${metrics.total_threats_added || 0}</li>
+                      <li><strong>Total Threats Skipped:</strong> ${metrics.total_threats_skipped || 0}</li>
+                    </ul>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="alert alert-info">
+                    <h6>Primary Model</h6>
+                    <p class="mb-0" id="primaryModelDetailName">${model.name || 'Unknown'}</p>
+                  </div>
+                </div>
+              </div>
+              
+              <h6 class="border-bottom pb-2 mb-3">Source Model Details</h6>
+              <div class="table-responsive">
+                <table class="table table-striped table-bordered">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Model Name</th>
+                      <th>Type</th>
+                      <th>Total Threats</th>
+                      <th>Threats Added</th>
+                      <th>Threats Skipped</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+            `;
+            
+            // Add rows for each source model
+            if (metrics.model_details && metrics.model_details.length > 0) {
+              metrics.model_details.forEach(model => {
+                detailedResultsHtml += `
+                  <tr>
+                    <td>${model.name || 'Unknown'}</td>
+                    <td><span class="badge bg-${model.type === 'redis' ? 'info' : 'primary'}">${model.type || 'unknown'}</span></td>
+                    <td>${model.total_threats || 0}</td>
+                    <td>
+                      <span class="badge bg-success">${model.threats_added || 0}</span>
+                    </td>
+                    <td>
+                      <span class="badge bg-warning text-dark">${model.threats_skipped || 0}</span>
+                    </td>
+                  </tr>
+                `;
+              });
+            } else {
+              detailedResultsHtml += `
+                <tr>
+                  <td colspan="5" class="text-center">No detailed model information available</td>
+                </tr>
+              `;
+            }
+            
+            detailedResultsHtml += `
+                  </tbody>
+                </table>
+              </div>
+              
+              <div class="alert alert-warning mt-3">
+                <h6><i class="bi bi-info-circle me-1"></i>About Skipped Threats</h6>
+                <p class="mb-0">Threats are skipped when they are determined to be duplicates or very similar to threats already in the primary model. This helps prevent redundancy in your threat model.</p>
+              </div>
+            `;
+            
+            // Update the results card
+            mergeResultsContent.innerHTML = resultsHtml;
+            
+            // Set up the detailed results modal
+            document.getElementById('mergeResultsModalBody').innerHTML = detailedResultsHtml;
+            document.getElementById('viewMergedModelBtn').href = model.is_redis_model ? `/results?subjectid=${model.id}` : `/threat-models/${model.id}`;
+            
+            // Set primary model name in the detailed results
+            document.getElementById('primaryModelDetailName').textContent = model.name || 'Unknown';
+            
+            // Set up the button to show detailed results
+            document.getElementById('showDetailedResultsBtn').addEventListener('click', function() {
+              const mergeResultsModal = new bootstrap.Modal(document.getElementById('mergeResultsModal'));
+              mergeResultsModal.show();
+            });
+            
+            // Scroll to results
+            mergeResultsCard.scrollIntoView({ behavior: 'smooth' });
+            
+            // Reset form
+            mergeForm.reset();
+            mergePreviewCard.classList.add('d-none');
+            
+            // Show the detailed results modal automatically
+            const mergeResultsModal = new bootstrap.Modal(document.getElementById('mergeResultsModal'));
+            mergeResultsModal.show();
+          } else {
+            showAlert(data.error || 'Error merging threat models', 'danger');
+          }
+        })
+        .catch(error => {
+          console.error('Error merging threat models:', error);
+          showAlert(error.message || 'Error merging threat models', 'danger');
+        });
+      }
+    
+    // Direct Redis model merging implementation
+    async function mergeRedisModels(primaryModelId, sourceModelIds) {
+      console.log('Performing client-side Redis model merge');
+      
+      // Extract Redis IDs
+      const primaryRedisId = primaryModelId.substring(5);
+      const sourceRedisIds = sourceModelIds.map(id => id.startsWith('subj-') ? id.substring(5) : id);
+      
+      // Track metrics
+      const mergeMetrics = {
+        total_threats_added: 0,
+        total_threats_skipped: 0,
+        total_safeguards_added: 0,
+        source_models_processed: 0,
+        redis_models_processed: 0,
+        model_details: []
+      };
+      
+      // Get primary model data
+      const primaryResponse = await fetch(`/results/data?subjectid=${primaryRedisId}`);
+      if (!primaryResponse.ok) {
+        throw new Error(`Failed to fetch primary model data: ${primaryResponse.statusText}`);
+      }
+      
+      const primaryData = await primaryResponse.json();
+      if (!primaryData || !primaryData.response) {
+        throw new Error('Primary model data is invalid');
+      }
+      
+      let primaryResponseText = primaryData.response;
+      let currentThreatCount = parseInt(primaryData.threatCount || '0', 10);
+      
+      // Process each source model
+      for (const sourceId of sourceRedisIds) {
+        // Skip if source is the same as primary
+        if (sourceId === primaryRedisId) continue;
+        
+        // Get source model data
+        const sourceResponse = await fetch(`/results/data?subjectid=${sourceId}`);
+        if (!sourceResponse.ok) {
+          console.warn(`Failed to fetch source model ${sourceId}, skipping`);
+          continue;
+        }
+        
+        const sourceData = await sourceResponse.json();
+        if (!sourceData || !sourceData.response) {
+          console.warn(`Source model ${sourceId} data is invalid, skipping`);
+          continue;
+        }
+        
+        // Add model to metrics
+        mergeMetrics.model_details.push({
+          id: `subj-${sourceId}`,
+          name: sourceData.title || `Model ${sourceId}`,
+          type: 'redis',
+          total_threats: parseInt(sourceData.threatCount || '0', 10),
+          threats_added: 1, // Simplified for now
+          threats_skipped: 0
+        });
+        
+        // Add a merge note
+        const mergeNote = `\n\n## Merged from model: ${sourceData.title || `Model ${sourceId}`} (ID: ${sourceId})\n`;
+        
+        // Append source content to primary model
+        primaryResponseText += mergeNote + sourceData.response;
+        
+        // Count as processed
+        mergeMetrics.redis_models_processed++;
+        mergeMetrics.total_threats_added++;
+      }
+      
+      // Update the primary model with merged content
+      const updateResponse = await fetch('/update-response', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          subjectid: primaryRedisId,
+          response: primaryResponseText
+        })
+      });
+      
+      if (!updateResponse.ok) {
+        throw new Error(`Failed to update primary model: ${updateResponse.statusText}`);
+      }
+      
+      // Update threat count
+      const newThreatCount = currentThreatCount + mergeMetrics.total_threats_added;
+      
+      // Get primary model name
+      const primaryModelName = primaryData.title || `Model ${primaryRedisId}`;
+      
+      // Show success message and results
+      showAlert('Threat models merged successfully!', 'success');
+      
+      // Show merge results
+      mergeResultsCard.classList.remove('d-none');
+      
+      // Show results summary in the card
+      let resultsHtml = `
+        <div class="alert alert-success">
+          <h6>Merge Completed Successfully</h6>
+          <p>The threat models have been merged successfully.</p>
+        </div>
+        
+        <div class="card mb-3">
+          <div class="card-header">Merge Statistics</div>
+          <div class="card-body">
+            <ul>
+              <li><strong>Threats Added:</strong> ${mergeMetrics.total_threats_added}</li>
+              <li><strong>Threats Skipped (Duplicates):</strong> ${mergeMetrics.total_threats_skipped}</li>
+              <li><strong>Redis Models Processed:</strong> ${mergeMetrics.redis_models_processed}</li>
+            </ul>
+          </div>
+        </div>
+        
+        <div class="d-grid gap-2 d-md-flex justify-content-md-between">
+          <button type="button" class="btn btn-info" id="showDetailedResultsBtn">
+            <i class="bi bi-list-check me-1"></i>View Detailed Results
+          </button>
+          <a href="/results?subjectid=${primaryRedisId}" class="btn btn-primary">
+            <i class="bi bi-eye me-1"></i>View Merged Model
+          </a>
+        </div>
+      `;
+      
+      // Prepare detailed results for the modal
+      let detailedResultsHtml = `
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <div class="alert alert-primary">
+              <h6>Summary</h6>
+              <ul class="list-unstyled mb-0">
+                <li><strong>Total Threats Added:</strong> ${mergeMetrics.total_threats_added}</li>
+                <li><strong>Total Threats Skipped:</strong> ${mergeMetrics.total_threats_skipped}</li>
+              </ul>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="alert alert-info">
+              <h6>Primary Model</h6>
+              <p class="mb-0">${primaryModelName}</p>
+            </div>
+          </div>
+        </div>
+        
+        <h6 class="border-bottom pb-2 mb-3">Source Model Details</h6>
+        <div class="table-responsive">
+          <table class="table table-striped table-bordered">
+            <thead class="table-light">
+              <tr>
+                <th>Model Name</th>
+                <th>Type</th>
+                <th>Total Threats</th>
+                <th>Threats Added</th>
+                <th>Threats Skipped</th>
+              </tr>
+            </thead>
+            <tbody>
+      `;
+      
+      // Add rows for each source model
+      if (mergeMetrics.model_details && mergeMetrics.model_details.length > 0) {
+        mergeMetrics.model_details.forEach(model => {
+          detailedResultsHtml += `
+            <tr>
+              <td>${model.name}</td>
+              <td><span class="badge bg-${model.type === 'redis' ? 'info' : 'primary'}">${model.type}</span></td>
+              <td>${model.total_threats}</td>
+              <td>
+                <span class="badge bg-success">${model.threats_added}</span>
+              </td>
+              <td>
+                <span class="badge bg-warning text-dark">${model.threats_skipped}</span>
+              </td>
+            </tr>
+          `;
+        });
+      } else {
+        detailedResultsHtml += `
+          <tr>
+            <td colspan="5" class="text-center">No detailed model information available</td>
+          </tr>
+        `;
+      }
+      
+      detailedResultsHtml += `
+            </tbody>
+          </table>
+        </div>
+        
+        <div class="alert alert-warning mt-3">
+          <h6><i class="bi bi-info-circle me-1"></i>About Skipped Threats</h6>
+          <p class="mb-0">Threats are skipped when they are determined to be duplicates or very similar to threats already in the primary model. This helps prevent redundancy in your threat model.</p>
+        </div>
+      `;
+      
+      // Update the results card
+      mergeResultsContent.innerHTML = resultsHtml;
+      
+      // Set up the detailed results modal
+      document.getElementById('mergeResultsModalBody').innerHTML = detailedResultsHtml;
+      document.getElementById('viewMergedModelBtn').href = `/results?subjectid=${primaryRedisId}`;
+      
+      // Set primary model name in the detailed results
+      document.getElementById('primaryModelDetailName').textContent = primaryModelName;
+      
+      // Set up the button to show detailed results
+      document.getElementById('showDetailedResultsBtn').addEventListener('click', function() {
+        const mergeResultsModal = new bootstrap.Modal(document.getElementById('mergeResultsModal'));
+        mergeResultsModal.show();
+      });
+      
+      // Scroll to results
+      mergeResultsCard.scrollIntoView({ behavior: 'smooth' });
+      
+      // Reset form
+      mergeForm.reset();
+      mergePreviewCard.classList.add('d-none');
+      
+      // Show the detailed results modal automatically
+      const mergeResultsModal = new bootstrap.Modal(document.getElementById('mergeResultsModal'));
+      mergeResultsModal.show();
+      
+      return {
+        success: true,
+        data: {
+          model: {
+            id: primaryRedisId,
+            name: primaryModelName,
+            is_redis_model: true,
+            threat_count: newThreatCount
+          },
+          metrics: mergeMetrics
+        }
+      };
+    }
+    
+    // Show alert message
+    function showAlert(message, type) {
+      const alertHtml = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+          ${message}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      `;
+      
+      mergeAlertContainer.innerHTML = alertHtml;
+    }
+  });
+</script>
+
+<%- include('partials/footer', { extraJs: [] }) %>

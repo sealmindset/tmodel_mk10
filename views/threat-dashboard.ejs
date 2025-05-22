@@ -1,0 +1,274 @@
+<%- include('partials/header', { pageTitle: 'Threat Dashboard - Threat Model Generator', active: 'threats', extraCss: ['/css/risk-matrix.css'] }) %>
+
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="mb-0">Threat Dashboard</h1>
+    <div class="btn-group">
+      <button type="button" class="btn btn-primary" id="newThreatBtn">
+        <i class="bi bi-plus-circle me-1"></i>New Threat
+      </button>
+      <button type="button" class="btn btn-success" id="newSafeguardBtn">
+        <i class="bi bi-shield-plus me-1"></i>New Safeguard
+      </button>
+      <button type="button" class="btn btn-warning text-white" id="scanVulnerabilitiesBtn">
+        <i class="bi bi-radar me-1"></i>Scan Vulnerabilities
+      </button>
+    </div>
+  </div>
+  
+  <!-- Alert container for notifications -->
+  <div id="alertContainer"></div>
+  
+  <!-- Project and Model Selector -->
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-body">
+          <div class="mb-3">
+            <label for="projectSelector" class="form-label">Select Project</label>
+            <select class="form-select" id="projectSelector">
+              <option value="">Select a project...</option>
+              <% projects.forEach(project => { %>
+                <option value="<%= project.id %>" <%= selectedProject && selectedProject.id === project.id ? 'selected' : '' %>>
+                  <%= project.name %>
+                </option>
+              <% }); %>
+            </select>
+          </div>
+          <% if (selectedProject) { %>
+            <div class="mb-0">
+              <label for="modelVersionSelector" class="form-label">Select Threat Model</label>
+              <select class="form-select" id="modelVersionSelector">
+                <% threatModels.forEach(model => { %>
+                  <option value="<%= model.id %>" <%= selectedModel && selectedModel.id === model.id ? 'selected' : '' %>>
+                    <%= model.name %> (v<%= model.model_version %>)
+                  </option>
+                <% }); %>
+              </select>
+            </div>
+          <% } %>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">Model Summary</h5>
+          <% if (selectedModel) { %>
+            <div class="row">
+              <div class="col-6">
+                <p class="mb-1"><strong>Status:</strong> <span class="badge bg-<%= getBadgeColor(selectedModel.status) %>"><%= selectedModel.status %></span></p>
+                <p class="mb-1"><strong>Created:</strong> <%= new Date(selectedModel.created_at).toLocaleDateString() %></p>
+              </div>
+              <div class="col-6">
+                <p class="mb-1"><strong>Threats:</strong> <span id="threatCount"><%= threatCount %></span></p>
+                <p class="mb-1"><strong>Risk Score:</strong> <span id="avgRiskScore"><%= averageRiskScore %></span>/100</p>
+              </div>
+            </div>
+            <input type="hidden" id="currentModelId" value="<%= selectedModel.id %>">
+          <% } else { %>
+            <div class="text-center py-3">
+              <p class="text-secondary mb-0">Select a project and model to view summary</p>
+            </div>
+          <% } %>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Risk Matrix and Metrics -->
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-header">
+          <h5 class="mb-0">Risk Matrix</h5>
+        </div>
+        <div class="card-body">
+          <div id="riskMatrix" class="risk-matrix-container">
+            <% if (!selectedModel) { %>
+              <div class="text-center py-5">
+                <p class="text-secondary mb-0">Select a threat model to view the risk matrix</p>
+              </div>
+            <% } %>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-header">
+          <h5 class="mb-0">Risk Metrics by Category</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="riskMetricsChart"></canvas>
+          <% if (!selectedModel) { %>
+            <div class="text-center py-5">
+              <p class="text-secondary mb-0">Select a threat model to view risk metrics</p>
+            </div>
+          <% } %>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Safeguards and Vulnerabilities -->
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-header">
+          <h5 class="mb-0">Safeguard Effectiveness</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="safeguardEffectivenessChart"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-header">
+          <h5 class="mb-0">Vulnerability Trends</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="vulnerabilityTrendsChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Top Threats Table -->
+  <div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">Top Threats</h5>
+      <% if (selectedModel) { %>
+        <a href="/models/<%= selectedModel.id %>/threats" class="btn btn-sm btn-outline-primary">View All</a>
+      <% } %>
+    </div>
+    <div class="card-body p-0">
+      <% if (selectedModel && topThreats && topThreats.length > 0) { %>
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Category</th>
+                <th>Likelihood</th>
+                <th>Impact</th>
+                <th>Risk Score</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% topThreats.forEach(threat => { %>
+                <tr>
+                  <td><%= threat.name %></td>
+                  <td><%= threat.category %></td>
+                  <td><span class="badge bg-<%= getLikelihoodBadge(threat.likelihood) %>"><%= threat.likelihood %></span></td>
+                  <td><span class="badge bg-<%= getImpactBadge(threat.impact) %>"><%= threat.impact %></span></td>
+                  <td>
+                    <div class="progress" style="height: 20px;">
+                      <div class="progress-bar <%= getRiskProgressBarClass(threat.risk_score) %>" role="progressbar" style="width: <%= threat.risk_score %>%;" aria-valuenow="<%= threat.risk_score %>" aria-valuemin="0" aria-valuemax="100"><%= threat.risk_score %></div>
+                    </div>
+                  </td>
+                  <td><span class="badge bg-<%= getStatusBadge(threat.status) %>"><%= threat.status %></span></td>
+                  <td>
+                    <a href="/threats/<%= threat.id %>" class="btn btn-sm btn-outline-primary">View</a>
+                  </td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+      <% } else { %>
+        <div class="text-center py-4">
+          <p class="text-secondary mb-0">No threats available</p>
+        </div>
+      <% } %>
+    </div>
+  </div>
+</div>
+
+<!-- Threat List Modal -->
+<div class="modal fade" id="threatListModal" tabindex="-1" aria-labelledby="threatListModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="threatListModalLabel">Threats</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="table-responsive">
+          <table class="table table-hover" id="modalThreatTable">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Category</th>
+                <th>Risk Score</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Populated by JavaScript -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Include Chart.js before including the dashboard script -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+
+<%- include('partials/footer', { extraJs: ['/js/threatModeling.js'] }) %>
+
+<script>
+  // Helper functions for badges and styling
+  function getBadgeColor(status) {
+    switch(status) {
+      case 'Draft': return 'warning';
+      case 'Active': return 'success';
+      case 'Archived': return 'secondary';
+      case 'Reviewed': return 'info';
+      default: return 'primary';
+    }
+  }
+  
+  function getLikelihoodBadge(likelihood) {
+    switch(likelihood) {
+      case 'High': return 'danger';
+      case 'Medium': return 'warning';
+      case 'Low': return 'success';
+      default: return 'secondary';
+    }
+  }
+  
+  function getImpactBadge(impact) {
+    switch(impact) {
+      case 'High': return 'danger';
+      case 'Medium': return 'warning';
+      case 'Low': return 'success';
+      default: return 'secondary';
+    }
+  }
+  
+  function getStatusBadge(status) {
+    switch(status) {
+      case 'Open': return 'danger';
+      case 'Mitigated': return 'success';
+      case 'Accepted': return 'warning';
+      case 'In Progress': return 'info';
+      default: return 'secondary';
+    }
+  }
+  
+  function getRiskProgressBarClass(score) {
+    if (score >= 75) return 'bg-danger';
+    if (score >= 50) return 'bg-warning';
+    if (score >= 25) return 'bg-info';
+    return 'bg-success';
+  }
+</script>

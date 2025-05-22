@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Ollama API Settings</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</head>
+<body>
+  <%- include('./partials/header.ejs') %>
+  <div class="container mt-4">
+    <h1>Ollama API Settings</h1>
+    <form action="/settings/ollama" method="POST">
+      <div class="mb-3">
+        <label class="form-label">API URL</label>
+        <input type="url" class="form-control" name="ollama_api_url" value="<%= settings['ollama.api_url'] || '' %>" placeholder="http://localhost:11434">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Model</label>
+        <% if (models && models.length) { %>
+          <select name="ollama_model" class="form-select">
+            <% models.forEach(function(model) { %>
+              <option value="<%= model %>" <%= settings['ollama.model'] === model ? 'selected' : '' %>><%= model %></option>
+            <% }) %>
+          </select>
+        <% } else { %>
+          <div class="alert alert-warning">No models found. Make sure Ollama is running and models are pulled.</div>
+        <% } %>
+      </div>
+      <button type="submit" class="btn btn-primary">Save</button>
+    </form>
+    <form action="/settings/ollama" method="POST" class="mt-2">
+      <input type="hidden" name="action" value="start_ollama">
+      <button type="submit" class="btn btn-secondary">Start Ollama Serve</button>
+    </form>
+    </form>
+    <% if (message) { %>
+      <div class="alert alert-<%= message.type %> mt-3"> <%= message.text %> </div>
+    <% } %>
+  </div>
+</body>
+</html>

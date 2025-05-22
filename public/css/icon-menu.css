@@ -1,0 +1,58 @@
+/**
+ * Icon-only Menu Styles
+ * 
+ * Styles for the icon-only top navigation menu
+ */
+
+/* Make icons larger and add spacing */
+.navbar-nav .nav-item .nav-link i.bi {
+  font-size: 1.25rem;
+  margin: 0 0.5rem;
+}
+
+/* Add a subtle hover effect */
+.navbar-nav .nav-item .nav-link:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+/* Style for active menu item */
+.navbar-nav .nav-item .nav-link.active {
+  background-color: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+
+/* Add tooltip styling */
+.navbar-nav .nav-item .nav-link[title]:hover::after {
+  content: attr(title);
+  position: absolute;
+  bottom: -25px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+/* Ensure the navbar has proper spacing */
+.navbar .container {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+/* Make sure dropdown menus still show text */
+.dropdown-menu .dropdown-item {
+  display: flex;
+  align-items: center;
+}
+
+/* Ensure service status indicators are properly aligned */
+.service-status {
+  margin-right: 1rem;
+}

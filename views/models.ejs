@@ -1,0 +1,693 @@
+<%- include('partials/header', { pageTitle: 'All Threat Models - Threat Model Generator', active: 'models', extraCss: [
+  'https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css',
+  'https://cdn.datatables.net/responsive/2.4.0/css/responsive.bootstrap5.min.css'
+] }) %>
+
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="mb-0">All Threat Models</h1>
+    <script src="/js/models-crud.js"></script>
+    <div class="btn-group">
+      <a href="/create" class="btn btn-primary">
+        <i class="bi bi-plus-circle me-1"></i>Create New Threat Model
+      </a>
+      <a href="/merge-threat-models" class="btn btn-outline-primary">
+        <i class="bi bi-arrow-repeat me-1"></i>Merge Models
+      </a>
+      <button type="button" class="btn btn-outline-secondary" id="refreshModels">
+        <i class="bi bi-arrow-repeat me-1"></i>Refresh
+      </button>
+    </div>
+  </div>
+  
+  <!-- Toast container for notifications -->
+  <div id="toastContainer" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
+
+  <!-- Bulk Actions Row -->
+  <div class="row mb-3">
+    <div class="col-md-12 text-md-end">
+      <div class="btn-group">
+        <button type="button" class="btn btn-outline-danger" id="deleteSelectedBtn" disabled>
+          <i class="bi bi-trash me-1"></i>Delete Selected
+        </button>
+        <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+          <i class="bi bi-gear me-1"></i>Actions
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li><button class="dropdown-item" type="button" id="selectAllBtn"><i class="bi bi-check-all me-2"></i>Select All</button></li>
+          <li><button class="dropdown-item" type="button" id="deselectAllBtn"><i class="bi bi-x-lg me-2"></i>Deselect All</button></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><a class="dropdown-item" href="/merge-threat-models"><i class="bi bi-arrow-repeat me-2"></i>Merge Models</a></li>
+          <li><button class="dropdown-item" type="button" id="exportSelectedBtn"><i class="bi bi-download me-2"></i>Export Selected</button></li>
+          <script>
+            // Helper: UUID v4 regex (RFC-4122)
+            function isValidUuid(id) {
+              return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
+            }
+            // Helper: Check if a model is stored in PostgreSQL
+            function isPostgresModel(element) {
+              // Check data attribute first, then look for the badge
+              const row = element.closest('tr');
+              if (row && row.dataset.source === 'postgres') return true;
+              const badge = element.closest('tr')?.querySelector('.badge.bg-primary');
+              return badge && badge.textContent.includes('PG');
+            }
+            // Placeholder for legacy-to-UUID mapping
+            function mapLegacyIdToUuid(id) {
+              // TODO: implement deterministic mapping if available
+              return null;
+            }
+            async function exportData(ids) {
+              const validUuids = [];
+              const invalidIds = [];
+              ids.forEach(id => {
+                if (isValidUuid(id)) {
+                  validUuids.push(id);
+                } else {
+                  const mapped = mapLegacyIdToUuid(id);
+                  if (mapped && isValidUuid(mapped)) {
+                    validUuids.push(mapped);
+                  } else {
+                    invalidIds.push(id);
+                  }
+                }
+              });
+              if (invalidIds.length > 0) {
+                alert(
+                  `The following IDs are invalid and will not be exported:\n` +
+                  invalidIds.join(', ') +
+                  `\n\nOnly records with valid UUIDs will be exported.`
+                );
+              }
+              if (validUuids.length === 0) {
+                alert('No valid UUIDs to export. Please select valid records.');
+                return;
+              }
+              const response = await fetch('/api/threat-models/export', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: validUuids })
+              });
+              if (!response.ok) {
+                const msg = await response.text();
+                alert('Export failed: ' + msg);
+                return;
+              }
+              const { success, data, error } = await response.json();
+              if (!success) {
+                alert('Export failed: ' + error);
+                return;
+              }
+              // Download JSON export
+              const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.href = url;
+              link.download = 'threat-model-export.json';
+              document.body.appendChild(link);
+              link.click();
+              link.remove();
+              URL.revokeObjectURL(url);
+              showToast('Success', 'Threat models exported.', 'success');
+            }
+            document.addEventListener('DOMContentLoaded', function() {
+              document.getElementById('exportSelectedBtn').addEventListener('click', async function() {
+                const selectedIds = Array.from(document.querySelectorAll('.subject-checkbox:checked')).map(cb => cb.value);
+                await exportData(selectedIds);
+              });
+            });
+          </script>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Models Table -->
+  <div class="card shadow-sm">
+    <div class="card-body p-0">
+      <% if (subjects && subjects.length > 0) { %>
+        <div class="table-responsive">
+          <table id="threat-models-table" class="table table-striped table-bordered" style="width:100%">
+            <thead>
+              <tr>
+                <th width="40">
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="selectAll">
+                  </div>
+                </th>
+                <th>Title</th>
+                <th>Threats</th>
+                <th>Model</th>
+                <th>Created</th>
+                <th width="180">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% subjects.forEach(subject => { %>
+                <tr data-id="<%= subject.subjectid %>" data-source="<%= subject.source || 'redis' %>">
+                  <td>
+                    <div class="form-check">
+                      <% if (subject.isUuid) { %>
+                        <input class="form-check-input subject-checkbox" type="checkbox" value="<%= subject.id %>" title="Select for export">
+                      <% } else { %>
+                        <input class="form-check-input subject-checkbox" type="checkbox" value="<%= subject.id %>" disabled title="Legacy model – cannot be exported">
+                      <% } %>
+                      
+                    </div>
+                  </td>
+                  <td class="model-title">
+                    <a href="/results?subjectid=<%= subject.subjectid %>">
+                      <%= subject.title || 'Untitled Threat Model' %>
+                    </a>
+                    
+                    <% if (!subject.isUuid) { %>
+                      <span class="badge bg-secondary ms-2" title="Legacy model – cannot be exported"><i class="bi bi-exclamation-circle"></i> Legacy</span>
+                    <% } %>
+                  </td>
+                  <td><span class="badge bg-secondary"><%= subject.threatCount || 0 %></span></td>
+                  <td><span class="badge bg-info"><%= subject.model || 'Redis' %></span></td>
+                  <td data-sort="<%= subject.createdAt %>"><%= new Date(subject.createdAt).toLocaleDateString() %></td>
+                  <td>
+                    <div class="d-flex gap-2">
+                      <a href="/results?subjectid=<%= subject.subjectid %>" class="btn btn-sm btn-outline-secondary" title="View">
+                        <i class="bi bi-eye"></i>
+                      </a>
+
+                      <button class="btn btn-sm btn-outline-danger delete-model-btn" data-model-id="<%= subject.subjectid %>" data-model-type="redis" title="Delete">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              <% }); %>
+            </tbody>
+            <tfoot>
+              <tr>
+                <th></th>
+                <th>Title</th>
+                <th>Threats</th>
+                <th>Model</th>
+                <th>Created</th>
+                <th>Actions</th>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      <% } else { %>
+        <div class="alert alert-info m-3">
+          <i class="bi bi-info-circle me-2"></i>No threat models found. <a href="/create" class="alert-link">Create your first threat model</a>.
+        </div>
+      <% } %>
+    </div>
+  </div>
+</div>
+
+<!-- Deletion Confirmation Modal -->
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="confirmModalLabel">Confirm Deletion</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="confirmModalBody">
+        Are you sure you want to delete this threat model?
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- JavaScript for the models page -->
+<script>
+  
+  // We'll initialize DataTables after the page loads
+  document.addEventListener('DOMContentLoaded', function() {
+    
+    // Handle refresh button
+    document.getElementById('refreshModels').addEventListener('click', function() {
+      location.reload();
+    });
+    // Handle refresh button
+    document.getElementById('refreshModels').addEventListener('click', function() {
+      location.reload();
+    });
+
+    // Handle search
+    var searchButton = document.getElementById('searchButton');
+    var searchModels = document.getElementById('searchModels');
+    if (searchButton) {
+      searchButton.addEventListener('click', performSearch);
+    }
+    if (searchModels) {
+      searchModels.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+          performSearch();
+        }
+      });
+    }
+
+    function performSearch() {
+      const searchTerm = document.getElementById('searchModels').value.toLowerCase();
+      const tableRows = document.querySelectorAll('#threat-models-table tbody tr');
+      
+      tableRows.forEach(row => {
+        const titleCell = row.querySelector('td:nth-child(2)');
+        const title = titleCell.textContent.toLowerCase();
+        
+        if (title.includes(searchTerm)) {
+          row.style.display = '';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+    }
+    
+      // Handle select all checkbox
+    document.getElementById('selectAll').addEventListener('change', function() {
+      const checkboxes = document.querySelectorAll('.subject-checkbox');
+      checkboxes.forEach(checkbox => {
+        checkbox.checked = this.checked;
+      });
+      updateDeleteButtonState();
+    });
+    
+    // Handle select all button in dropdown
+    document.getElementById('selectAllBtn').addEventListener('click', function() {
+      const checkboxes = document.querySelectorAll('.subject-checkbox');
+      checkboxes.forEach(checkbox => {
+        checkbox.checked = true;
+      });
+      document.getElementById('selectAll').checked = true;
+      updateDeleteButtonState();
+    });
+    
+    // Handle deselect all button in dropdown
+    document.getElementById('deselectAllBtn').addEventListener('click', function() {
+      const checkboxes = document.querySelectorAll('.subject-checkbox');
+      checkboxes.forEach(checkbox => {
+        checkbox.checked = false;
+      });
+      document.getElementById('selectAll').checked = false;
+      updateDeleteButtonState();
+    });
+    
+    // Handle individual checkboxes
+    document.querySelectorAll('.subject-checkbox').forEach(checkbox => {
+      checkbox.addEventListener('change', updateDeleteButtonState);
+    });
+
+    // Handle single model delete buttons
+    document.querySelectorAll('.delete-model-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const subjectId = this.getAttribute('data-model-id');
+        const row = this.closest('tr');
+        const titleCell = row ? row.querySelector('td:nth-child(2) a') : null;
+        const title = titleCell ? titleCell.textContent.trim() : '';
+        confirmDelete(subjectId, title);
+      });
+    });
+    
+    // Handle select all/deselect all buttons
+    document.getElementById('selectAllBtn').addEventListener('click', function() {
+      const checkboxes = document.querySelectorAll('.subject-checkbox');
+      checkboxes.forEach(checkbox => {
+        checkbox.checked = true;
+      });
+      document.getElementById('selectAll').checked = true;
+      updateDeleteButtonState();
+    });
+    
+    document.getElementById('deselectAllBtn').addEventListener('click', function() {
+      const checkboxes = document.querySelectorAll('.subject-checkbox');
+      checkboxes.forEach(checkbox => {
+        checkbox.checked = false;
+      });
+      document.getElementById('selectAll').checked = false;
+      updateDeleteButtonState();
+    });
+    
+    // Handle delete selected button
+    document.getElementById('deleteSelectedBtn').addEventListener('click', function() {
+      const selectedSubjects = [];
+      document.querySelectorAll('.subject-checkbox:checked').forEach(checkbox => {
+        selectedSubjects.push(checkbox.value);
+      });
+      
+      if (selectedSubjects.length > 0) {
+        const modalBody = document.getElementById('confirmModalBody');
+        modalBody.textContent = `Are you sure you want to delete ${selectedSubjects.length} threat model(s)? This action cannot be undone.`;
+        
+        const confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
+        confirmModal.show();
+        
+        document.getElementById('confirmDeleteBtn').onclick = function() {
+          deleteSelectedSubjects(selectedSubjects);
+          confirmModal.hide();
+        };
+      }
+    });
+    
+    // Update delete button state based on checkbox selection
+    function updateDeleteButtonState() {
+      const checkedCount = document.querySelectorAll('.subject-checkbox:checked').length;
+      const deleteButton = document.getElementById('deleteSelectedBtn');
+      deleteButton.disabled = checkedCount === 0;
+      deleteButton.innerHTML = `<i class="bi bi-trash me-1"></i>Delete Selected (${checkedCount})`;
+      
+      // Also update the select all checkbox state
+      const selectAllCheckbox = document.getElementById('selectAll');
+      const allCheckboxes = document.querySelectorAll('.subject-checkbox');
+      if (selectAllCheckbox && allCheckboxes.length > 0) {
+        selectAllCheckbox.checked = checkedCount > 0 && checkedCount === allCheckboxes.length;
+      }
+    }
+    
+    // Delete selected subjects
+    function deleteSelectedSubjects(subjectIds) {
+  // Use modelsCrud to delete each model by id
+  Promise.all(subjectIds.map(id => window.modelsCrud.deleteModel(id)))
+    .then(() => {
+      showToast('Success', `${subjectIds.length} threat model(s) deleted successfully`, 'success');
+      // Remove deleted rows from the table
+      subjectIds.forEach(id => {
+        const row = document.querySelector(`tr[data-id="${id}"]`);
+        if (row) row.remove();
+      });
+      // Update UI if table is now empty
+      if (document.querySelectorAll('#threat-models-table tbody tr').length === 0) {
+        document.querySelector('.table-responsive').innerHTML = `
+          <div class="alert alert-info m-3">
+            <i class="bi bi-info-circle me-2"></i>No threat models found. <a href="/create" class="alert-link">Create your first threat model</a>.
+          </div>
+        `;
+      }
+      // Update delete button state
+      updateDeleteButtonState();
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      showToast('Error', 'An error occurred while deleting threat models', 'danger');
+    });
+}
+
+  });
+  
+  // Confirm deletion of a single threat model
+  function confirmDelete(subjectId, title) {
+    const modalBody = document.getElementById('confirmModalBody');
+    modalBody.textContent = `Are you sure you want to delete "${title}"? This action cannot be undone.`;
+    
+    const confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
+    confirmModal.show();
+    
+    document.getElementById('confirmDeleteBtn').onclick = function() {
+      deleteSingleSubject(subjectId);
+      confirmModal.hide();
+    };
+  }
+  
+  // Delete a single subject
+  function deleteSingleSubject(subjectId) {
+  window.modelsCrud.deleteModel(subjectId)
+    .then(() => {
+      showToast('Success', 'Threat model deleted successfully', 'success');
+      const row = document.querySelector(`tr[data-id="${subjectId}"]`);
+      if (row) row.remove();
+      // Update UI if table is now empty
+      if (document.querySelectorAll('#threat-models-table tbody tr').length === 0) {
+        document.querySelector('.card-body').innerHTML = `
+          <div class="alert alert-info m-3">
+            <i class="bi bi-info-circle me-2"></i>No threat models found. <a href="/create" class="alert-link">Create your first threat model</a>.
+          </div>
+        `;
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      showToast('Error', 'An error occurred while deleting the threat model', 'danger');
+    });
+}
+  
+  // Show toast notification
+  function showToast(title, message, type = 'info') {
+    const toastContainer = document.getElementById('toastContainer');
+    const id = 'toast-' + Date.now();
+    
+    const toastHTML = `
+      <div id="${id}" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header bg-${type} text-white">
+          <strong class="me-auto">${title}</strong>
+          <small>Just now</small>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body">
+          ${message}
+        </div>
+      </div>
+    `;
+    
+    toastContainer.insertAdjacentHTML('beforeend', toastHTML);
+    const toastElement = document.getElementById(id);
+    const toast = new bootstrap.Toast(toastElement, { delay: 5000 });
+    toast.show();
+    
+    // Remove toast from DOM after it's hidden
+    toastElement.addEventListener('hidden.bs.toast', function() {
+      toastElement.remove();
+    });
+  }
+  
+  // Show summary prompt modal
+  function showSummaryPromptModal(subjectId) {
+    // This function would be implemented to show a modal for generating a summary
+    // It depends on having the appropriate modal HTML structure
+    // For now, redirect to a summary generation page
+    window.location.href = `/generate-summary?subjectid=${subjectId}`;
+  }
+</script>
+
+<%- include('partials/footer', { 
+  extraJs: [
+    'https://code.jquery.com/jquery-3.6.0.min.js',
+    'https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js',
+    'https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js',
+    'https://cdn.datatables.net/responsive/2.4.0/js/dataTables.responsive.min.js',
+    'https://cdn.datatables.net/responsive/2.4.0/js/responsive.bootstrap5.min.js'
+  ] 
+}) %>
+
+<!-- Initialize DataTables -->
+<script>
+  // Use a different variable name to avoid conflicts
+  var jq = jQuery.noConflict();
+  jq(document).ready(function() {
+    // Initialize DataTable with advanced features
+    var threatModelsTable = jq('#threat-models-table').DataTable({
+      responsive: true,
+      paging: true,
+      pageLength: 10,
+      lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]],
+      info: true,
+      searching: true,
+      order: [[1, 'asc']], // Default sort by title (column index 1) ascending
+      columnDefs: [
+        { orderable: false, targets: [0, 5] }, // Disable sorting on checkbox and actions columns
+        { responsivePriority: 1, targets: 1 }, // Title column is highest priority
+        { responsivePriority: 2, targets: 5 }  // Actions column is second priority
+      ],
+      dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>' +
+           '<"row"<"col-sm-12"tr>>' +
+           '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>'
+    });
+    
+    // Connect select all checkbox to DataTables
+    jq('#selectAll').on('change', function() {
+      jq('.subject-checkbox').prop('checked', this.checked);
+      updateDeleteButtonState();
+    });
+    
+    // Update delete button state function
+    function updateDeleteButtonState() {
+      var checkedCount = jq('.subject-checkbox:checked').length;
+      var deleteButton = jq('#deleteSelectedBtn');
+      deleteButton.prop('disabled', checkedCount === 0);
+      deleteButton.html('<i class="bi bi-trash me-1"></i>Delete Selected (' + checkedCount + ')');
+    }
+    
+    // Connect individual checkboxes
+    jq(document).on('change', '.subject-checkbox', updateDeleteButtonState);
+    
+    // Handle select all button in dropdown
+    jq('#selectAllBtn').on('click', function() {
+      jq('.subject-checkbox').prop('checked', true);
+      jq('#selectAll').prop('checked', true);
+      updateDeleteButtonState();
+    });
+    
+    // Handle deselect all button in dropdown
+    jq('#deselectAllBtn').on('click', function() {
+      jq('.subject-checkbox').prop('checked', false);
+      jq('#selectAll').prop('checked', false);
+      updateDeleteButtonState();
+    });
+    
+    // Handle single model delete buttons (delegated)
+    jq('#threat-models-table').on('click', '.delete-model-btn', function() {
+  var btn = jq(this);
+  var subjectId = btn.data('model-id');
+  var row = btn.closest('tr');
+  var title = row.find('td:nth-child(2) a').text().trim();
+  // Show confirmation modal
+  var modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+  jq('#confirmModalBody').text('Are you sure you want to delete "' + title + '"? This action cannot be undone.');
+  jq('#confirmDeleteBtn').off('click').on('click', function() {
+    window.modelsCrud.deleteModel(subjectId)
+      .then(function() {
+        modal.hide();
+        threatModelsTable.row(row).remove().draw();
+        showToast('Success', 'Threat model deleted successfully', 'success');
+        if (threatModelsTable.rows().count() === 0) {
+          jq('.table-responsive').html('<div class="alert alert-info m-3"><i class="bi bi-info-circle me-2"></i>No threat models found. <a href="/create" class="alert-link">Create your first threat model</a>.</div>');
+        }
+      })
+      .catch(function(error) {
+        modal.hide();
+        showToast('Error', 'Failed to delete threat model', 'danger');
+      });
+  });
+  modal.show();
+});
+
+    // Handle bulk delete
+    jq('#deleteSelectedBtn').on('click', function() {
+      var selectedIds = jq('.subject-checkbox:checked').map(function(){ return this.value; }).get();
+      if (selectedIds.length === 0) return;
+      var modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+      jq('#confirmModalBody').text('Are you sure you want to delete ' + selectedIds.length + ' threat model(s)? This action cannot be undone.');
+      jq('#confirmDeleteBtn').off('click').on('click', function() {
+  Promise.all(selectedIds.map(function(id) { return window.modelsCrud.deleteModel(id); }))
+    .then(function() {
+      modal.hide();
+      jq('.subject-checkbox:checked').each(function(){
+        threatModelsTable.row(jq(this).closest('tr')).remove();
+      });
+      threatModelsTable.draw();
+      showToast('Success', selectedIds.length + ' threat model(s) deleted successfully', 'success');
+      if (threatModelsTable.rows().count() === 0) {
+        jq('.table-responsive').html('<div class="alert alert-info m-3"><i class="bi bi-info-circle me-2"></i>No threat models found. <a href="/create" class="alert-link">Create your first threat model</a>.</div>');
+      }
+      updateDeleteButtonState();
+    })
+    .catch(function(error) {
+      modal.hide();
+      showToast('Error', 'Failed to delete threat models', 'danger');
+    });
+});
+modal.show();
+    });
+
+    // Helper function to validate UUID format
+    function isValidUuid(id) {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      return uuidRegex.test(id);
+    }
+
+    // Handle export selected button
+    jq('#exportSelectedBtn').on('click', async function() {
+      const allSelectedIds = jq('.subject-checkbox:checked').map(function(){ return this.value; }).get();
+      console.log('All selected IDs:', allSelectedIds);
+      
+      if (allSelectedIds.length === 0) {
+        showToast('Info', 'Please select at least one threat model to export.', 'info');
+        return;
+      }
+      
+      // Filter out non-UUID values
+      const selectedIds = allSelectedIds.filter(id => {
+        const isValid = isValidUuid(id);
+        if (!isValid) {
+          console.warn(`Skipping invalid UUID format: ${id}`);
+        }
+        return isValid;
+      });
+      
+      console.log('Valid UUIDs for export:', selectedIds);
+      
+      if (selectedIds.length === 0) {
+        showToast('Error', 'None of the selected models have valid IDs for export.', 'danger');
+        return;
+      }
+      
+      if (selectedIds.length < allSelectedIds.length) {
+        showToast('Warning', `Skipped ${allSelectedIds.length - selectedIds.length} models with invalid ID format.`, 'warning');
+      }
+      // Helper to sanitize file names
+      function sanitizeFileName(name) {
+        return name.replace(/[^a-z0-9_\-\.]+/gi, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+      }
+      if (selectedIds.length === 1) {
+        // Single model export
+        try {
+          const resp = await fetch(`/api/threat-models/${selectedIds[0]}/export`, { credentials: 'same-origin' });
+          const json = await resp.json();
+          if (!json.success) throw new Error(json.error || 'Export failed');
+          // Get model title for filename
+          const model = json.data && json.data.threat_model;
+          const title = model && model.name ? model.name : 'threat_model';
+          const fileName = sanitizeFileName(title) + '.json';
+          const blob = new Blob([JSON.stringify(json.data, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = fileName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          showToast('Success', `Threat model exported as ${fileName}`, 'success');
+        } catch (err) {
+          console.error('Export error details:', err);
+          const errorMessage = err.message || 'Unknown error';
+          showToast('Error', `Failed to export threat model: ${errorMessage}`, 'danger');
+        }
+      } else {
+        // Multiple models: prompt for file name
+        let fileName = prompt('Enter a file name for the exported threat models:', 'threat_models');
+        if (!fileName) return;
+        fileName = sanitizeFileName(fileName) + '.json';
+        try {
+          console.log('Exporting threat models with IDs:', selectedIds);
+          const resp = await fetch('/api/threat-models/export', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ ids: selectedIds })
+          });
+          console.log('Export response status:', resp.status);
+          const json = await resp.json();
+          if (!json.success) throw new Error(json.error || 'Export failed');
+          const blob = new Blob([JSON.stringify(json.data, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = fileName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          showToast('Success', `Threat models exported as ${fileName}`, 'success');
+        } catch (err) {
+          console.error('Export error details:', err);
+          const errorMessage = err.message || 'Unknown error';
+          showToast('Error', `Failed to export threat models: ${errorMessage}`, 'danger');
+        }
+      }
+    });
+
+    console.log('DataTables and delete logic initialized successfully!');
+  });
+</script>

@@ -1,0 +1,38 @@
+<div class="dropdown">
+  <button class="btn btn-secondary dropdown-toggle" type="button" id="settingsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+    <i class="fas fa-cog"></i> Settings
+  </button>
+  <ul class="dropdown-menu" aria-labelledby="settingsDropdown">
+    <li><a class="dropdown-item" href="/settings/llmprovider">LLM Provider</a></li>
+    <li><a class="dropdown-item" href="/settings/openai">OpenAI</a></li>
+    <li><a class="dropdown-item" href="/settings/ollama">Ollama</a></li>
+    <li class="dropdown-submenu">
+      <a class="dropdown-item dropdown-toggle" href="#">Integrations</a>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="/settings/rapid7">Rapid7</a></li>
+        <li><a class="dropdown-item" href="/settings/jira">Jira</a></li>
+        <li><a class="dropdown-item" href="/settings/confluence">Confluence</a></li>
+        <li><a class="dropdown-item" href="/settings/auditboard">AuditBoard</a></li>
+        <li><a class="dropdown-item" href="/settings/lucid">Lucid Chart</a></li>
+      </ul>
+    </li>
+    <li><hr class="dropdown-divider"></li>
+    <li><a class="dropdown-item" href="/settings/download">Download Settings Tree</a></li>
+  </ul>
+</div>
+<script>
+// Enable dropdown-submenu functionality if needed
+// Bootstrap 5 does not support nested dropdowns out of the box, so add a simple handler:
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.dropdown-submenu .dropdown-toggle').forEach(function(element) {
+    element.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      let submenu = this.nextElementSibling;
+      if (submenu) {
+        submenu.classList.toggle('show');
+      }
+    });
+  });
+});
+</script>

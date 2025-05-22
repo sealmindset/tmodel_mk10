@@ -1,0 +1,6 @@
+[2025-05-22T03:07:55.946Z] BEFORE assignment - Project eb70ecba-b659-49fe-bc7b-614c901cd409 threat models: [{"id":"f84de2b5-809a-437a-a36e-0694de13a547","title":"Delta Sharing between AWS and Azure"}]
+[2025-05-22T03:07:55.946Z] Checking for valid threat models with IDs: ["e77d7996-e290-4817-b0cb-626b5bfa401b"]
+[2025-05-22T03:07:55.948Z] Found 1 valid threat models: ["e77d7996-e290-4817-b0cb-626b5bfa401b"]
+[2025-05-22T03:07:55.948Z] Attempting to assign 1 threat models to project eb70ecba-b659-49fe-bc7b-614c901cd409: ["e77d7996-e290-4817-b0cb-626b5bfa401b"]
+[2025-05-22T03:07:55.951Z] SUCCESS: Assigned 1 threat models to project eb70ecba-b659-49fe-bc7b-614c901cd409: ["e77d7996-e290-4817-b0cb-626b5bfa401b"]
+[2025-05-22T03:07:55.952Z] AFTER assignment - Project eb70ecba-b659-49fe-bc7b-614c901cd409 threat models: [{"id":"e77d7996-e290-4817-b0cb-626b5bfa401b","title":"Databricks"},{"id":"f84de2b5-809a-437a-a36e-0694de13a547","title":"Delta Sharing between AWS and Azure"}]

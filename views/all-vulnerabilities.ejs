@@ -1,0 +1,495 @@
+<%- include('partials/header', { pageTitle: pageTitle, active: active, extraCss: [] }) %>
+
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="mb-0">All Vulnerabilities</h1>
+    <div class="btn-group">
+      <button type="button" class="btn btn-primary" id="refreshVulnBtn">
+        <i class="bi bi-arrow-repeat me-1"></i>Refresh Data
+      </button>
+      <button type="button" class="btn btn-success" id="syncVulnerabilitiesBtn">
+        <i class="bi bi-cloud-download me-1"></i>Sync Vulnerabilities
+      </button>
+    </div>
+  </div>
+  
+  <!-- Alert container for notifications -->
+  <div id="vulnerabilitiesAlertContainer"></div>
+  
+  <!-- Hidden fields for chart data -->
+  <div style="display: none;">
+    <input type="hidden" id="vulnerability-critical" value="<%= typeof vulnerabilitySummary !== 'undefined' ? vulnerabilitySummary.critical || 0 : 0 %>">
+    <input type="hidden" id="vulnerability-high" value="<%= typeof vulnerabilitySummary !== 'undefined' ? vulnerabilitySummary.high || 0 : 0 %>">
+    <input type="hidden" id="vulnerability-medium" value="<%= typeof vulnerabilitySummary !== 'undefined' ? vulnerabilitySummary.medium || 0 : 0 %>">
+    <input type="hidden" id="vulnerability-low" value="<%= typeof vulnerabilitySummary !== 'undefined' ? vulnerabilitySummary.low || 0 : 0 %>">
+    <input type="hidden" id="vulnerability-open" value="<%= typeof vulnerabilitySummary !== 'undefined' ? vulnerabilitySummary.open || 0 : 0 %>">
+    <input type="hidden" id="vulnerability-in-progress" value="<%= typeof vulnerabilitySummary !== 'undefined' ? vulnerabilitySummary.inProgress || 0 : 0 %>">
+    <input type="hidden" id="vulnerability-remediated" value="<%= typeof vulnerabilitySummary !== 'undefined' ? vulnerabilitySummary.remediated || 0 : 0 %>">
+    <input type="hidden" id="vulnerability-accepted-risk" value="<%= typeof vulnerabilitySummary !== 'undefined' ? vulnerabilitySummary.acceptedRisk || 0 : 0 %>">
+  </div>
+  
+  <!-- Vulnerability Summary -->
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-header bg-white">
+          <h5 class="mb-0">Summary</h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-6 mb-3">
+              <p class="text-muted mb-1">Total</p>
+              <h3><%= vulnerabilitySummary.total || 0 %></h3>
+            </div>
+            <div class="col-6 mb-3">
+              <p class="text-muted mb-1">Critical</p>
+              <h3 class="text-danger"><%= vulnerabilitySummary.critical || 0 %></h3>
+            </div>
+            <div class="col-6 mb-3">
+              <p class="text-muted mb-1">High</p>
+              <h3 class="text-warning"><%= vulnerabilitySummary.high || 0 %></h3>
+            </div>
+            <div class="col-6 mb-3">
+              <p class="text-muted mb-1">Medium</p>
+              <h3 class="text-info"><%= vulnerabilitySummary.medium || 0 %></h3>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-header bg-white">
+          <h5 class="mb-0">Status</h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-6 mb-3">
+              <p class="text-muted mb-1">Open</p>
+              <h3 class="text-danger"><%= vulnerabilitySummary.open || 0 %></h3>
+            </div>
+            <div class="col-6 mb-3">
+              <p class="text-muted mb-1">In Progress</p>
+              <h3 class="text-warning"><%= vulnerabilitySummary.inProgress || 0 %></h3>
+            </div>
+            <div class="col-6 mb-3">
+              <p class="text-muted mb-1">Remediated</p>
+              <h3 class="text-success"><%= vulnerabilitySummary.remediated || 0 %></h3>
+            </div>
+            <div class="col-6 mb-3">
+              <p class="text-muted mb-1">Accepted Risk</p>
+              <h3 class="text-secondary"><%= vulnerabilitySummary.acceptedRisk || 0 %></h3>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Vulnerability Charts -->
+  <div class="row mt-4">
+    <div class="col-md-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-white">
+          <h5 class="mb-0">Vulnerabilities by Severity</h5>
+        </div>
+        <div class="card-body">
+          <div class="chart-container" style="position: relative; height: 250px;">
+            <canvas id="severityChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-white">
+          <h5 class="mb-0">Vulnerabilities by Status</h5>
+        </div>
+        <div class="card-body">
+          <div class="chart-container" style="position: relative; height: 250px;">
+            <canvas id="statusChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Vulnerabilities Table -->
+  <div class="card mt-4">
+    <div class="card-header bg-white">
+      <h5 class="mb-0">Vulnerabilities</h5>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover" id="vulnerabilitiesTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Project</th>
+              <th>Component</th>
+              <th>Title</th>
+              <th>Severity</th>
+              <th>Status</th>
+              <th>CVSS</th>
+              <th>Discovered</th>
+              <th class="no-sort">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (vulnerabilities && vulnerabilities.length > 0) { %>
+              <% vulnerabilities.forEach(vuln => { %>
+                <tr>
+                  <td><%= vuln.id %></td>
+                  <td><%= vuln.project_name || 'N/A' %></td>
+                  <td><%= vuln.component_name || 'N/A' %></td>
+                  <td><%= vuln.title %></td>
+                  <td>
+                    <span class="badge bg-<%= vuln.severity === 'Critical' ? 'danger' : 
+                                             vuln.severity === 'High' ? 'warning' : 
+                                             vuln.severity === 'Medium' ? 'info' : 'secondary' %>">
+                      <%= vuln.severity %>
+                    </span>
+                  </td>
+                  <td>
+                    <span class="badge bg-<%= vuln.status === 'Open' ? 'danger' : 
+                                             vuln.status === 'In Progress' ? 'warning' : 
+                                             vuln.status === 'Remediated' ? 'success' : 'secondary' %>">
+                      <%= vuln.status %>
+                    </span>
+                  </td>
+                  <td><%= vuln.cvss_score || 'N/A' %></td>
+                  <td><%= new Date(vuln.created_at).toLocaleDateString() %></td>
+                  <td>
+                    <div class="btn-group">
+                      <button type="button" class="btn btn-sm btn-outline-primary update-vulnerability-status" 
+                              data-vulnerability-id="<%= vuln.id %>" 
+                              data-current-status="<%= vuln.status %>">
+                        Update Status
+                      </button>
+                      <a href="/enterprise-architecture/vulnerabilities/<%= vuln.id %>" class="btn btn-sm btn-outline-secondary">
+                        Details
+                      </a>
+                    </div>
+                  </td>
+                </tr>
+              <% }); %>
+            <% } else { %>
+              <tr>
+                <td colspan="9" class="text-center">No vulnerabilities found</td>
+              </tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Status Update Modal -->
+<div class="modal fade" id="updateStatusModal" tabindex="-1" aria-labelledby="updateStatusModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="updateStatusModalLabel">Update Vulnerability Status</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="vulnerabilityStatusForm">
+          <input type="hidden" id="vulnerabilityId">
+          <div class="mb-3">
+            <label for="vulnerabilityStatus" class="form-label">Status</label>
+            <select class="form-select" id="vulnerabilityStatus" required>
+              <option value="Open">Open</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Remediated">Remediated</option>
+              <option value="Accepted Risk">Accepted Risk</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="vulnerabilityNotes" class="form-label">Notes</label>
+            <textarea class="form-control" id="vulnerabilityNotes" rows="3"></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary" form="vulnerabilityStatusForm">Update</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Include Chart.js before including the vulnerabilities script -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/datatables.net@1.11.5/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/datatables.net-bs5@1.11.5/js/dataTables.bootstrap5.min.js"></script>
+
+<script>
+  // Initialize charts
+  document.addEventListener('DOMContentLoaded', function() {
+    // Get chart data from hidden fields
+    const vulnerabilityData = {
+      critical: parseInt(document.getElementById('vulnerability-critical').value || 0),
+      high: parseInt(document.getElementById('vulnerability-high').value || 0),
+      medium: parseInt(document.getElementById('vulnerability-medium').value || 0),
+      low: parseInt(document.getElementById('vulnerability-low').value || 0),
+      open: parseInt(document.getElementById('vulnerability-open').value || 0),
+      inProgress: parseInt(document.getElementById('vulnerability-in-progress').value || 0),
+      remediated: parseInt(document.getElementById('vulnerability-remediated').value || 0),
+      acceptedRisk: parseInt(document.getElementById('vulnerability-accepted-risk').value || 0)
+    };
+    
+    // Severity Chart
+    const severityChartCtx = document.getElementById('severityChart').getContext('2d');
+    new Chart(severityChartCtx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Critical', 'High', 'Medium', 'Low'],
+        datasets: [{
+          data: [
+            vulnerabilityData.critical,
+            vulnerabilityData.high,
+            vulnerabilityData.medium,
+            vulnerabilityData.low
+          ],
+          backgroundColor: [
+            'rgba(220, 53, 69, 0.8)',
+            'rgba(255, 193, 7, 0.8)',
+            'rgba(23, 162, 184, 0.8)',
+            'rgba(108, 117, 125, 0.8)'
+          ],
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              boxWidth: 12
+            }
+          }
+        }
+      }
+    });
+    
+    // Status Chart
+    const statusChartCtx = document.getElementById('statusChart').getContext('2d');
+    new Chart(statusChartCtx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Open', 'In Progress', 'Remediated', 'Accepted Risk'],
+        datasets: [{
+          data: [
+            vulnerabilityData.open,
+            vulnerabilityData.inProgress,
+            vulnerabilityData.remediated,
+            vulnerabilityData.acceptedRisk
+          ],
+          backgroundColor: [
+            'rgba(220, 53, 69, 0.8)',
+            'rgba(255, 193, 7, 0.8)',
+            'rgba(40, 167, 69, 0.8)',
+            'rgba(108, 117, 125, 0.8)'
+          ],
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              boxWidth: 12
+            }
+          }
+        }
+      }
+    });
+    
+    // Initialize DataTable for vulnerabilities
+    $('#vulnerabilitiesTable').DataTable({
+      order: [[0, 'desc']],
+      pageLength: 10,
+      lengthMenu: [10, 25, 50, 100],
+      responsive: true,
+      columnDefs: [
+        { targets: 'no-sort', orderable: false }
+      ]
+    });
+    
+    // Handle status update buttons
+    document.querySelectorAll('.update-vulnerability-status').forEach(button => {
+      button.addEventListener('click', function() {
+        const vulnerabilityId = this.dataset.vulnerabilityId;
+        const currentStatus = this.dataset.currentStatus;
+        showStatusUpdateModal(vulnerabilityId, currentStatus);
+      });
+    });
+    
+    // Handle status update form submission
+    const vulnerabilityStatusForm = document.getElementById('vulnerabilityStatusForm');
+    if (vulnerabilityStatusForm) {
+      vulnerabilityStatusForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        updateVulnerabilityStatus();
+      });
+    }
+    
+    // Handle refresh button
+    const refreshBtn = document.getElementById('refreshVulnBtn');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', function() {
+        window.location.reload();
+      });
+    }
+    
+    // Handle sync vulnerabilities button
+    const syncBtn = document.getElementById('syncVulnerabilitiesBtn');
+    if (syncBtn) {
+      syncBtn.addEventListener('click', function() {
+        syncAllVulnerabilities();
+      });
+    }
+  });
+  
+  /**
+   * Show status update modal
+   * @param {string} vulnerabilityId - The vulnerability ID
+   * @param {string} currentStatus - The current status
+   */
+  function showStatusUpdateModal(vulnerabilityId, currentStatus) {
+    const modal = document.getElementById('updateStatusModal');
+    const vulnerabilityIdInput = document.getElementById('vulnerabilityId');
+    const statusSelect = document.getElementById('vulnerabilityStatus');
+    
+    vulnerabilityIdInput.value = vulnerabilityId;
+    
+    // Set current status as selected
+    for (let i = 0; i < statusSelect.options.length; i++) {
+      if (statusSelect.options[i].value === currentStatus) {
+        statusSelect.selectedIndex = i;
+        break;
+      }
+    }
+    
+    // Show modal
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+  }
+  
+  /**
+   * Update vulnerability status
+   */
+  function updateVulnerabilityStatus() {
+    const vulnerabilityId = document.getElementById('vulnerabilityId').value;
+    const status = document.getElementById('vulnerabilityStatus').value;
+    const notes = document.getElementById('vulnerabilityNotes').value;
+    
+    // Call API to update status
+    fetch(`/enterprise-architecture/api/vulnerabilities/${vulnerabilityId}/status`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        status,
+        notes
+      })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        // Hide modal
+        const modal = document.getElementById('updateStatusModal');
+        const bsModal = bootstrap.Modal.getInstance(modal);
+        bsModal.hide();
+        
+        showAlert('success', 'Vulnerability status updated successfully.');
+        
+        // Reload the page to show updated status
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } else {
+        showAlert('danger', `Error updating vulnerability status: ${data.error}`);
+      }
+    })
+    .catch(error => {
+      console.error('Error updating vulnerability status:', error);
+      showAlert('danger', 'Error updating vulnerability status. Please try again.');
+    });
+  }
+  
+  /**
+   * Sync all vulnerabilities
+   */
+  function syncAllVulnerabilities() {
+    // Show loading indicator
+    const syncBtn = document.getElementById('syncVulnerabilitiesBtn');
+    const originalText = syncBtn.innerHTML;
+    syncBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Syncing...';
+    syncBtn.disabled = true;
+    
+    // Call API to sync vulnerabilities
+    fetch('/api/rapid7/sync', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        showAlert('success', 'Vulnerability sync started. This may take a few minutes.');
+        // Reload the page after a delay
+        setTimeout(() => {
+          window.location.reload();
+        }, 3000);
+      } else {
+        showAlert('danger', `Error syncing vulnerabilities: ${data.error}`);
+        syncBtn.innerHTML = originalText;
+        syncBtn.disabled = false;
+      }
+    })
+    .catch(error => {
+      console.error('Error syncing vulnerabilities:', error);
+      showAlert('danger', 'Error syncing vulnerabilities. Please try again.');
+      syncBtn.innerHTML = originalText;
+      syncBtn.disabled = false;
+    });
+  }
+  
+  /**
+   * Show alert message
+   * @param {string} type - Alert type (success, danger, etc.)
+   * @param {string} message - Alert message
+   */
+  function showAlert(type, message) {
+    const alertContainer = document.getElementById('vulnerabilitiesAlertContainer');
+    const alertHtml = `
+      <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    `;
+    
+    alertContainer.innerHTML = alertHtml;
+    
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+      const alert = document.querySelector('.alert');
+      if (alert) {
+        const bsAlert = new bootstrap.Alert(alert);
+        bsAlert.close();
+      }
+    }, 5000);
+  }
+</script>
+
+<%- include('partials/footer') %>

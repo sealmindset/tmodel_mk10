@@ -1,0 +1,139 @@
+<% if (typeof errorDebug !== 'undefined' && errorDebug) { %>
+<div class="alert alert-danger mt-3">
+  <strong>Failsafe Debug Info:</strong>
+  <pre style="font-size: 0.95em; max-height: 400px; overflow:auto; background: #fff3cd; border: 1px solid #f5c6cb; color: #721c24;">
+<%= JSON.stringify(errorDebug, null, 2) %>
+</pre>
+</div>
+<% } %>
+<%- include('partials/header') %>
+
+<div class="container mt-4">
+  <div class="row">
+    <div class="col-md-12">
+      <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+          <h2 class="mb-0">Database Settings</h2>
+        </div>
+        <div class="card-body">
+          
+          <!-- Status Messages -->
+          <% if (message) { %>
+            <div class="alert alert-<%= message.type %> alert-dismissible fade show" role="alert">
+              <%= message.text %>
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          <% } %>
+          <div class="alert alert-info" style="margin-top:10px;">
+  <strong>Template Variables (Object.keys(this)):</strong>
+  <pre style="font-size:0.8em;max-height:200px;overflow:auto;background:#e9ecef;border:1px solid #bfc9d1;">
+<%= Object.keys(this).join(', ') %>
+</pre>
+
+</div>
+          <% if (typeof errorDebug !== 'undefined' && errorDebug) { %>
+            <div class="alert alert-secondary mt-2">
+              <strong>Debug Info:</strong>
+              <pre style="font-size: 0.85em; max-height: 300px; overflow:auto; background: #f8f9fa; border: 1px solid #ccc;">
+<%= JSON.stringify(errorDebug, null, 2) %>
+</pre>
+            </div>
+          <% } %>
+          
+          <p class="lead mb-4">Configure your PostgreSQL database connection settings below. These settings will be used by the application to connect to the database.</p>
+          
+          <form action="/dbsettings" method="POST" class="needs-validation" novalidate>
+            <!-- Add cache timestamp to prevent stale form submissions -->
+            <input type="hidden" name="cacheTimestamp" value="<%= cacheTimestamp %>">
+            
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <div class="form-group mb-3">
+                  <label for="postgres-host" class="form-label">Database Host</label>
+                  <input type="text" class="form-control" id="postgres-host" name="POSTGRES_HOST" value="<%= dbSettings.POSTGRES_HOST %>" required>
+                  <div class="form-text">The hostname or IP address of your PostgreSQL server.</div>
+                  <div class="invalid-feedback">Host is required.</div>
+                </div>
+                
+                <div class="form-group mb-3">
+                  <label for="postgres-port" class="form-label">Database Port</label>
+                  <input type="text" class="form-control" id="postgres-port" name="POSTGRES_PORT" value="<%= dbSettings.POSTGRES_PORT %>" required>
+                  <div class="form-text">The port number for your PostgreSQL server (default: 5432).</div>
+                  <div class="invalid-feedback">Port is required.</div>
+                </div>
+                
+                <div class="form-group mb-3">
+                  <label for="postgres-db" class="form-label">Database Name</label>
+                  <input type="text" class="form-control" id="postgres-db" name="POSTGRES_DB" value="<%= dbSettings.POSTGRES_DB %>" required>
+                  <div class="form-text">The name of your PostgreSQL database.</div>
+                  <div class="invalid-feedback">Database name is required.</div>
+                </div>
+              </div>
+              
+              <div class="col-md-6">
+                <div class="form-group mb-3">
+                  <label for="postgres-user" class="form-label">Database Username</label>
+                  <input type="text" class="form-control" id="postgres-user" name="POSTGRES_USER" value="<%= dbSettings.POSTGRES_USER %>" required>
+                  <div class="form-text">The username for your PostgreSQL database.</div>
+                  <div class="invalid-feedback">Username is required.</div>
+                </div>
+                
+                <div class="form-group mb-3">
+                  <label for="postgres-password" class="form-label">Database Password</label>
+                  <div class="input-group">
+                    <input type="password" class="form-control" id="postgres-password" name="POSTGRES_PASSWORD" value="<%= dbSettings.POSTGRES_PASSWORD || '' %>" placeholder="<%= dbSettings.POSTGRES_PASSWORD && dbSettings.POSTGRES_PASSWORD.length > 0 ? '********' : 'Not set' %>" autocomplete="new-password">
+                    <button class="btn btn-outline-secondary" type="button" id="toggle-postgres-password" tabindex="-1">
+                      <i class="fas fa-eye"></i>
+                    </button>
+                  </div>
+                  <div class="form-text">The password for your PostgreSQL database. To change, enter a new password. Leave blank to keep the current password.</div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="alert alert-warning">
+              <i class="fas fa-exclamation-triangle me-2"></i>
+              <strong>Important:</strong> Changing these settings will require a server restart to take effect.
+            </div>
+            
+            <div class="d-flex justify-content-between mt-4">
+              <a href="/" class="btn btn-secondary">Back to Home</a>
+              <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save me-2"></i> Save Settings
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Password toggle functionality -->
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Dedicated password toggle for the database password field
+    const togglePostgresPassword = document.getElementById('toggle-postgres-password');
+    const postgresPasswordInput = document.getElementById('postgres-password');
+    if (togglePostgresPassword && postgresPasswordInput) {
+      togglePostgresPassword.addEventListener('click', function() {
+        const type = postgresPasswordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+        postgresPasswordInput.setAttribute('type', type);
+        this.innerHTML = type === 'password' ? '<i class="fas fa-eye"></i>' : '<i class="fas fa-eye-slash"></i>';
+      });
+    }
+    // Form validation
+    const forms = document.querySelectorAll('.needs-validation');
+    Array.from(forms).forEach(form => {
+      form.addEventListener('submit', event => {
+        if (!form.checkValidity()) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+        form.classList.add('was-validated');
+      }, false);
+    });
+  });
+</script>
+
+<%- include('partials/footer') %>

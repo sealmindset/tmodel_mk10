@@ -1,0 +1,355 @@
+<%- include('partials/header', { pageTitle: 'Archived Projects - Threat Model Generator', active: 'projects', extraCss: [
+  'https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css',
+  'https://cdn.datatables.net/responsive/2.4.0/css/responsive.bootstrap5.min.css'
+] }) %>
+
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="mb-0">Archived Projects</h1>
+    <a href="/projects" class="btn btn-primary">
+      <i class="bi bi-arrow-left me-1"></i>Back to Active Projects
+    </a>
+  </div>
+  
+  <!-- Alert container for notifications -->
+  <div id="projectAlertContainer"></div>
+  
+  <!-- Projects List Card -->
+  <div class="card mb-4">
+    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">Archived Projects</h5>
+      <small class="text-muted">Projects that have been archived</small>
+    </div>
+    <div class="card-body p-0">
+      <% if (projects && projects.length > 0) { %>
+        <div class="table-responsive">
+          <table id="projectsTable" class="table table-hover">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Business Unit</th>
+                <th>Criticality</th>
+                <th>Archived Date</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% projects.forEach(project => { %>
+                <tr>
+                  <td><%= project.name %></td>
+                  <td><%= project.business_unit %></td>
+                  <td>
+                    <span class="badge bg-<%= getCriticalityClass(project.criticality) %>">
+                      <%= project.criticality %>
+                    </span>
+                  </td>
+                  <td><%= new Date(project.updated_at).toLocaleDateString() %></td>
+                  <td>
+                    <a href="/projects/<%= project.id %>" class="btn btn-sm btn-outline-primary">
+                      <i class="bi bi-eye me-1"></i>View
+                    </a>
+                    <button type="button" class="btn btn-sm btn-outline-success restoreProjectBtn" data-project-id="<%= project.id %>" data-project-name="<%= project.name %>">
+                      <i class="bi bi-arrow-counterclockwise me-1"></i>Restore
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger deleteProjectBtn" data-project-id="<%= project.id %>" data-project-name="<%= project.name %>">
+                      <i class="bi bi-trash me-1"></i>Delete
+                    </button>
+                  </td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+      <% } else { %>
+        <div class="p-4 text-center">
+          <p class="text-muted mb-0">No archived projects found.</p>
+          <p>All your archived projects will appear here.</p>
+          <a href="/projects" class="btn btn-outline-primary mt-2">
+            <i class="bi bi-arrow-left me-1"></i>Return to Projects
+          </a>
+        </div>
+      <% } %>
+    </div>
+  </div>
+  <!-- Modal container for threat model assignments (outside the card and table) -->
+  <div id="threatModelAssignmentsContainer"></div>
+  <!-- Container for the modal -->
+  <div id="threatModelAssignmentsModal"></div>
+  
+  <!-- Project statistics -->
+  
+</div>
+
+<!-- Restore Project Confirmation Modal -->
+<div class="modal fade" id="restoreProjectModal" tabindex="-1" aria-labelledby="restoreProjectModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-success text-white">
+        <h5 class="modal-title" id="restoreProjectModalLabel">Restore Project</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to restore the project: <strong id="restoreProjectName"></strong>?</p>
+        <p>This will make the project active again and it will reappear in the main projects list.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-success" id="confirmRestoreBtn">Restore Project</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Project Confirmation Modal -->
+<div class="modal fade" id="deleteProjectModal" tabindex="-1" aria-labelledby="deleteProjectModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title" id="deleteProjectModalLabel">Delete Project Permanently</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to <strong>permanently delete</strong> the project: <strong id="deleteProjectName"></strong>?</p>
+        <p class="text-danger"><strong>Warning:</strong> This action cannot be undone and will remove all data associated with this project.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Delete Permanently</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%- include('partials/footer', { 
+  extraJs: [
+    'https://code.jquery.com/jquery-3.6.0.min.js',
+    'https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js',
+    'https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js',
+    'https://cdn.datatables.net/responsive/2.4.0/js/dataTables.responsive.min.js',
+    'https://cdn.datatables.net/responsive/2.4.0/js/responsive.bootstrap5.min.js',
+    'https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js'
+  ] 
+}) %>
+
+<!-- Initialize DataTables for Projects Table -->
+<script>
+  // Use jQuery once loaded
+  const jq = jQuery.noConflict();
+  jq(document).ready(function() {
+    // Initialize DataTables
+    const projectsDataTable = jq('#projectsTable').DataTable({
+      responsive: true,
+      lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]],
+      info: true,
+      searching: true,
+      order: [[0, 'asc']], // Default sort by name (column index 0) ascending
+      columnDefs: [
+        { orderable: false, targets: [4] }, // Disable sorting on actions column (index 4)
+        { responsivePriority: 1, targets: 0 }, // Name column is highest priority
+        { responsivePriority: 2, targets: 4 }  // Actions column is second priority (index 4)
+      ],
+      dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>' +
+           '<"row"<"col-sm-12"tr>>' +
+           '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>'
+    });
+    
+    console.log('Archived Projects DataTable initialized successfully!');
+  });
+</script>
+
+<!-- Archived Projects Management -->
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Variables to store project info
+    let projectIdToRestore = null;
+    let projectIdToDelete = null;
+    
+    // Setup restore button click handlers
+    document.querySelector('#projectsTable tbody').addEventListener('click', function(event) {
+      // Find closest restore button if it was clicked or its child icon
+      const restoreBtn = event.target.closest('.restoreProjectBtn');
+      if (restoreBtn) {
+        // Get project details
+        projectIdToRestore = restoreBtn.getAttribute('data-project-id');
+        const projectName = restoreBtn.getAttribute('data-project-name');
+        
+        // Set project name in modal
+        document.getElementById('restoreProjectName').textContent = projectName;
+        
+        // Show the modal
+        const restoreModal = new bootstrap.Modal(document.getElementById('restoreProjectModal'));
+        restoreModal.show();
+        return;
+      }
+      
+      // Find closest delete button if it was clicked or its child icon
+      const deleteBtn = event.target.closest('.deleteProjectBtn');
+      if (deleteBtn) {
+        // Get project details
+        projectIdToDelete = deleteBtn.getAttribute('data-project-id');
+        const projectName = deleteBtn.getAttribute('data-project-name');
+        
+        // Set project name in modal
+        document.getElementById('deleteProjectName').textContent = projectName;
+        
+        // Show the modal
+        const deleteModal = new bootstrap.Modal(document.getElementById('deleteProjectModal'));
+        deleteModal.show();
+      }
+    });
+    
+    // Handle restore confirmation
+    document.getElementById('confirmRestoreBtn').addEventListener('click', function() {
+      if (!projectIdToRestore) return;
+      
+      // Show loading state
+      const confirmBtn = this;
+      confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Restoring...';
+      confirmBtn.disabled = true;
+      
+      // Update project status to 'Active'
+      fetch(`/api/projects/${projectIdToRestore}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          status: 'Active'
+        })
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Server responded with status: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (data.success) {
+          // Hide modal
+          const modal = bootstrap.Modal.getInstance(document.getElementById('restoreProjectModal'));
+          modal.hide();
+          
+          // Show success message
+          const alertContainer = document.getElementById('projectAlertContainer');
+          alertContainer.innerHTML = `
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+              Project has been restored successfully. View in <a href="/projects">Active Projects</a>.
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          `;
+          
+          // Remove the project row from the table
+          const projectTable = document.querySelector('#projectsTable').DataTable();
+          const row = document.querySelector(`[data-project-id="${projectIdToRestore}"]`).closest('tr');
+          projectTable.row(row).remove().draw();
+        } else {
+          throw new Error(data.error || 'Unknown error');
+        }
+      })
+      .catch(error => {
+        console.error('Error restoring project:', error);
+        
+        // Show error message
+        const alertContainer = document.getElementById('projectAlertContainer');
+        alertContainer.innerHTML = `
+          <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            Error restoring project: ${error.message || 'Unknown error'}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        `;
+        
+        // Reset button
+        confirmBtn.innerHTML = 'Restore Project';
+        confirmBtn.disabled = false;
+        
+        // Hide modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('restoreProjectModal'));
+        modal.hide();
+      });
+    });
+    
+    // Handle delete confirmation
+    document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
+      if (!projectIdToDelete) return;
+      
+      // Show loading state
+      const confirmBtn = this;
+      confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Deleting...';
+      confirmBtn.disabled = true;
+      
+      // Delete the project
+      fetch(`/api/projects/${projectIdToDelete}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Server responded with status: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (data.success) {
+          // Hide modal
+          const modal = bootstrap.Modal.getInstance(document.getElementById('deleteProjectModal'));
+          modal.hide();
+          
+          // Show success message
+          const alertContainer = document.getElementById('projectAlertContainer');
+          alertContainer.innerHTML = `
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+              Project has been permanently deleted.
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          `;
+          
+          // Remove the project row from the table
+          const projectTable = jq('#projectsTable').DataTable();
+          const row = jq(`[data-project-id="${projectIdToDelete}"]`).closest('tr');
+          projectTable.row(row).remove().draw();
+        } else {
+          throw new Error(data.error || 'Unknown error');
+        }
+      })
+      .catch(error => {
+        console.error('Error deleting project:', error);
+        
+        // Show error message
+        const alertContainer = document.getElementById('projectAlertContainer');
+        alertContainer.innerHTML = `
+          <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            Error deleting project: ${error.message || 'Unknown error'}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        `;
+        
+        // Reset button
+        confirmBtn.innerHTML = 'Delete Permanently';
+        confirmBtn.disabled = false;
+        
+        // Hide modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('deleteProjectModal'));
+        modal.hide();
+      });
+    });
+    
+    
+  });
+</script>
+
+<style>
+  #componentTable th {
+    background-color: #eee;
+    color: #333;
+  }
+
+  #componentTable .component-row:hover {
+    background-color: #f5f5f5;
+  }
+  
+  .btn-group .btn {
+    margin-right: 2px;
+  }
+</style>

@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Truly Isolated LLM Test</title>
+  </head>
+  <body>
+    <h3>LLM Provider Isolated Test (No Includes, No JS, No CSS)</h3>
+    <form action="/llm-test-raw" method="POST">
+      <label>
+        <input type="radio" name="llmProvider" value="openai"> OpenAI
+      </label>
+      <label>
+        <input type="radio" name="llmProvider" value="ollama"> Ollama
+      </label>
+      <button type="submit">Submit</button>
+    </form>
+    <% if (typeof provider !== 'undefined') { %>
+      <div>Provider received by backend: <b><%= provider %></b></div>
+      <div>Headers: <pre><%= JSON.stringify(headers, null, 2) %></pre></div>
+      <div>Body: <pre><%= JSON.stringify(body, null, 2) %></pre></div>
+    <% } %>
+  </body>
+</html>

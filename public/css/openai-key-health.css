@@ -1,0 +1,50 @@
+/**
+ * OpenAI API Key Health Indicator Styles
+ */
+
+.service-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  margin: 0 4px;
+  font-size: 12px;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.service-indicator i {
+  color: #fff;
+}
+
+.service-indicator.loading {
+  background-color: #f0ad4e;
+  animation: pulse 1.5s infinite;
+}
+
+.service-indicator.online {
+  background-color: #28a745;
+}
+
+.service-indicator.offline {
+  background-color: #dc3545;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.6;
+  }
+}
+
+/* Tooltip styling */
+[data-bs-toggle="tooltip"] {
+  cursor: pointer;
+}

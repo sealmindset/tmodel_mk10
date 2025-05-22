@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>OpenAI API Settings</title>
+  <link rel="stylesheet" href="/css/bootstrap.min.css">
+</head>
+<body>
+  <%- include('./partials/header.ejs') %>
+  <div class="container mt-4">
+    <h1>OpenAI API Settings</h1>
+    <form action="/settings/openai" method="POST">
+      <div class="mb-3">
+        <label class="form-label">API Key</label>
+        <div class="input-group">
+          <input type="password" class="form-control" name="openai_api_key" id="openaiApiKey" value="<%= settings['openai.api_key'] || '' %>" placeholder="sk-...">
+          <button class="btn btn-outline-secondary" type="button" onclick="toggleApiKey('openaiApiKey', this)"><i class="bi bi-eye"></i></button>
+        </div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Model</label>
+        <select name="openai_model" class="form-select">
+          <option value="gpt-4" <%= settings['openai.model'] === 'gpt-4' ? 'selected' : '' %>>GPT-4</option>
+          <option value="gpt-4-turbo" <%= settings['openai.model'] === 'gpt-4-turbo' ? 'selected' : '' %>>GPT-4 Turbo</option>
+          <option value="gpt-3.5-turbo" <%= settings['openai.model'] === 'gpt-3.5-turbo' ? 'selected' : '' %>>GPT-3.5 Turbo</option>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary">Save</button>
+    </form>
+    <% if (message) { %>
+      <div class="alert alert-<%= message.type %> mt-3"> <%= message.text %> </div>
+    <% } %>
+  </div>
+  <script>
+    function toggleApiKey(inputId, btn) {
+      const input = document.getElementById(inputId);
+      if (input.type === 'password') {
+        input.type = 'text';
+        btn.innerHTML = '<i class="bi bi-eye-slash"></i>';
+      } else {
+        input.type = 'password';
+        btn.innerHTML = '<i class="bi bi-eye"></i>';
+      }
+    }
+  </script>
+</body>
+</html>

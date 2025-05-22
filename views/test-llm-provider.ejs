@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Raw LLM Provider Test</title>
+  </head>
+  <body>
+    <h3>Test LLM Provider (Raw Form)</h3>
+    <form action="/test-llm-provider" method="POST">
+      <label>
+        <input type="radio" name="llmProvider" value="openai"> OpenAI
+      </label>
+      <label>
+        <input type="radio" name="llmProvider" value="ollama"> Ollama
+      </label>
+      <button type="submit">Submit</button>
+    </form>
+    <% if (typeof provider !== 'undefined') { %>
+      <div>Provider received by backend: <b><%= provider %></b></div>
+    <% } %>
+  </body>
+</html>

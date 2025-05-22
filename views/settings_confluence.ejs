@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Confluence API Settings</title>
+  <link rel="stylesheet" href="/css/bootstrap.min.css">
+</head>
+<body>
+  <%- include('./partials/header.ejs') %>
+  <div class="container mt-4">
+    <h1>Confluence API Settings</h1>
+    <form action="/settings/confluence" method="POST">
+      <div class="mb-3">
+        <label class="form-label">API URL</label>
+        <input type="url" class="form-control" name="confluence_api_url" value="<%= settings['confluence.api_url'] || '' %>" placeholder="Enter your Confluence API URL">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">API Key</label>
+        <div class="input-group">
+          <input type="password" class="form-control" name="confluence_api_key" id="confluenceApiKey" value="<%= settings['confluence.api_key'] || '' %>" placeholder="Enter your Confluence API key">
+          <button class="btn btn-outline-secondary" type="button" onclick="toggleApiKey('confluenceApiKey', this)"><i class="bi bi-eye"></i></button>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary">Save</button>
+    </form>
+    <% if (message) { %>
+      <div class="alert alert-<%= message.type %> mt-3"> <%= message.text %> </div>
+    <% } %>
+  </div>
+  <script>
+    function toggleApiKey(inputId, btn) {
+      const input = document.getElementById(inputId);
+      if (input.type === 'password') {
+        input.type = 'text';
+        btn.innerHTML = '<i class="bi bi-eye-slash"></i>';
+      } else {
+        input.type = 'password';
+        btn.innerHTML = '<i class="bi bi-eye"></i>';
+      }
+    }
+  </script>
+</body>
+</html>

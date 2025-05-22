@@ -1,0 +1,1171 @@
+<%- include('partials/header', { pageTitle: 'Projects - Threat Model Generator', active: 'projects', extraCss: [
+  'https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css',
+  'https://cdn.datatables.net/responsive/2.4.0/css/responsive.bootstrap5.min.css'
+] }) %>
+
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="mb-0">Projects</h1>
+    <div class="d-flex">
+      <a href="/projects/archived" class="btn btn-outline-secondary me-2">
+        <i class="bi bi-archive me-1"></i>Archived Projects
+      </a>
+      <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newProjectModal">
+        <i class="bi bi-plus-circle me-1"></i>New Project
+      </button>
+    </div>
+  </div>
+  
+  <!-- Alert container for notifications -->
+  <div id="projectAlertContainer"></div>
+  
+  <!-- Project filters -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-3">
+          <label for="businessUnitFilter" class="form-label">Business Unit</label>
+          <select class="form-select" id="businessUnitFilter">
+            <option value="">All Business Units</option>
+            <% businessUnits.forEach(unit => { %>
+              <option value="<%= unit %>"><%= unit %></option>
+            <% }); %>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label for="criticalityFilter" class="form-label">Criticality</label>
+          <select class="form-select" id="criticalityFilter">
+            <option value="">All Criticality Levels</option>
+            <option value="Critical">Critical</option>
+            <option value="High">High</option>
+            <option value="Medium">Medium</option>
+            <option value="Low">Low</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label for="statusFilter" class="form-label">Status</label>
+          <select class="form-select" id="statusFilter">
+            <option value="">All Statuses</option>
+            <option value="Active">Active</option>
+            <option value="Planning">Planning</option>
+            <option value="Development">Development</option>
+            <option value="Maintenance">Maintenance</option>
+            <option value="Archived">Archived</option>
+          </select>
+        </div>
+        <div class="col-md-3 d-flex align-items-end">
+          <button class="btn btn-secondary w-100" id="applyFilters">
+            <i class="bi bi-funnel me-1"></i>Apply Filters
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Projects list -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="mb-0">Project List</h5>
+    </div>
+    <div class="card-body p-0">
+      <% if (projects && projects.length > 0) { %>
+        <div class="table-responsive">
+          <table id="projectsTable" class="table table-hover">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Business Unit</th>
+                <th>Criticality</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% projects.forEach(project => { %>
+                <tr>
+                  <td><a href="/projects/<%= project.id %>"><%= project.name %></a></td>
+                  <td><%= project.business_unit %></td>
+                  <td><%= project.criticality %></td>
+                  <td><%= project.status %></td>
+                  <td>
+                    <a href="/projects/<%= project.id %>" class="btn btn-sm btn-outline-primary">View</a>
+                    <button type="button" class="btn btn-sm btn-outline-danger archiveProjectBtn" data-project-id="<%= project.id %>" data-project-name="<%= project.name %>">
+                      <i class="bi bi-archive me-1"></i>Archive
+                    </button>
+                  </td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+      <% } else { %>
+        <div class="text-center py-5">
+          <i class="bi bi-folder-x display-4 text-muted"></i>
+          <p class="mt-3 mb-0 text-muted">No projects found</p>
+          <button class="btn btn-primary mt-3" data-bs-toggle="modal" data-bs-target="#newProjectModal">
+            Create Your First Project
+          </button>
+        </div>
+      <% } %>
+    </div>
+  </div>
+  <!-- Modal container for threat model assignments (outside the card and table) -->
+  <div id="threatModelAssignmentsContainer"></div>
+  <!-- Container for the modal -->
+  <div id="threatModelAssignmentsModal"></div>
+  
+  <!-- Project statistics -->
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-header">
+          <h5 class="mb-0">Projects by Criticality</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="criticalityChart" height="250"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-header">
+          <h5 class="mb-0">Projects by Business Unit</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="businessUnitChart" height="250"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- New Project Modal -->
+<div class="modal fade" id="newProjectModal" tabindex="-1" aria-labelledby="newProjectModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="newProjectModalLabel">New Project</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="newProjectForm">
+          <div class="mb-3">
+            <label for="projectName" class="form-label">Project Name *</label>
+            <input type="text" class="form-control" id="projectName" required>
+          </div>
+          
+          <div class="mb-3">
+            <label for="projectDescription" class="form-label">Description</label>
+            <textarea class="form-control" id="projectDescription" rows="3"></textarea>
+          </div>
+          
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="businessUnit" class="form-label">Business Unit</label>
+              <input type="text" class="form-control" id="businessUnit" list="businessUnitsList">
+              <datalist id="businessUnitsList">
+                <% businessUnits.forEach(unit => { %>
+                  <option value="<%= unit %>">
+                <% }); %>
+              </datalist>
+            </div>
+            
+            <div class="col-md-6">
+              <label for="criticality" class="form-label">Criticality</label>
+              <select class="form-select" id="criticality">
+                <option value="Critical">Critical</option>
+                <option value="High">High</option>
+                <option value="Medium" selected>Medium</option>
+                <option value="Low">Low</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="dataClassification" class="form-label">Data Classification</label>
+              <select class="form-select" id="dataClassification">
+                <option value="PCI DSS">PCI DSS</option>
+                <option value="HIPAA">HIPAA</option>
+                <option value="SOX">SOX</option>
+                <option value="FDA">FDA</option>
+                <option value="Ship to Address">Ship to Address</option>
+                <option value="Time Sensitive Information">Time Sensitive Information</option>
+                <option value="Proprietary Information">Proprietary Information</option>
+                <option value="Other: Top Secret">Other: Top Secret</option>
+                <option value="Other: Confidential">Other: Confidential</option>
+                <option value="Other: Internal Use Only" selected>Other: Internal Use Only</option>
+                <option value="Other: Public">Other: Public</option>
+              </select>
+            </div>
+            
+            <div class="col-md-6">
+              <label for="projectStatus" class="form-label">Status</label>
+              <select class="form-select" id="projectStatus">
+                <option value="Planning">Planning</option>
+                <option value="Development">Development</option>
+                <option value="Active" selected>Active</option>
+                <option value="Maintenance">Maintenance</option>
+                <option value="Archived">Archived</option>
+              </select>
+            </div>
+          </div>
+          
+          <!-- Component Management Section -->
+          <div class="mt-4 mb-3">
+            <h5>Component Management</h5>
+            <p class="text-muted">Add components that are part of this project</p>
+            
+            <div class="table-responsive">
+              <table class="table table-striped table-bordered" id="componentTable">
+                <thead class="table-light">
+                  <tr>
+                    <th>Component Name</th>
+                    <th>Hostname</th>
+                    <th>IP Address</th>
+                    <th>Type</th>
+                    <th width="160px">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- The first row template that will be cloned for additional rows -->
+                  <tr class="component-row">
+                    <td>
+                      <input type="text" class="form-control component-name" placeholder="Component Name">
+                    </td>
+                    <td>
+                      <input type="text" class="form-control component-hostname" placeholder="Hostname">
+                    </td>
+                    <td>
+                      <input type="text" class="form-control component-ip" placeholder="IP Address">
+                    </td>
+                    <td>
+                      <select class="form-select component-type">
+                        <option value="">Select Type</option>
+                        <option value="Protocol">Protocol</option>
+                        <option value="Network">Network</option>
+                        <option value="System">System</option>
+                        <option value="Data Store">Data Store</option>
+                        <option value="Boundary">Boundary</option>
+                        <option value="External Party">External Party</option>
+                        <option value="Safeguard">Safeguard</option>
+                      </select>
+                    </td>
+                    <td class="text-center">
+                      <div class="actions-container">
+                        <button type="button" class="btn btn-sm btn-primary tm-button" title="View Threat Model" onclick="handleTMClick(this)">
+                          TM
+                        </button>
+                        <button type="button" class="btn btn-sm btn-success tmg-button" title="Generate Threat Model" onclick="handleTMGClick(this)">
+                          TMG
+                        </button>
+                        <button type="button" class="btn btn-sm btn-danger delete-component" title="Delete Component" onclick="handleDeleteClick(this)">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            
+            <button type="button" class="btn btn-sm btn-success" id="addComponentRow">
+              <i class="bi bi-plus-circle me-1"></i>Add Component
+            </button>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="saveNewProject">Create Project</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Project Modal -->
+<div class="modal fade" id="editProjectModal" tabindex="-1" aria-labelledby="editProjectModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editProjectModalLabel">Edit Project</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="editProjectForm">
+          <input type="hidden" id="editProjectId">
+          
+          <div class="mb-3">
+            <label for="editProjectName" class="form-label">Project Name *</label>
+            <input type="text" class="form-control" id="editProjectName" required>
+          </div>
+          
+          <div class="mb-3">
+            <label for="editProjectDescription" class="form-label">Description</label>
+            <textarea class="form-control" id="editProjectDescription" rows="3"></textarea>
+          </div>
+          
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="editBusinessUnit" class="form-label">Business Unit</label>
+              <input type="text" class="form-control" id="editBusinessUnit" list="businessUnitsList">
+            </div>
+            
+            <div class="col-md-6">
+              <label for="editCriticality" class="form-label">Criticality</label>
+              <select class="form-select" id="editCriticality">
+                <option value="Critical">Critical</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="editDataClassification" class="form-label">Data Classification</label>
+              <select class="form-select" id="editDataClassification">
+                <option value="Public">Public</option>
+                <option value="Internal">Internal</option>
+                <option value="Confidential">Confidential</option>
+                <option value="Restricted">Restricted</option>
+              </select>
+            </div>
+            
+            <div class="col-md-6">
+              <label for="editProjectStatus" class="form-label">Status</label>
+              <select class="form-select" id="editProjectStatus">
+                <option value="Planning">Planning</option>
+                <option value="Development">Development</option>
+                <option value="Active">Active</option>
+                <option value="Maintenance">Maintenance</option>
+                <option value="Archived">Archived</option>
+              </select>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger me-auto" id="deleteProject">Delete Project</button>
+        <button type="button" class="btn btn-primary" id="saveProjectChanges">Save Changes</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Confirm Delete</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to delete this project? This action cannot be undone and will delete all associated threat models, threats, and safeguards.</p>
+        <p class="text-danger fw-bold">Project: <span id="deleteProjectName"></span></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" id="confirmDeleteProject">Delete Permanently</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Include Chart.js before other scripts -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+
+<!-- Include fetch interceptor to fix authentication issues -->
+<script src="/js/fetch-interceptor.js"></script>
+
+<%- include('partials/footer', { 
+  extraJs: [
+    'https://code.jquery.com/jquery-3.6.0.min.js',
+    'https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js',
+    'https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js',
+    'https://cdn.datatables.net/responsive/2.4.0/js/dataTables.responsive.min.js',
+    'https://cdn.datatables.net/responsive/2.4.0/js/responsive.bootstrap5.min.js',
+    '/js/threat-model-assignments-vanilla.js', // Add this script for the assign button
+    '/js/projects.js' // Ensure this is last so DOM is ready
+  ] 
+}) %>
+
+<!-- Initialize DataTables for Projects Table -->
+<script>
+  // Use a different variable name to avoid conflicts
+  var jq = jQuery.noConflict();
+  jq(document).ready(function() {
+    // Initialize DataTable with advanced features
+    var projectsDataTable = jq('#projectsTable').DataTable({
+      responsive: true,
+      paging: true,
+      pageLength: 10,
+      lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]],
+      info: true,
+      searching: true,
+      order: [[0, 'asc']], // Default sort by name (column index 0) ascending
+      columnDefs: [
+        { orderable: false, targets: [4] }, // Disable sorting on actions column (index 4)
+        { responsivePriority: 1, targets: 0 }, // Name column is highest priority
+        { responsivePriority: 2, targets: 4 }  // Actions column is second priority (index 4)
+      ],
+      dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>' +
+           '<"row"<"col-sm-12"tr>>' +
+           '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>'
+    });
+    
+    // Override the default filter button behavior to use DataTables API
+    jq('#applyFilters').on('click', function(e) {
+      e.preventDefault(); // Prevent the default form submission
+      
+      const businessUnit = jq('#businessUnitFilter').val();
+      const criticality = jq('#criticalityFilter').val();
+      const status = jq('#statusFilter').val();
+      
+      // Clear any existing filters
+      projectsDataTable.search('').columns().search('').draw();
+      
+      // Apply filters to specific columns
+      if (businessUnit) {
+        projectsDataTable.column(1).search(businessUnit).draw();
+      }
+      
+      if (criticality) {
+        projectsDataTable.column(2).search(criticality).draw();
+      }
+      
+      if (status) {
+        projectsDataTable.column(3).search(status).draw(); // Status is at index 3 (0-based)
+      }
+      
+      return false;
+    });
+    
+    console.log('Projects DataTable initialized successfully!');
+  });
+</script>
+
+<!-- Archive Project Confirmation Modal -->
+<div class="modal fade" id="archiveProjectModal" tabindex="-1" aria-labelledby="archiveProjectModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-warning">
+        <h5 class="modal-title" id="archiveProjectModalLabel">Archive Project</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to archive the project: <strong id="archiveProjectName"></strong>?</p>
+        <p>Archived projects will be removed from this list but can be restored from the Archived Projects page.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-warning" id="confirmArchiveBtn">Archive Project</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Reusable threat model modal -->
+<script src="/js/reusable-threat-model-modal.js"></script>
+
+<!-- Core functionality scripts -->
+
+
+<script src="/js/new-project-fix.js"></script>
+
+<!-- Archive Project Functionality -->
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Variables to store project info for archiving
+    let projectIdToArchive = null;
+    
+    // Setup archive button click handlers using event delegation
+    document.querySelector('#projectsTable tbody').addEventListener('click', function(event) {
+      // Find closest archive button if it was clicked or its child icon
+      const archiveBtn = event.target.closest('.archiveProjectBtn');
+      if (!archiveBtn) return; // Not an archive button click
+      
+      // Get project details
+      projectIdToArchive = archiveBtn.getAttribute('data-project-id');
+      const projectName = archiveBtn.getAttribute('data-project-name');
+      
+      // Set project name in modal
+      document.getElementById('archiveProjectName').textContent = projectName;
+      
+      // Show the modal
+      const archiveModal = new bootstrap.Modal(document.getElementById('archiveProjectModal'));
+      archiveModal.show();
+    });
+    
+    // Handle archive confirmation
+    document.getElementById('confirmArchiveBtn').addEventListener('click', function() {
+      if (!projectIdToArchive) return;
+      
+      // Show loading state
+      const confirmBtn = this;
+      confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Archiving...';
+      confirmBtn.disabled = true;
+      
+      // Update project status to 'Archived'
+      fetch(`/api/projects/${projectIdToArchive}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          status: 'Archived'
+        })
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Server responded with status: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (data.success) {
+          // Hide modal
+          const modal = bootstrap.Modal.getInstance(document.getElementById('archiveProjectModal'));
+          modal.hide();
+          
+          // Show success message
+          const alertContainer = document.getElementById('projectAlertContainer');
+          alertContainer.innerHTML = `
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+              Project has been archived successfully. View <a href="/projects/archived">Archived Projects</a>.
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          `;
+          
+          // Remove the project row from the table
+          // Defensive: Ensure DataTable is loaded before using
+          let projectTable;
+          if (typeof jQuery !== 'undefined' && typeof jQuery.fn.DataTable !== 'undefined') {
+            projectTable = jQuery('#projectsTable').DataTable();
+          } else if (typeof DataTable !== 'undefined') {
+            projectTable = DataTable('#projectsTable');
+          } else {
+            alert('DataTables is not loaded. Please reload the page.');
+            throw new Error('DataTables is not loaded.');
+          }
+          const row = document.querySelector(`[data-project-id="${projectIdToArchive}"]`).closest('tr');
+          projectTable.row(row).remove().draw();
+        } else {
+          throw new Error(data.error || 'Unknown error');
+        }
+      })
+      .catch(error => {
+        console.error('Error archiving project:', error);
+        
+        // Show error message
+        const alertContainer = document.getElementById('projectAlertContainer');
+        alertContainer.innerHTML = `
+          <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            Error archiving project: ${error.message || 'Unknown error'}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        `;
+        
+        // Reset button
+        confirmBtn.innerHTML = 'Archive Project';
+        confirmBtn.disabled = false;
+        
+        // Hide modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('archiveProjectModal'));
+        modal.hide();
+      });
+    });
+  });
+</script>
+
+<style>
+  #componentTable th {
+    background-color: #eee;
+    color: #333;
+  }
+
+  #componentTable .component-row:hover {
+    background-color: #f5f5f5;
+  }
+  
+  .btn-group .btn {
+    margin-right: 2px;
+  }
+  
+  .tmg-button {
+    z-index: 100;
+    position: relative;
+  }
+  
+  /* Make component buttons more visible */
+  .actions-container {
+    display: flex;
+    justify-content: center;
+  }
+
+  .actions-container .btn {
+    margin: 0 2px;
+  }
+</style>
+
+<script>
+  // Helper functions for badges and styling
+  function getCriticalityClass(criticality) {
+    switch(criticality) {
+      case 'Critical': return 'danger';
+      case 'High': return 'warning';
+      case 'Medium': return 'info';
+      case 'Low': return 'success';
+      default: return 'secondary';
+    }
+  }
+  
+  function getStatusClass(status) {
+    switch(status) {
+      case 'Active': return 'success';
+      case 'Planning': return 'info';
+      case 'Development': return 'primary';
+      case 'Maintenance': return 'warning';
+      case 'Archived': return 'secondary';
+      default: return 'secondary';
+    }
+  }
+  
+  function getRiskClass(score) {
+    if (score >= 75) return 'bg-danger';
+    if (score >= 50) return 'bg-warning';
+    if (score >= 25) return 'bg-info';
+    return 'bg-success';
+  }
+  
+  // Initialize charts
+  document.addEventListener('DOMContentLoaded', function() {
+    // Criticality chart data
+    const criticalityData = {
+      labels: ['Critical', 'High', 'Medium', 'Low'],
+      datasets: [{
+        label: 'Projects by Criticality',
+        data: [
+          <%= criticalityStats.Critical || 0 %>,
+          <%= criticalityStats.High || 0 %>,
+          <%= criticalityStats.Medium || 0 %>,
+          <%= criticalityStats.Low || 0 %>
+        ],
+        backgroundColor: [
+          'rgba(220, 53, 69, 0.7)',
+          'rgba(255, 193, 7, 0.7)',
+          'rgba(13, 202, 240, 0.7)',
+          'rgba(25, 135, 84, 0.7)'
+        ],
+        borderColor: [
+          'rgb(220, 53, 69)',
+          'rgb(255, 193, 7)',
+          'rgb(13, 202, 240)',
+          'rgb(25, 135, 84)'
+        ],
+        borderWidth: 1
+      }]
+    };
+    
+    // Business unit chart data
+    const businessUnitData = {
+      labels: <%= JSON.stringify(Object.keys(businessUnitStats)) %>,
+      datasets: [{
+        label: 'Projects by Business Unit',
+        data: <%= JSON.stringify(Object.values(businessUnitStats)) %>,
+        backgroundColor: 'rgba(54, 162, 235, 0.7)',
+        borderColor: 'rgb(54, 162, 235)',
+        borderWidth: 1
+      }]
+    };
+    
+    // Create criticality chart
+    const criticalityCtx = document.getElementById('criticalityChart');
+    if (criticalityCtx) {
+      new Chart(criticalityCtx, {
+        type: 'pie',
+        data: criticalityData,
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              position: 'right'
+            }
+          }
+        }
+      });
+    }
+    
+    // Create business unit chart
+    const businessUnitCtx = document.getElementById('businessUnitChart');
+    if (businessUnitCtx) {
+      new Chart(businessUnitCtx, {
+        type: 'bar',
+        data: businessUnitData,
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                precision: 0
+              }
+            }
+          }
+        }
+      });
+    }
+    
+    // Save new project button
+    const saveNewProjectBtn = document.getElementById('saveNewProject');
+    if (saveNewProjectBtn) {
+      saveNewProjectBtn.addEventListener('click', function() {
+        const name = document.getElementById('projectName').value.trim();
+        if (!name) {
+          alert('Project name is required');
+          return;
+        }
+        
+        // Collect components data
+        const components = [];
+        const componentRows = document.querySelectorAll('#componentTable .component-row');
+        
+        componentRows.forEach((row, index) => {
+          const nameInput = row.querySelector('.component-name');
+          const hostnameInput = row.querySelector('.component-hostname');
+          const ipInput = row.querySelector('.component-ip');
+          const typeSelect = row.querySelector('.component-type');
+          
+          // Only add if component name is provided
+          if (nameInput && nameInput.value.trim()) {
+            components.push({
+              name: nameInput.value.trim(),
+              hostname: hostnameInput ? hostnameInput.value.trim() : '',
+              ip_address: ipInput ? ipInput.value.trim() : '',
+              type: typeSelect ? typeSelect.value : ''
+            });
+          }
+        });
+        
+        const projectData = {
+          name: name,
+          description: document.getElementById('projectDescription').value.trim(),
+          business_unit: document.getElementById('businessUnit').value.trim(),
+          criticality: document.getElementById('criticality').value,
+          data_classification: document.getElementById('dataClassification').value,
+          status: document.getElementById('projectStatus').value,
+          components: components // Include components in the project data
+        };
+        
+        // Show status to user
+        const statusElement = document.createElement('div');
+        statusElement.className = 'alert alert-info mt-3';
+        statusElement.innerHTML = '<i class="bi bi-arrow-repeat spin me-2"></i>Saving project...';
+        document.querySelector('#newProjectForm').appendChild(statusElement);
+        
+        // Add a spinning animation
+        if (!document.querySelector('#spin-style')) {
+          const style = document.createElement('style');
+          style.id = 'spin-style';
+          style.textContent = `
+            .spin {
+              display: inline-block;
+              animation: spin 1s linear infinite;
+            }
+            @keyframes spin {
+              from { transform: rotate(0deg); }
+              to { transform: rotate(360deg); }
+            }
+          `;
+          document.head.appendChild(style);
+        }
+        
+        // Submit via AJAX with explicit error handling
+        fetch('/api/projects', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(projectData),
+          credentials: 'include' // Include session cookies for authentication
+        })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Server responded with status: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          if (data.success) {
+            // Show success message
+            statusElement.className = 'alert alert-success mt-3';
+            statusElement.innerHTML = '<i class="bi bi-check-circle me-2"></i>Project created successfully!';
+            
+            setTimeout(() => {
+              // Hide modal and refresh page
+              const modal = bootstrap.Modal.getInstance(document.getElementById('newProjectModal'));
+              if (modal) {
+                modal.hide();
+                window.location.reload();
+              } else {
+                window.location.reload(); // Fallback to just reloading
+              }
+            }, 1000);
+          } else {
+            statusElement.className = 'alert alert-danger mt-3';
+            statusElement.innerHTML = `<i class="bi bi-exclamation-triangle me-2"></i>Error: ${data.error || 'Unknown error'}`;
+          }
+        })
+        .catch(error => {
+          console.error('Error creating project:', error);
+          statusElement.className = 'alert alert-danger mt-3';
+          statusElement.innerHTML = `<i class="bi bi-exclamation-triangle me-2"></i>Error: ${error.message}`;
+        });
+      });
+    } else {
+  
+    }
+    
+    // Delete project button
+    const deleteProjectBtn = document.getElementById('deleteProject');
+    if (deleteProjectBtn) {
+      deleteProjectBtn.addEventListener('click', function() {
+        const projectId = document.getElementById('editProjectId').value;
+        const projectName = document.getElementById('editProjectName').value;
+        
+        // Set project name in delete confirmation modal
+        document.getElementById('deleteProjectName').textContent = projectName;
+        
+        // Hide edit modal and show delete confirmation
+        const editModal = bootstrap.Modal.getInstance(document.getElementById('editProjectModal'));
+        editModal.hide();
+        
+        const deleteModal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+        deleteModal.show();
+      });
+    }
+    
+    // Confirm delete button
+    const confirmDeleteBtn = document.getElementById('confirmDeleteProject');
+    if (confirmDeleteBtn) {
+      confirmDeleteBtn.addEventListener('click', function() {
+        const projectId = document.getElementById('editProjectId').value;
+        
+        // Submit delete request
+        fetch(`/api/projects/${projectId}`, {
+          method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            // Hide modal and refresh page
+            const modal = bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal'));
+            modal.hide();
+            window.location.reload();
+          } else {
+            alert('Error deleting project: ' + (data.error || 'Unknown error'));
+          }
+        })
+        .catch(error => {
+          console.error('Error deleting project:', error);
+          alert('Error deleting project');
+        });
+      });
+    }
+    
+    // Save project changes button
+    const saveChangesBtn = document.getElementById('saveProjectChanges');
+    if (saveChangesBtn) {
+      saveChangesBtn.addEventListener('click', function() {
+        const projectId = document.getElementById('editProjectId').value;
+        const name = document.getElementById('editProjectName').value.trim();
+        
+        if (!name) {
+          alert('Project name is required');
+          return;
+        }
+        
+        const projectData = {
+          name: name,
+          description: document.getElementById('editProjectDescription').value.trim(),
+          business_unit: document.getElementById('editBusinessUnit').value.trim(),
+          criticality: document.getElementById('editCriticality').value,
+          data_classification: document.getElementById('editDataClassification').value,
+          status: document.getElementById('editProjectStatus').value
+        };
+        
+        // Update project via API
+        fetch(`/api/projects/${projectId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(projectData),
+          credentials: 'include' // Include session cookies for authentication
+        })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Server responded with status: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          if (data.success) {
+            // Hide modal and refresh page
+            const modal = bootstrap.Modal.getInstance(document.getElementById('editProjectModal'));
+            modal.hide();
+            window.location.reload();
+          } else {
+            alert('Error updating project: ' + (data.error || 'Unknown error'));
+          }
+        })
+        .catch(error => {
+          console.error('Error updating project:', error);
+          alert('Error updating project');
+        });
+      });
+    }
+    
+    // Add Component Row button
+    const addComponentBtn = document.getElementById('addComponentRow');
+    if (addComponentBtn) {
+      addComponentBtn.addEventListener('click', function() {
+        const table = document.getElementById('componentTable');
+        if (!table) {
+          alert('Error: Component table not found');
+          return;
+        }
+        
+        const tbody = table.querySelector('tbody');
+        if (!tbody) {
+          alert('Error: Table body not found');
+          return;
+        }
+        
+        // Clone the first row as a template
+        const firstRow = tbody.querySelector('.component-row');
+        if (!firstRow) {
+          alert('Error: Component template row not found');
+          return;
+        }
+        
+        const newRow = firstRow.cloneNode(true);
+        
+        // Clear input values in the new row
+        newRow.querySelectorAll('input').forEach(input => {
+          input.value = '';
+        });
+        
+        const selectElement = newRow.querySelector('select');
+        if (selectElement) {
+          selectElement.selectedIndex = 0;
+        }
+        
+        // Set up direct onclick handlers for the new row buttons
+        const tmButton = newRow.querySelector('.tm-button');
+        if (tmButton) {
+          tmButton.onclick = function() { handleTMClick(this); };
+        } else {
+      
+        }
+        
+        const tmgButton = newRow.querySelector('.tmg-button');
+        if (tmgButton) {
+          tmgButton.onclick = function() { handleTMGClick(this); };
+        } else {
+      
+        }
+        
+        const deleteButton = newRow.querySelector('.delete-component');
+        if (deleteButton) {
+          deleteButton.onclick = function() { handleDeleteClick(this); };
+        } else {
+      
+        }
+        
+        // Append the new row to the table
+        tbody.appendChild(newRow);
+      });
+    } else {
+    }
+    
+    // We're now using onclick attributes instead of addEventListener
+    // The functionality is handled by the window.handleDeleteClick function
+    
+    // These functions will handle the button clicks directly through onclick attributes
+    window.handleTMClick = function(button) {
+      
+      const componentNameInput = button.closest('tr').querySelector('.component-name');
+      if (componentNameInput && componentNameInput.value.trim()) {
+        const componentName = componentNameInput.value.trim();
+        
+        // Simple alert - just to confirm the click is working
+        alert('This would navigate to the threat model for component: ' + componentName);
+        // In a real implementation, we would use a redirect:
+        // window.location.href = '/threat-models?component=' + encodeURIComponent(componentName);
+      } else {
+        alert('Please provide a component name first');
+      }
+    };
+    
+    // Include the reusable threat model modal script
+    if (!document.getElementById('reusableThreatModelScript')) {
+      const scriptTag = document.createElement('script');
+      scriptTag.id = 'reusableThreatModelScript';
+      scriptTag.src = '/js/reusable-threat-model-modal.js';
+      document.head.appendChild(scriptTag);
+    }
+    
+    window.handleTMGClick = function(button) {
+      const componentNameInput = button.closest('tr').querySelector('.component-name');
+      if (componentNameInput && componentNameInput.value.trim()) {
+        const componentName = componentNameInput.value.trim();
+        
+        // Check if we're in the New Project modal (unsaved project)
+        const isNewProjectModal = button.closest('#newProjectModal') !== null;
+        
+        if (isNewProjectModal) {
+          // We need to save the project first before generating a threat model
+          const proceed = confirm('To generate a threat model, the project needs to be saved first. Would you like to save this project and continue?');
+          
+          if (proceed) {
+            console.log('Saving project before generating threat model...');
+            
+            // Validate project data
+            const projectName = document.getElementById('projectName').value.trim();
+            if (!projectName) {
+              alert('Project name is required before saving');
+              return;
+            }
+            
+            // Collect components data
+            const components = [];
+            document.querySelectorAll('#componentTable .component-row').forEach(row => {
+              const nameInput = row.querySelector('.component-name');
+              const hostnameInput = row.querySelector('.component-hostname');
+              const ipInput = row.querySelector('.component-ip');
+              const typeSelect = row.querySelector('.component-type');
+              
+              // Only add if component name is provided
+              if (nameInput && nameInput.value.trim()) {
+                components.push({
+                  name: nameInput.value.trim(),
+                  hostname: hostnameInput ? hostnameInput.value.trim() : '',
+                  ip_address: ipInput ? ipInput.value.trim() : '',
+                  type: typeSelect ? typeSelect.value : ''
+                });
+              }
+            });
+            
+            const projectData = {
+              name: projectName,
+              description: document.getElementById('projectDescription').value.trim(),
+              business_unit: document.getElementById('businessUnit').value.trim(),
+              criticality: document.getElementById('criticality').value,
+              data_classification: document.getElementById('dataClassification').value,
+              status: document.getElementById('projectStatus').value,
+              components: components
+            };
+            
+            // Display saving indicator
+            const saveIndicator = document.createElement('div');
+            saveIndicator.className = 'alert alert-info';
+            saveIndicator.innerHTML = '<i class="bi bi-arrow-repeat spin me-2"></i>Saving project and preparing threat model generation...';
+            saveIndicator.style.position = 'fixed';
+            saveIndicator.style.top = '20px';
+            saveIndicator.style.left = '50%';
+            saveIndicator.style.transform = 'translateX(-50%)';
+            saveIndicator.style.zIndex = '9999';
+            saveIndicator.style.padding = '10px 20px';
+            saveIndicator.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+            document.body.appendChild(saveIndicator);
+            
+            // Add a spinning animation
+            const style = document.createElement('style');
+            style.textContent = `
+              .spin {
+                animation: spin 1s linear infinite;
+              }
+              @keyframes spin {
+                from { transform: rotate(0deg); }
+                to { transform: rotate(360deg); }
+              }
+            `;
+            document.head.appendChild(style);
+            
+            // Submit via AJAX
+            fetch('/api/projects', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(projectData)
+            })
+            .then(response => {
+              if (!response.ok) {
+                throw new Error(`Server responded with status: ${response.status}`);
+              }
+              return response.json();
+            })
+            .then(data => {
+              console.log('Project saved successfully:', data);
+              
+              // Remove the save indicator
+              document.body.removeChild(saveIndicator);
+              
+              if (data.success) {
+                // Hide the new project modal
+                const newProjectModal = bootstrap.Modal.getInstance(document.getElementById('newProjectModal'));
+                if (newProjectModal) {
+                  newProjectModal.hide();
+                }
+                
+                // Create and show the threat model generation modal
+          }
+        }, 500);
+      }
+    };
+    
+    window.handleDeleteClick = function(button) {
+      
+      const row = button.closest('.component-row');
+      const tbody = row.parentElement;
+      
+      const rowCount = tbody.querySelectorAll('.component-row').length;
+      
+      if (rowCount > 1) {
+        // Only allow deletion if there's more than one row
+        if (confirm('Are you sure you want to delete this component?')) {
+          tbody.removeChild(row);
+        } else {
+        }
+      } else {
+        alert('You cannot delete the last component row. Clear the fields instead.');
+      }
+    };
+    
+    // Apply filters button
+    const applyFiltersBtn = document.getElementById('applyFilters');
+    if (applyFiltersBtn) {
+      applyFiltersBtn.addEventListener('click', function() {
+        const businessUnit = document.getElementById('businessUnitFilter').value;
+        const criticality = document.getElementById('criticalityFilter').value;
+        const status = document.getElementById('statusFilter').value;
+        
+        let url = '/projects?';
+        
+        if (businessUnit) url += `business_unit=${encodeURIComponent(businessUnit)}&`;
+        if (criticality) url += `criticality=${encodeURIComponent(criticality)}&`;
+        if (status) url += `status=${encodeURIComponent(status)}&`;
+        
+        // Remove trailing '&' or '?'
+        url = url.replace(/[&?]$/, '');
+        
+        window.location.href = url;
+      });
+    }
+  });
+</script>

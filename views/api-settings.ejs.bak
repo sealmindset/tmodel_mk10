@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<%- include('./partials/header.ejs') %>
+
+<style>
+  /* Custom styles for status indicators */
+  .status-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-left: 5px;
+  }
+  .status-green { background-color: #28a745; }
+  .status-yellow { background-color: #ffc107; }
+  .status-red { background-color: #dc3545; }
+  
+  /* Make the card connect with the tabs */
+  .card.border-top-0 {
+    border-top: 0;
+  }
+  .nav-tabs .nav-link.active {
+    border-bottom-color: #fff;
+  }
+</style>
+
+<div class="container mt-4">
+  <h1>API Settings</h1>
+  
+  <% if (message) { %>
+    <div class="alert alert-<%= message.type %> alert-dismissible fade show" role="alert">
+      <%= message.text %>
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+  <% } %>
+  
+  <!-- Nav tabs -->
+  <ul class="nav nav-tabs" id="apiSettingsTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="llm-provider-tab" data-bs-toggle="tab" data-bs-target="#llm-provider" type="button" role="tab" aria-controls="llm-provider" aria-selected="true">
+        LLM Provider
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="openai-tab" data-bs-toggle="tab" data-bs-target="#openai" type="button" role="tab" aria-controls="openai" aria-selected="false">
+        OpenAI API
+        <span class="status-dot <%= typeof openaiStatus !== 'undefined' && openaiStatus ? 'status-green' : 'status-red' %>"></span>
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="ollama-tab" data-bs-toggle="tab" data-bs-target="#ollama" type="button" role="tab" aria-controls="ollama" aria-selected="false">
+        Ollama API
+        <span class="status-dot <%= typeof ollamaStatus !== 'undefined' && ollamaStatus ? 'status-green' : 'status-red' %>"></span>
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="rapid7-tab" data-bs-toggle="tab" data-bs-target="#rapid7" type="button" role="tab" aria-controls="rapid7" aria-selected="false">
+        Rapid7 API
+        <span class="status-dot <%= typeof rapid7Status !== 'undefined' && rapid7Status ? 'status-green' : 'status-red' %>"></span>
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="postgresql-tab" data-bs-toggle="tab" data-bs-target="#postgresql" type="button" role="tab" aria-controls="postgresql" aria-selected="false">
+        PostgreSQL
+        <span class="status-dot <%= typeof postgresqlStatus !== 'undefined' && postgresqlStatus ? 'status-green' : 'status-red' %>"></span>
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="redis-tab" data-bs-toggle="tab" data-bs-target="#redis" type="button" role="tab" aria-controls="redis" aria-selected="false">
+        Redis
+        <span class="status-dot <%= typeof redisStatus !== 'undefined' && redisStatus ? 'status-green' : 'status-red' %>"></span>
+      </button>
+    </li>
+  </ul>
+  
+  <!-- Tab content -->
+  <div class="tab-content" id="apiSettingsTabContent">
+    <!-- LLM Provider Tab -->
+    <div class="tab-pane fade show active" id="llm-provider" role="tabpanel" aria-labelledby="llm-provider-tab">
+      <div class="card border-top-0 rounded-top-0">
+        <div class="card-body">
+          <h5 class="card-title">Default LLM Provider</h5>
+          <p class="card-text">Select which LLM provider to use by default for AI-powered features.</p>
+          
+          <form id="llm-provider-form">
+            <div class="mb-3">
+              <label for="llm-provider-select" class="form-label">Default Provider</label>
+              <select class="form-select" id="llm-provider-select" name="llmProvider">
+                <option value="openai" <%= llmProvider === 'openai' ? 'selected' : '' %>>OpenAI</option>
+                <option value="ollama" <%= llmProvider === 'ollama' ? 'selected' : '' %>>Ollama</option>
+              </select>
+              <div class="form-text">Choose which LLM provider to use for threat analysis and AI-powered features.</div>
+            </div>
+            <button type="button" class="btn btn-primary" id="save-llm-provider">Save Provider</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    
+    <!-- OpenAI Tab -->
+    <div class="tab-pane fade" id="openai" role="tabpanel" aria-labelledby="openai-tab">
+      <div class="card border-top-0 rounded-top-0">
+        <div class="card-body">
+          <h5 class="card-title">OpenAI API Settings</h5>
+          <p class="card-text">Configure your OpenAI API credentials and model preferences.</p>
+          
+          <div class="d-flex align-items-center mb-3">
+            <div class="me-2">Status:</div> 
+            <div class="status-indicator <%= typeof openaiStatus !== 'undefined' && openaiStatus ? 'online' : 'offline' %>" 
+                 id="openai-status-indicator"
+                 title="OpenAI API: <%= typeof openaiStatus !== 'undefined' && openaiStatus ? 'Connected' : 'Disconnected' %>"></div>
+            <span id="openai-status-text" class="ms-2 <%= typeof openaiStatus !== 'undefined' && openaiStatus ? 'text-success' : 'text-danger' %>">
+              <%= typeof openaiStatus !== 'undefined' && openaiStatus ? 'Connected' : 'Disconnected' %>
+            </span>
+          </div>
+          
+          <form id="openai-settings-form" action="/settings" method="POST">
+            <input type="hidden" name="settingsType" value="openai">
+            <div class="mb-3">
+              <label for="openai-api-key" class="form-label">API Key</label>
+              <div class="input-group">
+                <input type="text" class="form-control" id="openai-api-key" name="openaiApiKey" value="<%= openaiApiKey || '' %>" placeholder="sk-...">
+                <button class="btn btn-outline-secondary" type="button" id="toggle-openai-api-key">
+                  <i class="fas fa-eye"></i>
+                </button>
+              </div>
+              <div class="form-text">Your OpenAI API key is stored securely and only used for making API requests.</div>
+            </div>
+            
+            <div class="mb-3">
+              <label for="openai-model" class="form-label">Model</label>
+              <select class="form-select" id="openai-model" name="openaiModel">
+                <option value="gpt-4" <%= openaiModel === 'gpt-4' ? 'selected' : '' %>>GPT-4</option>
+                <option value="gpt-4-turbo" <%= openaiModel === 'gpt-4-turbo' ? 'selected' : '' %>>GPT-4 Turbo</option>
+                <option value="gpt-3.5-turbo" <%= openaiModel === 'gpt-3.5-turbo' ? 'selected' : '' %>>GPT-3.5 Turbo</option>
+              </select>
+              <div class="form-text">Choose the OpenAI model to use for completions.</div>
+            </div>
+            
+            <div class="d-flex">
+              <button type="button" class="btn btn-primary me-2" id="save-openai-settings">Save Settings</button>
+              <button type="button" class="btn btn-info" id="test-openai-connection">Test Connection</button>
+              <span id="test-openai-result" class="ms-2"></span>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Ollama Tab -->
+    <div class="tab-pane fade" id="ollama" role="tabpanel" aria-labelledby="ollama-tab">
+      <div class="card border-top-0 rounded-top-0">
+        <div class="card-body">
+          <h5 class="card-title">Ollama API Settings</h5>
+          <p class="card-text">Configure your Ollama API connection and model preferences.</p>
+          
+          <div class="d-flex align-items-center mb-3">
+            <div class="me-2">Status:</div> 
+            <div class="status-indicator <%= typeof ollamaStatus !== 'undefined' && ollamaStatus ? 'online' : 'offline' %>" 
+                 id="ollama-status-indicator"
+                 title="Ollama API: <%= typeof ollamaStatus !== 'undefined' && ollamaStatus ? 'Connected' : 'Disconnected' %>"></div>
+            <span id="ollama-status-text" class="ms-2 <%= typeof ollamaStatus !== 'undefined' && ollamaStatus ? 'text-success' : 'text-danger' %>">
+              <%= typeof ollamaStatus !== 'undefined' && ollamaStatus ? 'Connected' : 'Disconnected' %>
+            </span>
+          </div>
+          
+          <form id="ollama-settings-form">
+            <div class="mb-3">
+              <label for="ollama-api-url" class="form-label">API URL</label>
+              <input type="text" class="form-control" id="ollama-api-url" name="ollamaApiUrl" value="<%= ollamaApiUrl || 'http://localhost:11434' %>" placeholder="http://localhost:11434">
+              <div class="form-text">The base URL for your Ollama API endpoint (default: http://localhost:11434).</div>
+            </div>
+            
+            <div class="mb-3">
+              <label for="ollama-model" class="form-label">Model</label>
+              <select class="form-select" id="ollama-model" name="ollamaModel">
+                <option value="llama3.3" <%= ollamaModel === 'llama3.3' ? 'selected' : '' %>>Llama 3.3</option>
+                <option value="llama2" <%= ollamaModel === 'llama2' ? 'selected' : '' %>>Llama 2</option>
+                <option value="mistral" <%= ollamaModel === 'mistral' ? 'selected' : '' %>>Mistral</option>
+                <option value="gemma" <%= ollamaModel === 'gemma' ? 'selected' : '' %>>Gemma</option>
+              </select>
+              <div class="form-text">Choose the Ollama model to use for completions.</div>
+            </div>
+            
+            <div class="d-flex">
+              <button type="button" class="btn btn-primary me-2" id="save-ollama-settings">Save Settings</button>
+              <button type="button" class="btn btn-info" id="test-ollama-connection">Test Connection</button>
+              <span id="test-ollama-result" class="ms-2"></span>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Rapid7 Tab -->
+    <div class="tab-pane fade" id="rapid7" role="tabpanel" aria-labelledby="rapid7-tab">
+      <div class="card border-top-0 rounded-top-0">
+        <div class="card-body">
+          <h5 class="card-title">Rapid7 API Settings</h5>
+          <p class="card-text">Configure your Rapid7 API connection for vulnerability management.</p>
+          
+          <div class="d-flex align-items-center mb-3">
+            <div class="me-2">Status:</div> 
+            <div class="status-indicator <%= typeof rapid7Status !== 'undefined' && rapid7Status ? 'online' : 'offline' %>" 
+                 id="rapid7-status-indicator"
+                 title="Rapid7 API: <%= typeof rapid7Status !== 'undefined' && rapid7Status ? 'Connected' : 'Disconnected' %>"></div>
+            <span id="rapid7-status-text" class="ms-2 <%= typeof rapid7Status !== 'undefined' && rapid7Status ? 'text-success' : 'text-danger' %>">
+              <%= typeof rapid7Status !== 'undefined' && rapid7Status ? 'Connected' : 'Disconnected' %>
+            </span>
+          </div>
+          
+          <form id="rapid7-settings-form" action="/settings" method="POST">
+            <input type="hidden" name="settingsType" value="rapid7">
+            <div class="mb-3">
+              <label for="rapid7-api-url" class="form-label">API URL</label>
+              <input type="text" class="form-control" id="rapid7-api-url" name="rapid7ApiUrl" value="<%= rapid7ApiUrl || 'https://us.api.insight.rapid7.com' %>" placeholder="https://us.api.insight.rapid7.com">
+              <div class="form-text">The base URL for your Rapid7 API endpoint.</div>
+            </div>
+            
+            <div class="mb-3">
+              <label for="rapid7-api-key" class="form-label">API Key</label>
+              <div class="input-group">
+                <input type="text" class="form-control" id="rapid7-api-key" name="rapid7ApiKey" value="<%= rapid7ApiKey || '' %>" placeholder="Enter your Rapid7 API key...">
+                <button class="btn btn-outline-secondary" type="button" id="toggle-rapid7-api-key">
+                  <i class="fas fa-eye"></i>
+                </button>
+              </div>
+              <div class="form-text">Your Rapid7 API key is stored securely and only used for making API requests.</div>
+            </div>
+            
+            <!-- OpenAPI Spec Upload -->
+            <div class="mb-3">
+              <label for="rapid7-openapi-spec" class="form-label">OpenAPI Specification</label>
+              <div class="input-group">
+                <input type="file" class="form-control" id="rapid7-openapi-spec" name="rapid7OpenApiSpec" accept=".json,.yaml,.yml">
+                <button class="btn btn-outline-secondary" type="button" id="parse-rapid7-spec">Parse</button>
+              </div>
+              <div class="form-text">Upload Rapid7 API OpenAPI specification file to automatically configure endpoints.</div>
+              <div id="rapid7-spec-status" class="mt-2"></div>
+            </div>
+            
+            <!-- Discovered Endpoints -->
+            <div class="mb-3" id="rapid7-endpoints-container" style="display: none;">
+              <label class="form-label">Discovered Endpoints</label>
+              <div class="table-responsive">
+                <table class="table table-sm table-bordered">
+                  <thead>
+                    <tr>
+                      <th>Endpoint</th>
+                      <th>Method</th>
+                      <th>Description</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="rapid7-endpoints-list">
+                    <!-- Endpoints will be populated here -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            
+            <div class="d-flex">
+              <button type="submit" class="btn btn-primary me-2">Save Settings</button>
+              <button type="button" class="btn btn-info me-2" id="test-rapid7-connection">Test Connection</button>
+              <button type="button" class="btn btn-success" id="sync-vulnerabilities">Sync Vulnerabilities</button>
+              <span id="test-rapid7-result" class="ms-2"></span>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+
+            <div class="d-flex">
+              <button type="button" class="btn btn-primary me-2" id="save-openai-settings">Save Settings</button>
+              <button type="button" class="btn btn-info" id="test-openai-connection">Test Connection</button>
+              <span id="test-openai-result" class="ms-2"></span>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Ollama Tab -->
+    <div class="tab-pane fade" id="ollama" role="tabpanel" aria-labelledby="ollama-tab">
+      <div class="card border-top-0 rounded-top-0">
+        <div class="card-body">
+          <h5 class="card-title">Ollama API Settings</h5>
+          <p class="card-text">Configure your Ollama API connection and model preferences.</p>
+          
+          <div class="d-flex align-items-center mb-3">
+            <div class="me-2">Status:</div> 
+            <div class="status-indicator <%= typeof ollamaStatus !== 'undefined' && ollamaStatus ? 'online' : 'offline' %>" 
+                 id="ollama-status-indicator"
+                 title="Ollama API: <%= typeof ollamaStatus !== 'undefined' && ollamaStatus ? 'Connected' : 'Disconnected' %>"></div>
+            <span id="ollama-status-text" class="ms-2 <%= typeof ollamaStatus !== 'undefined' && ollamaStatus ? 'text-success' : 'text-danger' %>">
+              <%= typeof ollamaStatus !== 'undefined' && ollamaStatus ? 'Connected' : 'Disconnected' %>
+            </span>
+          </div>
+          
+          <form id="ollama-settings-form">
+            <div class="mb-3">
+              <label for="ollama-api-url" class="form-label">API URL</label>
+              <input type="text" class="form-control" id="ollama-api-url" name="ollamaApiUrl" value="<%= typeof ollamaApiUrl !== 'undefined' ? ollamaApiUrl : 'http://localhost:11434' %>" placeholder="http://localhost:11434">
+              <div class="form-text">The base URL for your Ollama API endpoint (default: http://localhost:11434).</div>
+            </div>
+            
+            <div class="mb-3">
+              <label for="ollama-model" class="form-label">Model</label>
+              <select class="form-select" id="ollama-model" name="ollamaModel">
+                <option value="llama3.3" <%= ollamaModel === 'llama3.3' ? 'selected' : '' %>>Llama 3.3</option>
+                <option value="llama2" <%= ollamaModel === 'llama2' ? 'selected' : '' %>>Llama 2</option>
+                <option value="mistral" <%= ollamaModel === 'mistral' ? 'selected' : '' %>>Mistral</option>
+                <option value="gemma" <%= ollamaModel === 'gemma' ? 'selected' : '' %>>Gemma</option>
+              </select>
+              <div class="form-text">Choose the Ollama model to use for completions.</div>
+            </div>
+            
+            <div class="d-flex">
+              <button type="button" class="btn btn-primary me-2" id="save-ollama-settings">Save Settings</button>
+              <button type="button" class="btn btn-info" id="test-ollama-connection">Test Connection</button>
+              <span id="test-ollama-result" class="ms-2"></span>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Rapid7 Tab -->
+    <div class="tab-pane fade" id="rapid7" role="tabpanel" aria-labelledby="rapid7-tab">
+      <div class="card border-top-0 rounded-top-0">
+        <div class="card-body">
+          <h5 class="card-title">Rapid7 API Settings</h5>
+          <p class="card-text">Configure your Rapid7 API connection for vulnerability management.</p>
+          
+          <div class="d-flex align-items-center mb-3">
+            <div class="me-2">Status:</div> 
+            <div class="status-indicator <%= typeof rapid7Status !== 'undefined' && rapid7Status ? 'online' : 'offline' %>" 
+                 id="rapid7-status-indicator"
+                 title="Rapid7 API: <%= typeof rapid7Status !== 'undefined' && rapid7Status ? 'Connected' : 'Disconnected' %>"></div>
+            <span id="rapid7-status-text" class="ms-2 <%= typeof rapid7Status !== 'undefined' && rapid7Status ? 'text-success' : 'text-danger' %>">
+              <%= typeof rapid7Status !== 'undefined' && rapid7Status ? 'Connected' : 'Disconnected' %>
+            </span>
+          </div>
+          
+          <form id="rapid7-settings-form" action="/settings" method="POST">
+            <input type="hidden" name="settingsType" value="rapid7">
+            <div class="mb-3">
+              <label for="rapid7-api-url" class="form-label">API URL</label>
+              <input type="text" class="form-control" id="rapid7-api-url" name="rapid7ApiUrl" value="<%= rapid7ApiUrl || 'https://us.api.insight.rapid7.com' %>" placeholder="https://us.api.insight.rapid7.com">
+              <div class="form-text">The base URL for your Rapid7 API endpoint.</div>
+            </div>
+            
+            <div class="mb-3">
+              <label for="rapid7-api-key" class="form-label">API Key</label>
+              <div class="input-group">
+                <input type="text" class="form-control" id="rapid7-api-key" name="rapid7ApiKey" value="<%= rapid7ApiKey || '' %>" placeholder="Enter your Rapid7 API key...">
+                <button class="btn btn-outline-secondary" type="button" id="toggle-rapid7-api-key">
+                  <i class="fas fa-eye"></i>
+                </button>
+              </div>
+              <div class="form-text">Your Rapid7 API key is stored securely and only used for making API requests.</div>
+            </div>
+            
+            <!-- OpenAPI Spec Upload -->
+            <div class="mb-3">
+              <label for="rapid7-openapi-spec" class="form-label">OpenAPI Specification</label>
+              <div class="input-group">
+                <input type="file" class="form-control" id="rapid7-openapi-spec" name="rapid7OpenApiSpec" accept=".json,.yaml,.yml">
+                <button class="btn btn-outline-secondary" type="button" id="parse-rapid7-spec">Parse</button>
+              </div>
+              <div class="form-text">Upload Rapid7 API OpenAPI specification file to automatically configure endpoints.</div>
+              <div id="rapid7-spec-status" class="mt-2"></div>
+            </div>
+            
+            <!-- Discovered Endpoints -->
+            <div class="mb-3" id="rapid7-endpoints-container" style="display: none;">
+              <label class="form-label">Discovered Endpoints</label>
+              <div class="table-responsive">
+                <table class="table table-sm table-bordered">
+                  <thead>
+                    <tr>
+                      <th>Endpoint</th>
+                      <th>Method</th>
+                      <th>Description</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="rapid7-endpoints-list">
+                    <!-- Endpoints will be populated here -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            
+            <div class="d-flex">
+              <button type="submit" class="btn btn-primary me-2">Save Settings</button>
+              <button type="button" class="btn btn-info me-2" id="test-rapid7-connection">Test Connection</button>
+              <button type="button" class="btn btn-success" id="sync-vulnerabilities">Sync Vulnerabilities</button>
+              <span id="test-rapid7-result" class="ms-2"></span>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    
+    <!-- PostgreSQL Tab -->
+    <div class="tab-pane fade" id="postgresql" role="tabpanel" aria-labelledby="postgresql-tab">
+      <div class="card border-top-0 rounded-top-0">
+        <div class="card-body">
+          <h5 class="card-title">PostgreSQL Settings</h5>
+          <p class="card-text">Configure your PostgreSQL database connection.</p>
+          
+          <div class="d-flex align-items-center mb-3">
+            <div class="me-2">Status:</div> 
+            <div class="status-indicator <%= typeof postgresqlStatus !== 'undefined' && postgresqlStatus ? 'online' : 'offline' %>" 
+                 id="postgresql-status-indicator"
+                 title="PostgreSQL: <%= typeof postgresqlStatus !== 'undefined' && postgresqlStatus ? 'Connected' : 'Disconnected' %>"></div>
+            <span id="postgresql-status-text" class="ms-2 <%= typeof postgresqlStatus !== 'undefined' && postgresqlStatus ? 'text-success' : 'text-danger' %>">
+              <%= typeof postgresqlStatus !== 'undefined' && postgresqlStatus ? 'Connected' : 'Disconnected' %>
+            </span>
+          </div>
+          
+          <form id="postgresql-settings-form">
+            <div class="mb-3">
+              <label for="postgresql-host" class="form-label">Host</label>
+              <input type="text" class="form-control" id="postgresql-host" name="postgresqlHost" value="<%= postgresqlHost || 'localhost' %>" placeholder="localhost">
+              <div class="form-text">PostgreSQL server hostname.</div>
+            </div>
+            
+            <div class="mb-3">
+              <label for="postgresql-port" class="form-label">Port</label>
+              <input type="text" class="form-control" id="postgresql-port" name="postgresqlPort" value="<%= postgresqlPort || '5432' %>" placeholder="5432">
+              <div class="form-text">PostgreSQL server port.</div>
+            </div>
+            
+            <div class="mb-3">
+              <label for="postgresql-database" class="form-label">Database</label>
+              <input type="text" class="form-control" id="postgresql-database" name="postgresqlDatabase" value="<%= postgresqlDatabase || 'tmodel' %>" placeholder="tmodel">
+              <div class="form-text">PostgreSQL database name.</div>
+            </div>
+            
+            <div class="mb-3">
+              <label for="postgresql-user" class="form-label">Username</label>
+              <input type="text" class="form-control" id="postgresql-user" name="postgresqlUser" value="<%= postgresqlUser || 'postgres' %>" placeholder="postgres">
+              <div class="form-text">PostgreSQL username.</div>
+            </div>
+            
+            <div class="mb-3">
+              <label for="postgresql-password" class="form-label">Password</label>
+              <div class="input-group">
+                <input type="text" class="form-control" id="postgresql-password" name="postgresqlPassword" value="<%= postgresqlPassword || '' %>" placeholder="Enter your PostgreSQL password...">
+                <button class="btn btn-outline-secondary" type="button" id="toggle-postgresql-password">
+                  <i class="fas fa-eye"></i>
+                </button>
+              </div>
+              <div class="form-text">PostgreSQL password.</div>
+            </div>
+            
+            <div class="d-flex">
+              <button type="button" class="btn btn-primary me-2" id="save-postgresql-settings">Save Settings</button>
+              <button type="button" class="btn btn-info" id="test-postgresql-connection">Test Connection</button>
+              <span id="test-postgresql-result" class="ms-2"></span>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Redis Tab -->
+    <div class="tab-pane fade" id="redis" role="tabpanel" aria-labelledby="redis-tab">
+      <div class="card border-top-0 rounded-top-0">
+        <div class="card-body">
+          <h5 class="card-title">Redis Settings</h5>
+          <p class="card-text">Configure your Redis connection for caching and session management.</p>
+          
+          <div class="d-flex align-items-center mb-3">
+            <div class="me-2">Status:</div> 
+            <div class="status-indicator <%= typeof redisStatus !== 'undefined' && redisStatus ? 'online' : 'offline' %>" 
+                 id="redis-status-indicator"
+                 title="Redis: <%= typeof redisStatus !== 'undefined' && redisStatus ? 'Connected' : 'Disconnected' %>"></div>
+            <span id="redis-status-text" class="ms-2 <%= typeof redisStatus !== 'undefined' && redisStatus ? 'text-success' : 'text-danger' %>">
+              <%= typeof redisStatus !== 'undefined' && redisStatus ? 'Connected' : 'Disconnected' %>
+            </span>
+          </div>
+          
+          <form id="redis-settings-form">
+            <div class="mb-3">
+              <label for="redis-host" class="form-label">Host</label>
+              <input type="text" class="form-control" id="redis-host" name="redisHost" value="<%= redisHost || 'localhost' %>" placeholder="localhost">
+              <div class="form-text">Redis server hostname.</div>
+            </div>
+            
+            <div class="mb-3">
+              <label for="redis-port" class="form-label">Port</label>
+              <input type="text" class="form-control" id="redis-port" name="redisPort" value="<%= redisPort || '6379' %>" placeholder="6379">
+              <div class="form-text">Redis server port.</div>
+            </div>
+            
+            <div class="mb-3">
+              <label for="redis-password" class="form-label">Password</label>
+              <div class="input-group">
+                <input type="text" class="form-control" id="redis-password" name="redisPassword" value="<%= redisPassword || '' %>" placeholder="Enter your Redis password (if required)...">
+                <button class="btn btn-outline-secondary" type="button" id="toggle-redis-password">
+                  <i class="fas fa-eye"></i>
+                </button>
+              </div>
+              <div class="form-text">Redis password (leave blank if not required).</div>
+            </div>
+            
+            <div class="d-flex">
+              <button type="button" class="btn btn-primary me-2" id="save-redis-settings">Save Settings</button>
+              <button type="button" class="btn btn-info" id="test-redis-connection">Test Connection</button>
+              <span id="test-redis-result" class="ms-2"></span>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Initialize tooltips
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+      return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+
+    // Toggle API key visibility
+    const toggleButton = document.getElementById('toggle-api-key');
+    const apiKeyInput = document.getElementById('openai-api-key');
+    
+    if (toggleButton && apiKeyInput) {
+      toggleButton.addEventListener('click', () => {
+        const type = apiKeyInput.getAttribute('type') === 'password' ? 'text' : 'password';
+        apiKeyInput.setAttribute('type', type);
+        toggleButton.innerHTML = type === 'password' ? '<i class="fas fa-eye"></i>' : '<i class="fas fa-eye-slash"></i>';
+      });
+    }
+
+    // Handle provider selection
+    const providerOpenAI = document.getElementById('providerOpenAI');
+    const providerOllama = document.getElementById('providerOllama');
+    const openaiSettings = document.getElementById('openaiSettings');
+    const ollamaSettings = document.getElementById('ollamaSettings');
+
+    if (providerOpenAI && providerOllama && openaiSettings && ollamaSettings) {
+      // Always show both settings sections regardless of which provider is selected
+      // This ensures settings aren't lost when switching providers
+      openaiSettings.style.display = 'block';
+      ollamaSettings.style.display = 'block';
+      
+      providerOpenAI.addEventListener('change', () => {
+        // Don't hide OpenAI settings when Ollama is selected
+        // openaiSettings.style.display = 'block';
+        // ollamaSettings.style.display = 'none';
+        
+        // Update session storage with current provider
+        sessionStorage.setItem('currentLlmProvider', 'openai');
+        // Dispatch custom event for provider change
+        window.dispatchEvent(new CustomEvent('providerChanged', { detail: { provider: 'openai' } }));
+        
+        // Add visual indication of which provider is active
+        document.querySelector('#openaiSettings h4').classList.add('text-primary');
+        document.querySelector('#ollamaSettings h4').classList.remove('text-primary');
+      });
+
+      providerOllama.addEventListener('change', () => {
+        // Don't hide OpenAI settings when Ollama is selected
+        // openaiSettings.style.display = 'none';
+        // ollamaSettings.style.display = 'block';
+        
+        // Update session storage with current provider
+        sessionStorage.setItem('currentLlmProvider', 'ollama');
+        // Dispatch custom event for provider change
+        window.dispatchEvent(new CustomEvent('providerChanged', { detail: { provider: 'ollama' } }));
+        
+        // Add visual indication of which provider is active
+        document.querySelector('#openaiSettings h4').classList.remove('text-primary');
+        document.querySelector('#ollamaSettings h4').classList.add('text-primary');
+      });
+      
+      // Set initial visual indication based on current provider
+      if (providerOpenAI.checked) {
+        document.querySelector('#openaiSettings h4').classList.add('text-primary');
+      } else if (providerOllama.checked) {
+        document.querySelector('#ollamaSettings h4').classList.add('text-primary');
+      }
+    }
+
+    // Toggle Rapid7 API key visibility
+    const rapid7ApiKeyInput = document.getElementById('rapid7-api-key');
+    const toggleRapid7ApiKeyBtn = document.getElementById('toggle-rapid7-api-key');
+    if (rapid7ApiKeyInput && toggleRapid7ApiKeyBtn) {
+      toggleRapid7ApiKeyBtn.addEventListener('click', function () {
+        const type = rapid7ApiKeyInput.getAttribute('type') === 'password' ? 'text' : 'password';
+        rapid7ApiKeyInput.setAttribute('type', type);
+        this.querySelector('i').classList.toggle('fa-eye-slash');
+      });
+    }
+
+    // Test OpenAI connection
+    const testOpenAIButton = document.getElementById('test-openai-connection');
+    const testOpenAIResult = document.getElementById('test-result');
+    
+    if (testOpenAIButton && testOpenAIResult) {
+      testOpenAIButton.addEventListener('click', async () => {
+        testOpenAIResult.textContent = 'Testing...';
+        testOpenAIResult.className = 'ms-2 text-info';
+        
+        try {
+          const response = await fetch('/api/status?provider=openai');
+          if (response.ok) {
+            const data = await response.json();
+            
+            if (data.openai) {
+              testOpenAIResult.textContent = 'Connection successful!';
+              testOpenAIResult.className = 'ms-2 text-success';
+            } else {
+              testOpenAIResult.textContent = 'Connection failed. Check your API key.';
+              testOpenAIResult.className = 'ms-2 text-danger';
+            }
+          } else {
+            testOpenAIResult.textContent = 'Error checking status. Please try again.';
+            testOpenAIResult.className = 'ms-2 text-warning';
+          }
+        } catch (error) {
+          testOpenAIResult.textContent = 'Network error. Please check your connection.';
+          testOpenAIResult.className = 'ms-2 text-danger';
+          console.error('Error testing OpenAI connection:', error);
+        }
+      });
+    }
+    
+    // Test Rapid7 connection
+    const testRapid7Button = document.getElementById('test-rapid7-connection');
+    const testRapid7Result = document.getElementById('test-rapid7-result');
+    
+    if (testRapid7Button && testRapid7Result) {
+      testRapid7Button.addEventListener('click', async () => {
+        testRapid7Result.textContent = 'Testing...';
+        testRapid7Result.className = 'ms-2 text-info';
+        
+        try {
+          const response = await fetch('/api/status?provider=rapid7');
+          if (response.ok) {
+            const data = await response.json();
+            
+            if (data.rapid7) {
+              testRapid7Result.textContent = 'Connection successful!';
+              testRapid7Result.className = 'ms-2 text-success';
+              
+              // Also update the status indicator to show connected
+              const indicator = document.querySelector('.status-indicator[title*="Rapid7"]');
+              if (indicator) {
+                indicator.classList.remove('offline');
+                indicator.classList.add('online');
+                indicator.setAttribute('title', 'Rapid7 API is accessible');
+              }
+              
+              // Update the status text
+              const statusText = indicator?.nextElementSibling;
+              if (statusText) {
+                statusText.textContent = 'Connected';
+                statusText.className = 'ms-2 text-success';
+              }
+            } else {
+              testRapid7Result.textContent = 'Connection failed. Check your API URL and key.';
+              testRapid7Result.className = 'ms-2 text-danger';
+            }
+          } else {
+            testRapid7Result.textContent = 'Error checking status. Please try again.';
+            testRapid7Result.className = 'ms-2 text-warning';
+          }
+        } catch (error) {
+          testRapid7Result.textContent = 'Network error. Please check your connection.';
+          testRapid7Result.className = 'ms-2 text-danger';
+          console.error('Error testing Rapid7 connection:', error);
+        }
+      });
+    }
+
+    // Test PostgreSQL connection
+    const testPostgresButton = document.getElementById('test-postgresql-connection');
+    const testPostgresResult = document.getElementById('test-postgresql-result');
+    const postgresStatusIndicator = document.getElementById('postgresql-status-indicator');
+    const postgresStatusText = document.getElementById('postgresql-status-text');
+    
+    if (testPostgresButton && testPostgresResult) {
+      // Check PostgreSQL status on page load
+      fetch('/health')
+        .then(response => {
+          if (response.ok) {
+            return response.json();
+          }
+          throw new Error('Failed to check PostgreSQL status');
+        })
+        .then(data => {
+          if (data && data.db === 'UP') {
+            // Update the status indicator
+            if (postgresStatusIndicator) {
+              postgresStatusIndicator.classList.remove('offline');
+              postgresStatusIndicator.classList.add('online');
+              postgresStatusIndicator.setAttribute('title', 'PostgreSQL: Connected');
+            }
+            
+            // Update the status text
+            if (postgresStatusText) {
+              postgresStatusText.textContent = 'Connected';
+              postgresStatusText.className = 'ms-2 text-success';
+            }
+          } else {
+            // Update the status indicator
+            if (postgresStatusIndicator) {
+              postgresStatusIndicator.classList.remove('online');
+              postgresStatusIndicator.classList.add('offline');
+              postgresStatusIndicator.setAttribute('title', 'PostgreSQL: Disconnected');
+            }
+            
+            // Update the status text
+            if (postgresStatusText) {
+              postgresStatusText.textContent = 'Disconnected';
+              postgresStatusText.className = 'ms-2 text-danger';
+            }
+          }
+        })
+        .catch(error => {
+          console.error('Error checking PostgreSQL status:', error);
+          // Update the status indicator
+          if (postgresStatusIndicator) {
+            postgresStatusIndicator.classList.remove('online');
+            postgresStatusIndicator.classList.add('offline');
+            postgresStatusIndicator.setAttribute('title', 'PostgreSQL: Disconnected');
+          }
+          
+          // Update the status text
+          if (postgresStatusText) {
+            postgresStatusText.textContent = 'Disconnected';
+            postgresStatusText.className = 'ms-2 text-danger';
+          }
+        });
+        
+      // Add click handler for test button
+      testPostgresButton.addEventListener('click', async function() {
+        testPostgresResult.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Testing...';
+        
+        try {
+          const response = await fetch('/health');
+          if (response.ok) {
+            const data = await response.json();
+            if (data && data.db === 'UP') {
+              testPostgresResult.textContent = 'Connection successful!';
+              testPostgresResult.className = 'ms-2 text-success';
+              
+              // Update status indicator
+              if (postgresStatusIndicator) {
+                postgresStatusIndicator.classList.remove('offline');
+                postgresStatusIndicator.classList.add('online');
+                postgresStatusIndicator.setAttribute('title', 'PostgreSQL: Connected');
+              }
+              
+              // Update status text
+              if (postgresStatusText) {
+                postgresStatusText.textContent = 'Connected';
+                postgresStatusText.className = 'ms-2 text-success';
+              }
+            } else {
+              testPostgresResult.textContent = 'Connection failed: Database is not responding';
+              testPostgresResult.className = 'ms-2 text-danger';
+              
+              // Update status indicator
+              if (postgresStatusIndicator) {
+                postgresStatusIndicator.classList.remove('online');
+                postgresStatusIndicator.classList.add('offline');
+                postgresStatusIndicator.setAttribute('title', 'PostgreSQL: Disconnected');
+              }
+              
+              // Update status text
+              if (postgresStatusText) {
+                postgresStatusText.textContent = 'Disconnected';
+                postgresStatusText.className = 'ms-2 text-danger';
+              }
+            }
+          } else {
+            testPostgresResult.textContent = 'Connection failed: ' + response.statusText;
+            testPostgresResult.className = 'ms-2 text-danger';
+          }
+        } catch (error) {
+          console.error('Error testing PostgreSQL connection:', error);
+          testPostgresResult.textContent = 'Error: ' + error.message;
+          testPostgresResult.className = 'ms-2 text-danger';
+        }
+      });
+    }
+  });
+  
+  $(document).ready(function() {
+    // Get references to elements
+    const testPostgresButton = document.getElementById('test-postgresql-connection');
+    const testPostgresResult = document.getElementById('test-postgresql-result');
+    const postgresStatusIndicator = document.querySelector('#postgresql-tab .status-dot');
+    const postgresStatusText = document.getElementById('postgresql-status-text');
+    
+    if (testPostgresButton) {
+      // Check PostgreSQL status on page load
+      fetch('/health')
+        .then(response => response.json())
+        .then(data => {
+          if (data && data.db === 'UP') {
+            // Update the status indicator
+            if (postgresStatusIndicator) {
+              postgresStatusIndicator.classList.remove('status-red');
+              postgresStatusIndicator.classList.add('status-green');
+            }
+            
+            // Update the status text
+            if (postgresStatusText) {
+              postgresStatusText.textContent = 'Connected';
+            }
+          } else {
+            // Update the status indicator
+            if (postgresStatusIndicator) {
+              postgresStatusIndicator.classList.remove('status-green');
+              postgresStatusIndicator.classList.add('status-red');
+            }
+            
+            // Update the status text
+            if (postgresStatusText) {
+              postgresStatusText.textContent = 'Disconnected';
+            }
+          }
+        })
+        .catch(error => {
+          console.error('Error checking PostgreSQL status:', error);
+          // Update the status indicator
+          if (postgresStatusIndicator) {
+            postgresStatusIndicator.classList.remove('status-green');
+            postgresStatusIndicator.classList.add('status-red');
+          }
+          
+          // Update the status text
+          if (postgresStatusText) {
+            postgresStatusText.textContent = 'Disconnected';
+          }
+        });
+    }
+  });
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+<script src="/js/rapid7SpecParser.js"></script>
+<script src="/js/api-settings.js"></script>
+<script src="/js/rapid7-bypass.js"></script>
+
+<%- include('./partials/footer.ejs') %>

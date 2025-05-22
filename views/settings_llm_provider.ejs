@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>LLM Provider Settings</title>
+  <link rel="stylesheet" href="/css/bootstrap.min.css">
+</head>
+<body>
+  <%- include('./partials/header.ejs') %>
+  <div class="container mt-4">
+    <h1>LLM Provider</h1>
+    <form action="/settings/llm-provider" method="POST">
+      <input type="radio" name="llmProvider" value="openai" <%= settings['settings:llm:provider'] === 'openai' ? 'checked' : '' %>> OpenAI<br>
+      <input type="radio" name="llmProvider" value="ollama" <%= settings['settings:llm:provider'] === 'ollama' ? 'checked' : '' %>> Ollama<br>
+      <button type="submit" class="btn btn-primary mt-2">Save</button>
+    </form>
+    <% if (message) { %>
+      <div class="alert alert-<%= message.type %> mt-3"> <%= message.text %> </div>
+    <% } %>
+  </div>
+</body>
+</html>

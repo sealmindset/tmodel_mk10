@@ -1,0 +1,145 @@
+/**
+ * Risk Matrix Styles
+ * Provides styling for the risk matrix visualization
+ */
+
+.risk-matrix-container {
+  padding: 1rem;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.risk-matrix-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 5px;
+}
+
+.risk-matrix-table th, 
+.risk-matrix-table td {
+  text-align: center;
+  padding: 12px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+
+.risk-matrix-table th {
+  background-color: #f8f9fa;
+}
+
+/* Likelihood header cells */
+.risk-matrix-table th.likelihood-high {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.risk-matrix-table th.likelihood-medium {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.risk-matrix-table th.likelihood-low {
+  background-color: #d1e7dd;
+  color: #0f5132;
+}
+
+/* Impact header cells */
+.risk-matrix-table th.impact-high {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.risk-matrix-table th.impact-medium {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.risk-matrix-table th.impact-low {
+  background-color: #d1e7dd;
+  color: #0f5132;
+}
+
+/* Risk level cells */
+.risk-matrix-table td.risk-high {
+  background-color: #dc3545;
+  color: white;
+  font-size: 1.1rem;
+}
+
+.risk-matrix-table td.risk-medium {
+  background-color: #ffc107;
+  color: #212529;
+  font-size: 1.1rem;
+}
+
+.risk-matrix-table td.risk-low {
+  background-color: #198754;
+  color: white;
+  font-size: 1.1rem;
+}
+
+/* Hover effects */
+.risk-matrix-table td:hover {
+  opacity: 0.9;
+  cursor: pointer;
+  transform: scale(1.05);
+  transition: all 0.2s ease;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.risk-matrix-table td:active {
+  transform: scale(0.98);
+}
+
+/* Empty cells */
+.risk-matrix-table td:empty {
+  background-color: #f8f9fa;
+  cursor: default;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .risk-matrix-table th, 
+  .risk-matrix-table td {
+    padding: 8px;
+    font-size: 0.9rem;
+  }
+  
+  .risk-matrix-table td.risk-high,
+  .risk-matrix-table td.risk-medium,
+  .risk-matrix-table td.risk-low {
+    font-size: 1rem;
+  }
+}
+
+/* Legend */
+.risk-matrix-legend {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+.risk-matrix-legend-item {
+  display: flex;
+  align-items: center;
+  margin: 0.25rem;
+}
+
+.risk-matrix-legend-color {
+  width: 20px;
+  height: 20px;
+  margin-right: 0.5rem;
+  border-radius: 4px;
+}
+
+.risk-matrix-legend-color.high {
+  background-color: #dc3545;
+}
+
+.risk-matrix-legend-color.medium {
+  background-color: #ffc107;
+}
+
+.risk-matrix-legend-color.low {
+  background-color: #198754;
+}

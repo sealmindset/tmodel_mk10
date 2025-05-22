@@ -1,0 +1,233 @@
+<%- include('partials/header', { pageTitle: 'Create Threat Model', active: 'create', extraCss: [] }) %>
+
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="mb-0">Create a New Threat Model</h1>
+    <div class="btn-group">
+      <a href="/" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
+      </a>
+    </div>
+  </div>
+
+  <!-- Status indicator spinner -->
+  <div class="my-3" id="statusIndicator" style="display:none;">
+    <span class="spinner-border text-primary spinner-border-sm" role="status"></span>
+    <span class="ms-2 text-primary">Processing...</span>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <form id="threatModelForm" action="/ask" method="POST" onsubmit="console.log('Form submitting with subject:', document.getElementById('subject').value)">
+        <!-- Form content from original index.ejs, but without the troublesome div -->
+        <div class="mb-3">
+          <label for="subject" class="form-label">System to Analyze</label>
+          <input type="text" class="form-control" id="subject" name="subject" placeholder="e.g., Web Application, Mobile App, API Service">
+        </div>
+        
+        <script>
+          // Handle query parameter for pre-filling the subject field
+          document.addEventListener('DOMContentLoaded', function() {
+            // Get the subject from URL query parameters if present
+            const urlParams = new URLSearchParams(window.location.search);
+            const subjectParam = urlParams.get('subject');
+            
+            if (subjectParam) {
+              // Pre-fill the subject field
+              const subjectField = document.getElementById('subject');
+              if (subjectField) {
+                subjectField.value = decodeURIComponent(subjectParam);
+              }
+            }
+
+            // Show/hide status indicator on form submit
+            const form = document.getElementById('threatModelForm');
+            const statusIndicator = document.getElementById('statusIndicator');
+            if (form && statusIndicator) {
+              form.addEventListener('submit', function() {
+                // Show modal overlay spinner
+                const processingModal = document.getElementById('processingModal');
+                if (processingModal) processingModal.style.display = 'block';
+                // Show inline spinner (optional, can be removed)
+                if (statusIndicator) statusIndicator.style.display = 'inline-block';
+                submitBtn.disabled = true;
+              });
+            }
+          });
+        </script>
+        
+
+
+        <div class="mb-3">
+          <label for="llmProvider" class="form-label">LLM Provider</label>
+          <select class="form-select" id="llmProvider" name="llmProvider">
+            <option value="openai" <%= llmProvider === 'openai' ? 'selected' : '' %>>OpenAI</option>
+            <option value="ollama" <%= llmProvider === 'ollama' ? 'selected' : '' %>>Ollama</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label for="aiModel" class="form-label">AI Model to Use</label>
+          <select class="form-select" id="aiModel" name="model">
+            <!-- Model options will be populated by JS -->
+          </select>
+          <div class="form-text" id="providerInfo">
+            <!-- Info text will be set by JS -->
+          </div>
+        </div>
+        <script>
+          // Available models for each provider from EJS
+          const openaiModels = [
+            { name: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
+            { name: 'gpt-4', label: 'GPT-4' },
+            { name: 'gpt-4-turbo', label: 'GPT-4 Turbo' }
+          ];
+          const ollamaModels = <%- JSON.stringify(availableOllamaModels || []) %>;
+          const llmProviderDefault = '<%= llmProvider %>';
+          const openaiModelDefault = '<%= openaiModel %>';
+          const ollamaModelDefault = '<%= ollamaModel %>';
+
+          function updateModelDropdown(provider) {
+            const modelSelect = document.getElementById('aiModel');
+            const providerInfo = document.getElementById('providerInfo');
+            modelSelect.innerHTML = '';
+            let models = [];
+            let defaultModel = '';
+            if (provider === 'ollama') {
+              models = ollamaModels;
+              defaultModel = ollamaModelDefault;
+              providerInfo.innerHTML = 'Using local Ollama models. <a href="/settings">Change provider in settings</a>.';
+            } else {
+              models = openaiModels;
+              defaultModel = openaiModelDefault;
+              providerInfo.innerHTML = 'Using OpenAI API. <a href="/settings">Change provider in settings</a>.';
+            }
+            models.forEach(model => {
+              const opt = document.createElement('option');
+              opt.value = model.name;
+              opt.textContent = model.label || model.name;
+              if (model.name === defaultModel) opt.selected = true;
+              modelSelect.appendChild(opt);
+            });
+          }
+
+          document.addEventListener('DOMContentLoaded', function() {
+            const providerSelect = document.getElementById('llmProvider');
+            updateModelDropdown(providerSelect.value);
+            providerSelect.addEventListener('change', function() {
+              updateModelDropdown(this.value);
+            });
+          });
+        </script>
+
+        <!-- Prompt selection fields -->
+        <div class="mb-3">
+          <label for="promptId" class="form-label">Prompt Template</label>
+          <div class="input-group">
+            <input type="hidden" id="promptId" name="selectedPromptId">
+            <input type="text" class="form-control" id="promptTitle" name="promptTitle" placeholder="Select a prompt template" readonly>
+            <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#promptsModal">
+              <i class="bi bi-list"></i> Select
+            </button>
+          </div>
+        </div>
+
+        <div class="d-grid gap-2 mb-3">
+          <button type="button" class="btn btn-primary" id="submitBtn">
+            <i class="bi bi-lightning me-1"></i>Generate Threat Model
+          </button>
+        </div>
+
+        <!-- Modal overlay spinner -->
+        <div class="modal" tabindex="-1" id="processingModal" style="display:none; background:rgba(0,0,0,0.3);">
+          <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content text-center p-4">
+              <div class="spinner-border text-primary mb-3" style="width:3rem;height:3rem;" role="status"></div>
+              <div style="font-size:1.2rem;">Processing, please wait...</div>
+            </div>
+          </div>
+        </div>
+
+        <script>
+          // AJAX Generate Threat Model logic
+          function submitThreatModelForm() {
+            const processingModal = document.getElementById('processingModal');
+            if (processingModal) processingModal.style.display = 'block';
+
+            // Collect form data
+            const subject = document.getElementById('subject').value;
+            const model = document.getElementById('aiModel') ? document.getElementById('aiModel').value : '';
+            const selectedPromptId = document.getElementById('promptId') ? document.getElementById('promptId').value : '';
+            // If you have a checkbox or toggle for enhanced prompt, read it here, else default false
+            const useEnhancedPrompt = document.getElementById('useEnhancedPrompt') ? document.getElementById('useEnhancedPrompt').checked : false;
+            // If you have a select/input for provider, read it, else use default
+            let llmProviderValue = 'openai';
+            const llmProviderField = document.getElementById('llmProvider');
+            if (llmProviderField && llmProviderField.value) {
+              llmProviderValue = llmProviderField.value;
+            }
+
+
+            fetch('/ask', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+              },
+              body: JSON.stringify({
+                subject,
+                model,
+                selectedPromptId,
+                useEnhancedPrompt,
+                llmProvider: llmProviderValue
+              })
+            })
+            .then(response => {
+              if (!response.ok) throw new Error('Network response was not ok');
+              return response.json();
+            })
+            .then(data => {
+              if (processingModal) processingModal.style.display = 'none';
+              if (data && data.id) {
+                // Redirect to results page for the new threat model
+                window.location.href = '/results?subjectid=' + encodeURIComponent(data.id);
+              } else {
+                alert('Threat model generated, but could not determine ID for results page.');
+              }
+            })
+            .catch(error => {
+              if (processingModal) processingModal.style.display = 'none';
+              alert('Error generating threat model.');
+            });
+          }
+
+          document.addEventListener('DOMContentLoaded', function() {
+            // Attach click handler to submit button
+            const submitBtn = document.getElementById('submitBtn');
+            if (submitBtn) {
+              submitBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                submitThreatModelForm();
+              });
+            }
+            // Prevent default form submission
+            const form = document.getElementById('threatModelForm');
+            if (form) {
+              form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                submitThreatModelForm();
+              });
+            }
+          });
+        </script>
+        
+
+      </form>
+      
+
+    </div>
+  </div>
+</div>
+
+
+
+<%- include('partials/footer', { extraJs: ['/js/app.js', '/js/prompts-manager.js'] }) %>

@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Minimal LLM Provider Test</title>
+</head>
+<body>
+  <h1>Minimal LLM Provider POST Test</h1>
+  <form action="/settings" method="POST">
+    <input type="radio" name="llmProvider" value="openai" checked>OpenAI<br>
+    <input type="radio" name="llmProvider" value="ollama">Ollama<br>
+    <button type="submit">Test Submit</button>
+  </form>
+  <p>Check the backend logs for POST /settings received and req.body output.</p>
+</body>
+</html>

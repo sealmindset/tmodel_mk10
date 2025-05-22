@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Settings Debug</title>
+</head>
+<body>
+  <h1>LLM Provider Settings Debug</h1>
+  <form id="llm-provider-form" action="/settings" method="POST">
+    <input type="radio" name="llmProvider" value="openai" checked> OpenAI<br>
+    <input type="radio" name="llmProvider" value="ollama"> Ollama<br>
+    <button type="submit">Save LLM Provider</button>
+  </form>
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      const form = document.getElementById('llm-provider-form');
+      if (form) {
+        form.addEventListener('submit', function(event) {
+          alert("DEBUG: LLM Provider form submit triggered!");
+        });
+      }
+    });
+  </script>
+</body>
+</html>
