@@ -55,11 +55,16 @@ try {
   ensureAuthenticated = require('../middleware/auth').ensureAuthenticated;
 }
 
-// Get the LLM provider from PostgreSQL - no auth required
+// --- Ensure settingsService is imported ---
+const settingsService = require('../services/settingsService');
+
+// Get the LLM provider from settings (PostgreSQL or default to 'openai') - no auth required
 router.get('/settings/provider', async (req, res) => {
   try {
-    const provider = await settingsService.getSetting('settings:llm:provider', 'openai');
-    console.log(`GET /api/settings/provider - Current provider: ${provider}`);
+    let provider = 'openai';
+    if (typeof settingsService.getSetting === 'function') {
+      provider = await settingsService.getSetting('settings:llm:provider', 'openai');
+    }
     res.set('Access-Control-Allow-Origin', '*'); // Open CORS
     res.json({ provider });
   } catch (err) {
