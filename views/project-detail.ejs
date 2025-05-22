@@ -52,6 +52,72 @@ function getScanStatusClass(status) {
   }
 }
 %>
+<style>
+.truncate-3-lines {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: 3.6em; /* Ensures consistent card height for 3 lines */
+}
+
+/* Component Card Carousel Styles */
+.component-carousel-wrapper {
+  position: relative;
+  margin: 0 auto;
+  max-width: 1080px;
+}
+.component-carousel {
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 8px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.component-carousel::-webkit-scrollbar { display: none; }
+
+.component-carousel-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 320px);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 1rem;
+  width: 1020px; /* 3 * 320px + 2 * 1rem gap */
+  height: 100%;
+}
+.component-carousel-grid .card {
+  width: 320px;
+  height: 320px;
+  display: flex;
+  flex-direction: column;
+}
+
+.carousel-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.07);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.carousel-arrow[disabled] {
+  opacity: 0.5;
+  pointer-events: none;
+}
+.carousel-arrow.left { left: -20px; }
+.carousel-arrow.right { right: -20px; }
+</style>
 
 <%- include('partials/header', { pageTitle: `${project.name} - Project Details`, active: 'projects', extraCss: [] }) %>
 
@@ -207,7 +273,7 @@ function getScanStatusClass(status) {
               <div class="card h-100">
                 <div class="card-body">
                   <h5 class="card-title"><%= component.name %></h5>
-                  <p class="card-text"><%= component.description || 'No description provided' %></p>
+                  <p class="card-text truncate-3-lines"><%= component.description || 'No description provided' %></p>
                   
                   <div class="mb-2">
                     <span class="badge bg-<%= getComponentTypeClass(component.type) %>">
