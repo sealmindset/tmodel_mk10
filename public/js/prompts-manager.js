@@ -284,9 +284,9 @@ function updatePrompt() {
   console.log('updatePrompt called');
   const id = document.getElementById('prompt-id').value;
   const title = document.getElementById('prompt-title').value.trim();
-  const promptText = document.getElementById('prompt-text').value.trim();
+  const text = document.getElementById('prompt-text').value.trim();
   
-  console.log('Prompt data to update:', { id, title, promptText });
+  console.log('Prompt data to update:', { id, title, text });
   
   if (!id) {
     showToast('Error', 'Prompt ID is missing', 'danger');
@@ -299,7 +299,7 @@ function updatePrompt() {
     return;
   }
   
-  if (!promptText) {
+  if (!text) {
     showToast('Error', 'Please enter prompt text', 'warning');
     return;
   }
@@ -308,7 +308,7 @@ function updatePrompt() {
   
   sendJsonRequest(`/api/prompts/${id}`, 'PUT', {
     title,
-    prompt_text: promptText
+    text
   })
     .then(data => {
       console.log('Update response:', data);

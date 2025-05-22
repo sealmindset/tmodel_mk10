@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', function() {
           console.log('Edit button clicked for prompt ID:', promptId);
           
           // Manually fetch and display the prompt
-          fetch(`/prompts/${promptId}`, {
+          fetch(`/api/prompts/${promptId}`, {
             method: 'GET',
             headers: {
               'Content-Type': 'application/json'
@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', function() {
               
               if (promptIdField) promptIdField.value = prompt.id;
               if (promptTitleField) promptTitleField.value = prompt.title;
-              if (promptTextField) promptTextField.value = prompt.prompttext;
+              if (promptTextField) promptTextField.value = prompt.prompt_text;
             }
           })
           .catch(error => {
@@ -81,27 +81,27 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('update-prompt-btn')?.addEventListener('click', function() {
     const promptId = document.getElementById('prompt-id').value;
     const title = document.getElementById('prompt-title').value.trim();
-    const promptText = document.getElementById('prompt-text').value.trim();
+    const text = document.getElementById('prompt-text').value.trim();
     
-    console.log('Updating prompt with data:', { promptId, title, promptText });
+    console.log('Updating prompt with data:', { promptId, title, text });
     
     if (!promptId) {
       showToast('Error', 'Prompt ID is missing', 'danger');
       return;
     }
     
-    if (!title || !promptText) {
-      showToast('Error', 'Title and prompt text are required', 'danger');
+    if (!title || !text) {
+      showToast('Error', 'Title and text are required', 'danger');
       return;
     }
     
     // Send the update request
-    fetch(`/prompts/${promptId}`, {
+    fetch(`/api/prompts/${promptId}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ title, prompttext: promptText }),
+      body: JSON.stringify({ title, text }),
       credentials: 'same-origin'
     })
     .then(response => {

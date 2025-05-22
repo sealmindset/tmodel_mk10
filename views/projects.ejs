@@ -115,28 +115,6 @@
   <div id="threatModelAssignmentsModal"></div>
   
   <!-- Project statistics -->
-  <div class="row mb-4">
-    <div class="col-md-6">
-      <div class="card h-100">
-        <div class="card-header">
-          <h5 class="mb-0">Projects by Criticality</h5>
-        </div>
-        <div class="card-body">
-          <canvas id="criticalityChart" height="250"></canvas>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-6">
-      <div class="card h-100">
-        <div class="card-header">
-          <h5 class="mb-0">Projects by Business Unit</h5>
-        </div>
-        <div class="card-body">
-          <canvas id="businessUnitChart" height="250"></canvas>
-        </div>
-      </div>
-    </div>
-  </div>
 </div>
 
 <!-- New Project Modal -->
@@ -475,6 +453,8 @@
 
 
 <script src="/js/new-project-fix.js"></script>
+<!-- Bootstrap 5 JS (required for tooltips and modals) -->
+
 
 <!-- Archive Project Functionality -->
 <script>
@@ -643,82 +623,6 @@
   
   // Initialize charts
   document.addEventListener('DOMContentLoaded', function() {
-    // Criticality chart data
-    const criticalityData = {
-      labels: ['Critical', 'High', 'Medium', 'Low'],
-      datasets: [{
-        label: 'Projects by Criticality',
-        data: [
-          <%= criticalityStats.Critical || 0 %>,
-          <%= criticalityStats.High || 0 %>,
-          <%= criticalityStats.Medium || 0 %>,
-          <%= criticalityStats.Low || 0 %>
-        ],
-        backgroundColor: [
-          'rgba(220, 53, 69, 0.7)',
-          'rgba(255, 193, 7, 0.7)',
-          'rgba(13, 202, 240, 0.7)',
-          'rgba(25, 135, 84, 0.7)'
-        ],
-        borderColor: [
-          'rgb(220, 53, 69)',
-          'rgb(255, 193, 7)',
-          'rgb(13, 202, 240)',
-          'rgb(25, 135, 84)'
-        ],
-        borderWidth: 1
-      }]
-    };
-    
-    // Business unit chart data
-    const businessUnitData = {
-      labels: <%= JSON.stringify(Object.keys(businessUnitStats)) %>,
-      datasets: [{
-        label: 'Projects by Business Unit',
-        data: <%= JSON.stringify(Object.values(businessUnitStats)) %>,
-        backgroundColor: 'rgba(54, 162, 235, 0.7)',
-        borderColor: 'rgb(54, 162, 235)',
-        borderWidth: 1
-      }]
-    };
-    
-    // Create criticality chart
-    const criticalityCtx = document.getElementById('criticalityChart');
-    if (criticalityCtx) {
-      new Chart(criticalityCtx, {
-        type: 'pie',
-        data: criticalityData,
-        options: {
-          responsive: true,
-          plugins: {
-            legend: {
-              position: 'right'
-            }
-          }
-        }
-      });
-    }
-    
-    // Create business unit chart
-    const businessUnitCtx = document.getElementById('businessUnitChart');
-    if (businessUnitCtx) {
-      new Chart(businessUnitCtx, {
-        type: 'bar',
-        data: businessUnitData,
-        options: {
-          responsive: true,
-          scales: {
-            y: {
-              beginAtZero: true,
-              ticks: {
-                precision: 0
-              }
-            }
-          }
-        }
-      });
-    }
-    
     // Save new project button
     const saveNewProjectBtn = document.getElementById('saveNewProject');
     if (saveNewProjectBtn) {
@@ -1124,8 +1028,16 @@
                 }
                 
                 // Create and show the threat model generation modal
+                // ... (implementation goes here)
+              }
+            })
+            .catch(error => {
+              // Handle error
+              document.body.removeChild(saveIndicator);
+              alert('Error saving project: ' + (error.message || 'Unknown error'));
+            });
           }
-        }, 500);
+        }
       }
     };
     
