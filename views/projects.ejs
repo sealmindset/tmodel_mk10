@@ -88,11 +88,12 @@
                   <td><%= project.criticality %></td>
                   <td><%= project.status %></td>
                   <td>
-                    <a href="/projects/<%= project.id %>" class="btn btn-sm btn-outline-primary">View</a>
-                    <button type="button" class="btn btn-sm btn-outline-danger archiveProjectBtn" data-project-id="<%= project.id %>" data-project-name="<%= project.name %>">
-                      <i class="bi bi-archive me-1"></i>Archive
-                    </button>
-                  </td>
+  <a href="/projects/<%= project.id %>" class="btn btn-sm btn-outline-primary">View</a>
+  <button type="button" class="btn btn-sm btn-outline-danger archiveProjectBtn" data-project-id="<%= project.id %>" data-project-name="<%= project.name %>">
+    <i class="bi bi-archive me-1"></i>Archive
+  </button>
+</td>
+
                 </tr>
               <% }); %>
             </tbody>
@@ -359,7 +360,8 @@
 <!-- Include fetch interceptor to fix authentication issues -->
 <script src="/js/fetch-interceptor.js"></script>
 
-<%- include('partials/footer', { 
+
+<%- include('./partials/footer.ejs', { 
   extraJs: [
     'https://code.jquery.com/jquery-3.6.0.min.js',
     'https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js',

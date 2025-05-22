@@ -237,11 +237,19 @@ function getScanStatusClass(status) {
                     <% } %>
                   </div>
                   
-                  <div class="d-grid">
-                    <a href="/components/<%= component.id %>" class="btn btn-outline-primary btn-sm">
-                      View Details
-                    </a>
-                  </div>
+                  <div class="d-grid gap-2">
+  <div class="btn-group btn-group-sm w-100" role="group">
+    <a href="/components/<%= component.id %>" class="btn btn-outline-primary">
+      View Details
+    </a>
+    <button type="button" class="btn btn-outline-warning undo-component-btn" 
+            data-component-id="<%= component.id %>" 
+            data-component-name="<%= component.name %>"
+            title="Undo Assignment">
+      <i class="bi bi-arrow-counterclockwise"></i> Undo
+    </button>
+  </div>
+</div>
                 </div>
               </div>
             </div>

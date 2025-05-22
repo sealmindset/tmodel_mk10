@@ -348,4 +348,86 @@ router.post('/:id/threat-models', ensureAuthenticated, async (req, res) => {
   }
 });
 
+/**
+ * @route   POST /api/projects/:id/components/assign
+ * @desc    Assign multiple components to a project (batch)
+ * @access  Private
+ */
+router.post('/:id/components/assign', ensureAuthenticated, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { componentIds } = req.body;
+    if (!Array.isArray(componentIds) || componentIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'componentIds must be a non-empty array' });
+    }
+    // Validate that all componentIds are UUIDs (assuming UUIDs)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const validIds = componentIds.filter(id => uuidRegex.test(id));
+    if (validIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'No valid component IDs provided' });
+    }
+    // Assign each component to the project (ignore duplicates due to ON CONFLICT)
+    const results = [];
+    for (const componentId of validIds) {
+      try {
+        const rec = await Project.addComponentToProject(id, componentId);
+        results.push(rec);
+      } catch (err) {
+        // Log and skip errors for individual component assignments
+        console.error(`[ASSIGN-COMPONENTS] Error assigning component ${componentId} to project ${id}:`, err);
+      }
+    }
+    res.json({
+      success: true,
+      message: `Assigned ${results.length} component(s) to project`,
+      count: results.length,
+      assigned: results.map(r => r.component_id)
+    });
+  } catch (error) {
+    console.error('[ASSIGN-COMPONENTS] Error assigning components:', error);
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
+});
+
+/**
+ * @route   DELETE /api/projects/:id/components/remove
+ * @desc    Remove multiple components from a project (batch)
+ * @access  Private
+ */
+router.delete('/:id/components/remove', ensureAuthenticated, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { componentIds } = req.body;
+    if (!Array.isArray(componentIds) || componentIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'componentIds must be a non-empty array' });
+    }
+    // Validate that all componentIds are UUIDs (assuming UUIDs)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const validIds = componentIds.filter(id => uuidRegex.test(id));
+    if (validIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'No valid component IDs provided' });
+    }
+    // Remove each component from the project
+    const removed = [];
+    for (const componentId of validIds) {
+      try {
+        const result = await Project.removeComponentFromProject(id, componentId);
+        if (result) removed.push(componentId);
+      } catch (err) {
+        // Log and skip errors for individual removals
+        console.error(`[REMOVE-COMPONENTS] Error removing component ${componentId} from project ${id}:`, err);
+      }
+    }
+    res.json({
+      success: true,
+      message: `Removed ${removed.length} component(s) from project`,
+      count: removed.length,
+      removed
+    });
+  } catch (error) {
+    console.error('[REMOVE-COMPONENTS] Error removing components:', error);
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
+});
+
 module.exports = router;

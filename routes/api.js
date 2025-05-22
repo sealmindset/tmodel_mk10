@@ -57,6 +57,7 @@ try {
 
 // --- Ensure settingsService is imported ---
 const settingsService = require('../services/settingsService');
+const componentsService = require('../services/componentsService');
 
 // Get the LLM provider from settings (PostgreSQL or default to 'openai') - no auth required
 router.get('/settings/provider', async (req, res) => {

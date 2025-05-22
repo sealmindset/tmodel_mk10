@@ -64,6 +64,86 @@ document.addEventListener('DOMContentLoaded', function() {
       cloneThreatModel(modelId);
     });
   });
+
+  // Remove component buttons
+  document.querySelectorAll('.remove-component-btn').forEach(btn => {
+    btn.addEventListener('click', function () {
+      const componentId = this.getAttribute('data-component-id');
+      const componentName = this.getAttribute('data-component-name');
+      const projectId = window.location.pathname.split('/').pop();
+      // Use Bootstrap modal if available, otherwise fallback to confirm()
+      if (window.bootstrap && document.getElementById('confirmRemoveComponentModal')) {
+        // Set modal content
+        document.getElementById('removeComponentName').textContent = componentName;
+        const confirmBtn = document.getElementById('confirmRemoveComponentBtn');
+        confirmBtn.onclick = function () {
+          doRemoveComponent(projectId, componentId);
+        };
+        const modal = new bootstrap.Modal(document.getElementById('confirmRemoveComponentModal'));
+        modal.show();
+      } else {
+        if (confirm(`Are you sure you want to remove component '${componentName}' from this project?`)) {
+          doRemoveComponent(projectId, componentId);
+        }
+      }
+    });
+  });
+
+  // Undo assignment buttons for components
+  document.querySelectorAll('.undo-component-btn').forEach(btn => {
+    btn.addEventListener('click', function () {
+      const componentId = this.getAttribute('data-component-id');
+      const componentName = this.getAttribute('data-component-name');
+      const projectId = window.location.pathname.split('/').pop();
+      if (confirm(`Undo assignment for component '${componentName}'?`)) {
+        undoComponentAssignment(projectId, componentId);
+      }
+    });
+  });
+
+  function undoComponentAssignment(projectId, componentId) {
+    fetch(`/api/projects/${projectId}/components/${componentId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          showAlert('Component assignment undone successfully!', 'success');
+          setTimeout(() => window.location.reload(), 1000);
+        } else {
+          throw new Error(data.error || 'Failed to undo assignment');
+        }
+      })
+      .catch(error => {
+        console.error('Error undoing component assignment:', error);
+        showAlert(`Error undoing component assignment: ${error.message}`, 'danger');
+      });
+  }
+
+  function doRemoveComponent(projectId, componentId) {
+    fetch(`/api/projects/${projectId}/components/${componentId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          showAlert('Component removed successfully!', 'success');
+          setTimeout(() => window.location.reload(), 1000);
+        } else {
+          throw new Error(data.error || 'Failed to remove component');
+        }
+      })
+      .catch(error => {
+        console.error('Error removing component:', error);
+        showAlert(`Error removing component: ${error.message}`, 'danger');
+      });
+  }
   
   // Initialize vulnerability chart if canvas exists
   initVulnerabilityChart();
