@@ -2,7 +2,7 @@
  * OpenAI API Utility
  * Provides methods for interacting with the OpenAI API
  */
-const { Configuration, OpenAIApi } = require('openai');
+const OpenAI = require('openai');
 // Redis utility removed.
 // Redis client removed.
 
@@ -60,23 +60,20 @@ const getApiKeySync = () => {
   return process.env.OPENAI_API_KEY || process.env.API_KEY || '';
 };
 
-// Create a configuration with the API key
-let configuration = new Configuration({
+// Create an OpenAI API client (v4.x+)
+let openai = new OpenAI({
   apiKey: getApiKeySync(), // Use sync version for initial setup
 });
-
-// Create an OpenAI API client
-let openai = new OpenAIApi(configuration);
 
 // Function to refresh the API client with a new key
 const refreshClient = async () => {
   try {
     const apiKey = await getApiKey();
-    logger.debug('API key retrieved for client refresh', { 
+    logger.debug('API key retrieved for client refresh', {
       keyLength: apiKey ? apiKey.length : 0,
       keyAvailable: !!apiKey
     });
-    
+
     if (apiKey) {
       // Only log first few characters of API key for debugging
       const keyStart = apiKey.substring(0, 4);
@@ -84,12 +81,9 @@ const refreshClient = async () => {
     } else {
       logger.warn('No API key available for OpenAI client refresh');
     }
-    
-    // Create a new configuration with the API key
-    configuration = new Configuration({ apiKey });
-    
-    // Create a new OpenAI API client
-    openai = new OpenAIApi(configuration);
+
+    // Create a new OpenAI API client (v4.x+)
+    openai = new OpenAI({ apiKey });
     logger.info('OpenAI client refreshed with new key');
     return true;
   } catch (error) {
@@ -122,7 +116,7 @@ const checkStatus = async () => {
     
     console.log('OpenAI status check - Making API call to test connectivity...');
     // Use a lightweight models list call to check connectivity
-    await openai.listModels();
+    await openai.models.list();
     console.log('OpenAI status check - API call successful!');
     return true;
   } catch (error) {
@@ -219,7 +213,7 @@ const getCompletion = async (prompt, model = 'gpt-3.5-turbo', maxTokens = 100) =
         timestamp: new Date().toISOString()
       });
       
-      response = await openai.createChatCompletion(requestParams);
+      response = await openai.chat.completions.create(requestParams);
     } 
     // For older completion models
     else {
@@ -238,7 +232,7 @@ const getCompletion = async (prompt, model = 'gpt-3.5-turbo', maxTokens = 100) =
         timestamp: new Date().toISOString()
       });
       
-      response = await openai.createCompletion(requestParams);
+      response = await openai.completions.create(requestParams);
     }
     
     // Log response event
@@ -265,7 +259,7 @@ const getCompletion = async (prompt, model = 'gpt-3.5-turbo', maxTokens = 100) =
 const fetchAvailableModels = async () => {
   try {
     await refreshClient();
-    const response = await openai.listModels();
+    const response = await openai.models.list();
     // Filter for models that are chat/completion capable
     const models = response.data.data
       .map(m => m.id)
