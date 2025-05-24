@@ -1,3 +1,4 @@
+console.log('[LOG] referenceArchitecture.js loaded');
 const express = require('express');
 const { getCategories, getOptions, saveRefArch, getSavedRefArch } = require('../controllers/referenceArchitectureController.js');
 

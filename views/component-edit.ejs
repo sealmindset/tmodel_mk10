@@ -2,7 +2,7 @@
 
 <div class="container mt-4">
   <h1>Edit Component</h1>
-  <form action="/components/<%= component.id %>/edit" method="POST" class="mt-4">
+  <form id="componentEditForm" action="/components/<%= component.id %>" method="POST" class="needs-validation mt-4" novalidate>
     <div class="mb-3">
       <label for="name" class="form-label">Name</label>
       <input type="text" class="form-control" id="name" name="name" value="<%= component.name %>" required>
@@ -23,5 +23,9 @@
     <a href="/components" class="btn btn-secondary ms-2">Cancel</a>
   </form>
 </div>
+
+<!-- Load form utilities -->
+<script src="/js/utils/forms.js"></script>
+<script src="/js/component-edit.js"></script>
 
 <%- include('partials/footer') %>

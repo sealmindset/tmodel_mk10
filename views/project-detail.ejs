@@ -41,6 +41,15 @@ function getRiskClass(riskScore) {
   else return 'bg-success';
 }
 
+function getVulnStatusClass(status) {
+  switch(status) {
+    case 'Open': return 'danger';
+    case 'In Progress': return 'warning';
+    case 'Fixed': return 'success';
+    default: return 'secondary';
+  }
+}
+
 function getScanStatusClass(status) {
   switch(status ? status.toLowerCase() : '') {
     case 'completed': return 'success';
@@ -264,6 +273,9 @@ function getScanStatusClass(status) {
       <button class="btn btn-sm btn-outline-primary" id="addComponentBtn2">
         <i class="bi bi-plus-circle me-1"></i>Add Component
       </button>
+      <button type="button" class="btn btn-outline-primary ms-2" id="assignComponentsBtn">
+        <i class="bi bi-link-45deg me-1"></i>Assign Components
+      </button>
     </div>
     <div class="card-body">
       <% if (components && components.length > 0) { %>
@@ -304,18 +316,18 @@ function getScanStatusClass(status) {
                   </div>
                   
                   <div class="d-grid gap-2">
-  <div class="btn-group btn-group-sm w-100" role="group">
-    <a href="/components/<%= component.id %>" class="btn btn-outline-primary">
-      View Details
-    </a>
-    <button type="button" class="btn btn-outline-warning undo-component-btn" 
-            data-component-id="<%= component.id %>" 
-            data-component-name="<%= component.name %>"
-            title="Undo Assignment">
-      <i class="bi bi-arrow-counterclockwise"></i> Undo
-    </button>
-  </div>
-</div>
+                    <div class="btn-group btn-group-sm w-100" role="group">
+                      <a href="/components/<%= component.id %>" class="btn btn-outline-primary">
+                        View Details
+                      </a>
+                      <button type="button" class="btn btn-outline-warning undo-component-btn" 
+                              data-component-id="<%= component.id %>" 
+                              data-component-name="<%= component.name %>"
+                              title="Undo Assignment">
+                        <i class="bi bi-arrow-counterclockwise"></i> Undo
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -357,9 +369,9 @@ function getScanStatusClass(status) {
       
       <!-- Container for dynamically loaded threat models -->
       <div id="threatModelAssignmentsContainer" style="visibility: visible;">
-  <!-- Batch Threat Model Assignment UI will be rendered here -->
-  <div id="batchAssignThreatModels"></div>
-</div>
+        <!-- Batch Threat Model Assignment UI will be rendered here -->
+        <div id="batchAssignThreatModels"></div>
+      </div>
       
       <!-- Server-side rendered threat models (fallback) -->
       <% if (threatModels && threatModels.length > 0) { %>
@@ -475,6 +487,10 @@ function getScanStatusClass(status) {
   </div>
 </div>
 
+<!-- Assign Components Modal (dynamic, injected by JS) -->
+<div id="componentsAssignmentsModal"></div>
+<!-- Modal is injected by reusable-assign-components-modal.js -->
+
 <!-- Add Component Modal -->
 <div class="modal fade" id="addComponentModal" tabindex="-1" aria-labelledby="addComponentModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg">
@@ -565,6 +581,7 @@ function getScanStatusClass(status) {
   
   <!-- Mock Rapid7 service for development environment -->
 
+
   
   <!-- Prompts manager script -->
   <script src="/js/prompts-manager.js" defer></script>
@@ -584,6 +601,22 @@ function getScanStatusClass(status) {
 <!-- Threat Model Assignment Components (Vanilla JS) -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
 <script src="/js/threat-model-assignments-vanilla.js" defer></script>
+<script src="/js/reusable-assign-components-modal.js" defer></script>
+
+<!-- Assign Components Button Script -->
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const btn = document.getElementById('assignComponentsBtn');
+    if (btn) {
+      btn.onclick = function() {
+        openAssignComponentsModal({
+          projectId: '<%= project.id %>',
+          onAssigned: function() { window.location.reload(); }
+        });
+      };
+    }
+  });
+</script>
 
 <!-- No additional initialization needed - handled by threat-model-assignments-vanilla.js -->
 

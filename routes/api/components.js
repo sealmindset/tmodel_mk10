@@ -332,4 +332,23 @@ router.get('/:id/statistics', ensureAuthenticated, async (req, res) => {
   }
 });
 
+/**
+ * @route   POST /api/components/:id/safeguards/assign
+ * @desc    Bulk assign safeguards to a component
+ * @access  Private
+ */
+router.post('/:id/safeguards/assign', ensureAuthenticated, async (req, res) => {
+  try {
+    const { safeguardIds } = req.body;
+    if (!Array.isArray(safeguardIds)) {
+      return res.status(400).json({ success: false, error: 'safeguardIds must be an array' });
+    }
+    await Component.assignSafeguards(req.params.id, safeguardIds);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error assigning safeguards:', error);
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
+});
+
 module.exports = router;

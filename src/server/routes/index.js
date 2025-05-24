@@ -1,11 +1,12 @@
-import componentsRouter from './components.js';
-import vulnerabilitiesRouter from './vulnerabilities.js';
-import reportsRouter from './reports.js';
-import settingsRouter from './settings.js';
+console.log('[LOG] index.js loaded');
+const componentsRouter = require('./components.js');
+const vulnerabilitiesRouter = require('./vulnerabilities.js');
+const reportsRouter = require('./reports.js');
+const settingsRouter = require('./settings.js');
 // ...import all other routers
-import refArchRouter from './referenceArchitecture.js';
+const refArchRouter = require('./referenceArchitecture.js');
 
-export function registerRoutes(app, deps) {
+function registerRoutes(app, deps) {
   app.use('/components', componentsRouter(deps));
   app.use('/vulnerabilities', vulnerabilitiesRouter(deps));
   app.use('/reports', reportsRouter(deps));
@@ -13,3 +14,7 @@ export function registerRoutes(app, deps) {
   app.use('/api/reference-architecture', refArchRouter(deps));
   // ...register all other routers
 }
+
+module.exports = {
+  registerRoutes
+};

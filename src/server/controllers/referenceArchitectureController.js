@@ -1,7 +1,7 @@
-import * as svc from '../services/referenceArchitectureService.js';
+const svc = require('../services/referenceArchitectureService.js');
 
 // GET /api/reference-architecture/categories
-export function getCategories(pool, redisClient) {
+function getCategories(pool, redisClient) {
   return async (req, res) => {
     try {
       const cats = await svc.fetchCategories(pool, redisClient);
@@ -14,7 +14,7 @@ export function getCategories(pool, redisClient) {
 }
 
 // GET /api/reference-architecture/options?category=<id>
-export function getOptions(pool, redisClient) {
+function getOptions(pool, redisClient) {
   return async (req, res) => {
     const { category } = req.query;
     if (!category) {
@@ -31,7 +31,7 @@ export function getOptions(pool, redisClient) {
 }
 
 // POST /api/reference-architecture/components/:componentId/safeguards/:safeguardId/reference-architecture
-export function saveRefArch(pool, redisClient) {
+function saveRefArch(pool, redisClient) {
   return async (req, res) => {
     const { componentId, safeguardId } = req.params;
     const { categoryId, optionId, color } = req.body;
@@ -52,7 +52,7 @@ export function saveRefArch(pool, redisClient) {
 }
 
 // GET saved selection for a safeguard
-export function getSavedRefArch(pool, redisClient) {
+function getSavedRefArch(pool, redisClient) {
   return async (req, res) => {
     const { componentId, safeguardId } = req.params;
     try {
@@ -64,3 +64,10 @@ export function getSavedRefArch(pool, redisClient) {
     }
   };
 }
+
+module.exports = {
+  getCategories,
+  getOptions,
+  saveRefArch,
+  getSavedRefArch
+};

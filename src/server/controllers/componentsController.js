@@ -1,6 +1,6 @@
 // Controller for components
-import { fetchAllComponents } from '../services/componentsService.js';
-export function getComponents(pool) {
+const { fetchAllComponents } = require('../services/componentsService.js');
+function getComponents(pool) {
   return async (req, res) => {
     try {
       const components = await fetchAllComponents(pool);
@@ -10,3 +10,8 @@ export function getComponents(pool) {
     }
   };
 }
+
+console.log('[LOG] componentsController.js loaded, exporting getComponents');
+module.exports = {
+  getComponents
+};

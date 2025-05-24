@@ -23,16 +23,15 @@ async function getThreatModelsForProject(projectId) {
   const sql = `
     SELECT tm.*
       FROM threat_model.threat_models tm
-      JOIN threat_model.project_threat_models ptm
-        ON tm.id = ptm.threat_model_id
-     WHERE ptm.project_id = $1
+     WHERE tm.project_id = $1
+     ORDER BY tm.title ASC
   `;
   const pool = await getDbPool();
   try {
     const { rows } = await pool.query(sql, [projectId]);
     return rows;
   } finally {
-
+    // cleanup if needed
   }
 }
 
@@ -43,13 +42,9 @@ async function getUnassignedThreatModelsForProject(projectId) {
   if (!projectId) throw new Error('projectId is required');
   const sql = `
     SELECT tm.*, COUNT(t.id) AS threat_count
-      FROM public.threat_models tm
-      LEFT JOIN public.threats t ON t.threat_model_id = tm.id
-     WHERE tm.id NOT IN (
-       SELECT threat_model_id
-         FROM public.project_threat_models
-        WHERE project_id = $1
-     )
+      FROM threat_model.threat_models tm
+      LEFT JOIN threat_model.threats t ON t.threat_model_id = tm.id
+     WHERE (tm.project_id IS NULL OR tm.project_id != $1)
      GROUP BY tm.id
      ORDER BY tm.title ASC
   `;
@@ -101,44 +96,6 @@ async function getUnassignedThreatModelsForComponent(componentId) {
 
 
 /**
- * Get threat models NOT assigned to a component
- * Returns array of threat models not linked to the given component.
- * Supports PostgreSQL (and Redis if present).
- */
-async function getUnassignedThreatModelsForComponent(componentId) {
-  if (!componentId) throw new Error('componentId is required');
-  const pool = await getDbPool();
-  // 1. Get all threat models
-  let allThreatModels = [];
-  try {
-    const { rows } = await pool.query('SELECT * FROM threat_model.threat_models ORDER BY created_at DESC');
-    allThreatModels = rows;
-    console.log(`[UNASSIGNED] Found ${allThreatModels.length} total threat models in PostgreSQL`);
-  } catch (err) {
-    console.error(`[UNASSIGNED] Error fetching all threat models:`, err);
-    throw err;
-  }
-  // 2. Get threat models already assigned to this component
-  let assigned = [];
-  try {
-    const assignedRes = await pool.query(
-      'SELECT tm.id FROM threat_model.threat_models tm JOIN threat_model.component_threat_models ctm ON tm.id = ctm.threat_model_id WHERE ctm.component_id = $1',
-      [componentId]
-    );
-    assigned = assignedRes.rows.map(r => r.id);
-    console.log(`[UNASSIGNED] Component ${componentId} has ${assigned.length} assigned threat models`);
-  } catch (err) {
-    console.error(`[UNASSIGNED] Error fetching assigned threat models for component:`, err);
-    throw err;
-  }
-  // 3. Filter out assigned
-  const unassigned = allThreatModels.filter(tm => !assigned.includes(tm.id));
-  console.log(`[UNASSIGNED] ${unassigned.length} unassigned threat models for component ${componentId}`);
-  return unassigned;
-}
-
-
-/**
  * Assign threat models to a project.
  * Returns array of inserted threat_model IDs.
  */
@@ -150,6 +107,7 @@ async function assignThreatModelsToProject(projectId, pgIds = []) {
   try {
     let insertedIds = [];
     if (pgIds.length) {
+      // Verify all IDs exist
       const res = await client.query(
         'SELECT id FROM threat_model.threat_models WHERE id = ANY($1::int[])',
         [pgIds]
@@ -159,13 +117,16 @@ async function assignThreatModelsToProject(projectId, pgIds = []) {
       if (invalid.length) {
         throw new Error(`Invalid threat_model IDs: ${invalid.join(', ')}`);
       }
-      const insertSQL = `
-        INSERT INTO threat_model.project_threat_models(project_id, threat_model_id, assigned_at)
-        SELECT $1, unnest($2::int[]), NOW()
-        RETURNING threat_model_id AS id
+      
+      // Update the project_id field directly in the threat_models table
+      const updateSQL = `
+        UPDATE threat_model.threat_models
+        SET project_id = $1, updated_at = NOW()
+        WHERE id = ANY($2::int[])
+        RETURNING id
       `;
-      const ins = await client.query(insertSQL, [projectId, pgIds]);
-      insertedIds = ins.rows.map(r => r.id);
+      const updated = await client.query(updateSQL, [projectId, pgIds]);
+      insertedIds = updated.rows.map(r => r.id);
     }
     await client.query('COMMIT');
     return insertedIds;
@@ -174,7 +135,6 @@ async function assignThreatModelsToProject(projectId, pgIds = []) {
     throw err;
   } finally {
     client.release();
-
   }
 }
 
@@ -189,9 +149,10 @@ async function removeThreatModelFromProject(projectId, threatModelId) {
   const client = await pool.connect();
   await client.query('BEGIN');
   try {
+    // Update the threat model to set project_id to NULL
     await client.query(
-      'DELETE FROM threat_model.project_threat_models WHERE project_id = $1 AND threat_model_id = $2',
-      [projectId, threatModelId]
+      'UPDATE threat_model.threat_models SET project_id = NULL, updated_at = NOW() WHERE id = $1 AND project_id = $2',
+      [threatModelId, projectId]
     );
     await client.query('COMMIT');
     return true;
@@ -200,7 +161,6 @@ async function removeThreatModelFromProject(projectId, threatModelId) {
     throw err;
   } finally {
     client.release();
-
   }
 }
 
@@ -321,32 +281,6 @@ async function removeThreatModelFromComponent(componentId, threatModelId) {
   }
 }
 
-/**
- * Fetch all threat models NOT assigned to a specific project.
- * Returns array of threat models not linked to the given project.
- */
-async function getUnassignedThreatModelsForProject(projectId) {
-  if (!projectId) throw new Error('projectId is required');
-  const sql = `
-    SELECT tm.*, COUNT(tmt.threat_id) AS threat_count
-      FROM threat_model.threat_models tm
-      LEFT JOIN threat_model.threat_model_threats tmt ON tmt.threat_model_id = tm.id
-     WHERE tm.id NOT IN (
-       SELECT threat_model_id
-         FROM threat_model.project_threat_models
-        WHERE project_id = $1
-     )
-     GROUP BY tm.id
-     ORDER BY tm.title ASC
-  `;
-  const pool = await getDbPool();
-  try {
-    const { rows } = await pool.query(sql, [projectId]);
-    return rows;
-  } finally {
-    // No cleanup needed
-  }
-}
 
 const fs = require('fs');
 const path = require('path');
@@ -385,8 +319,7 @@ async function assignThreatModelsToProjectWithLogging(projectId, threatModelIds 
     // Get before state
     const beforeRes = await client.query(
       `SELECT tm.id, tm.title FROM threat_model.threat_models tm
-       JOIN threat_model.project_threat_models ptm ON tm.id = ptm.threat_model_id
-       WHERE ptm.project_id = $1`, [projectId]
+       WHERE tm.project_id = $1`, [projectId]
     );
     const beforeList = beforeRes.rows;
     log(`BEFORE assignment - Project ${projectId} threat models: ${JSON.stringify(beforeList)}`);
@@ -400,10 +333,10 @@ async function assignThreatModelsToProjectWithLogging(projectId, threatModelIds 
     log(`Found ${validIds.length} valid threat models: ${JSON.stringify(validIds)}`);
     
     const alreadyAssignedRes = await client.query(
-      `SELECT threat_model_id FROM threat_model.project_threat_models WHERE project_id = $1 AND threat_model_id = ANY($2::uuid[])`,
+      `SELECT id FROM threat_model.threat_models WHERE project_id = $1 AND id = ANY($2::uuid[])`,
       [projectId, validIds]
     );
-    const alreadyAssigned = alreadyAssignedRes.rows.map(r => r.threat_model_id);
+    const alreadyAssigned = alreadyAssignedRes.rows.map(r => r.id);
     const toAssign = validIds.filter(id => !alreadyAssigned.includes(id));
     const skipped = threatModelIds.filter(id => !validIds.includes(id) || alreadyAssigned.includes(id));
     if (skipped.length > 0) {
@@ -413,20 +346,21 @@ async function assignThreatModelsToProjectWithLogging(projectId, threatModelIds 
     if (toAssign.length > 0) {
       log(`Attempting to assign ${toAssign.length} threat models to project ${projectId}: ${JSON.stringify(toAssign)}`);
       
-      // Use uuid type instead of int for the array
-      const insertSQL = `
-        INSERT INTO threat_model.project_threat_models(project_id, threat_model_id, assigned_at)
-        SELECT $1, unnest($2::uuid[]), NOW()
-        ON CONFLICT DO NOTHING RETURNING threat_model_id
+      // Update project_id directly in the threat_models table
+      const updateSQL = `
+        UPDATE threat_model.threat_models
+        SET project_id = $1, updated_at = NOW()
+        WHERE id = ANY($2::uuid[])
+        RETURNING id
       `;
       
-      const ins = await client.query(insertSQL, [projectId, toAssign]);
-      assigned = ins.rows.map(r => r.threat_model_id);
+      const updated = await client.query(updateSQL, [projectId, toAssign]);
+      assigned = updated.rows.map(r => r.id);
       
       if (assigned.length > 0) {
         log(`SUCCESS: Assigned ${assigned.length} threat models to project ${projectId}: ${JSON.stringify(assigned)}`);
       } else {
-        log(`WARNING: Insert query completed but no threat models were assigned to project ${projectId}`);
+        log(`WARNING: Update query completed but no threat models were assigned to project ${projectId}`);
       }
     } else {
       log(`No new assignments performed for project ${projectId} - all threat models already assigned or invalid.`);
@@ -434,8 +368,7 @@ async function assignThreatModelsToProjectWithLogging(projectId, threatModelIds 
     // Get after state
     const afterRes = await client.query(
       `SELECT tm.id, tm.title FROM threat_model.threat_models tm
-       JOIN threat_model.project_threat_models ptm ON tm.id = ptm.threat_model_id
-       WHERE ptm.project_id = $1`, [projectId]
+       WHERE tm.project_id = $1`, [projectId]
     );
     const afterList = afterRes.rows;
     log(`AFTER assignment - Project ${projectId} threat models: ${JSON.stringify(afterList)}`);

@@ -1,0 +1,105 @@
+<%- include('partials/header', { pageTitle: 'New Safeguard', active: 'safeguards' }) %>
+
+<div class="container mt-4">
+  <h1 class="mb-4">Create New Safeguard</h1>
+  <% if (typeof error !== 'undefined' && error) { %>
+    <div class="alert alert-danger"><%= error %></div>
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        const toast = document.createElement('div');
+        toast.className = 'toast align-items-center text-bg-danger border-0 mb-2';
+        toast.setAttribute('role', 'alert');
+        toast.setAttribute('aria-live', 'assertive');
+        toast.setAttribute('aria-atomic', 'true');
+        toast.innerHTML = `<div class="d-flex"><div class="toast-body"><%= error %></div><button type="submit" type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button></div>`;
+        let toastContainer = document.getElementById('toastContainer');
+        if (!toastContainer) {
+          toastContainer = document.createElement('div');
+          toastContainer.id = 'toastContainer';
+          toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+          document.body.appendChild(toastContainer);
+        }
+        toastContainer.appendChild(toast);
+        const bsToast = new bootstrap.Toast(toast, { delay: 3000 });
+        bsToast.show();
+        toast.addEventListener('hidden.bs.toast', function() { toast.remove(); });
+      });
+    </script>
+  <% } %>
+  <form id="safeguardForm" action="/safeguards" method="POST" class="needs-validation" novalidate>
+    <div class="mb-3">
+      <label for="name" class="form-label">Name</label>
+      <input type="text" class="form-control" id="name" name="name" required>
+      <div class="invalid-feedback">Name is required.</div>
+    </div>
+    <div class="mb-3">
+      <label for="type" class="form-label">Type</label>
+      <input type="text" class="form-control" id="type" name="type" required>
+      <div class="invalid-feedback">Type is required.</div>
+    </div>
+    <div class="mb-3">
+      <label for="description" class="form-label">Description</label>
+      <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+    </div>
+    <div class="mb-3">
+      <label for="effectiveness" class="form-label">Effectiveness (0-100)</label>
+      <input type="number" class="form-control" id="effectiveness" name="effectiveness" min="0" max="100" value="0">
+    </div>
+    <div class="mb-3">
+      <label for="implementation_status" class="form-label">Implementation Status</label>
+      <select class="form-select" id="implementation_status" name="implementation_status">
+        <option value="Planned" selected>Planned</option>
+        <option value="Implemented">Implemented</option>
+        <option value="Verified">Verified</option>
+        <option value="N/A">N/A</option>
+      </select>
+    </div>
+    <div class="mb-3">
+      <label for="implementation_details" class="form-label">Implementation Details</label>
+      <textarea class="form-control" id="implementation_details" name="implementation_details" rows="2"></textarea>
+    </div>
+    <div class="mb-3">
+      <label for="created_by" class="form-label">Created By</label>
+      <input type="text" class="form-control" id="created_by" name="created_by">
+    </div>
+    <div class="mb-3">
+      <label for="category" class="form-label">Category</label>
+      <input type="text" class="form-control" id="category" name="category">
+    </div>
+    <div class="mb-3">
+      <label for="subcategory" class="form-label">Subcategory</label>
+      <input type="text" class="form-control" id="subcategory" name="subcategory">
+    </div>
+    <div class="mb-3">
+      <label for="implementation_cost" class="form-label">Implementation Cost (USD)</label>
+      <input type="number" step="0.01" class="form-control" id="implementation_cost" name="implementation_cost" value="0">
+    </div>
+    <div class="mb-3">
+      <label for="maintenance_cost" class="form-label">Maintenance Cost (USD/yr)</label>
+      <input type="number" step="0.01" class="form-control" id="maintenance_cost" name="maintenance_cost" value="0">
+    </div>
+    <div class="mb-3">
+      <label for="effectiveness_justification" class="form-label">Effectiveness Justification</label>
+      <textarea class="form-control" id="effectiveness_justification" name="effectiveness_justification" rows="2"></textarea>
+    </div>
+    <div class="mb-3">
+      <label for="last_effectiveness_review" class="form-label">Last Effectiveness Review</label>
+      <input type="date" class="form-control" id="last_effectiveness_review" name="last_effectiveness_review">
+    </div>
+    <div class="mb-3">
+      <label for="reusable" class="form-label">Reusable</label>
+      <select class="form-select" id="reusable" name="reusable">
+        <option value="true">Yes</option>
+        <option value="false">No</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Create Safeguard</button>
+    <a href="/safeguards" class="btn btn-secondary ms-2">Cancel</a>
+  </form>
+</div>
+
+<!-- Load form utilities -->
+<script src="/js/utils/forms.js"></script>
+<script src="/js/safeguard-new.js"></script>
+
+<%- include('partials/footer') %>

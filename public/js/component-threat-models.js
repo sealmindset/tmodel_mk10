@@ -202,16 +202,8 @@ function removeThreatModel(threatModelId, componentId, container) {
   })
   .then(data => {
     alert('Threat model removed successfully');
-    // Clear cache first, then fetch threat models
-    fetch(`/api/components/${componentId}/clear-cache`, { method: 'POST' })
-      .then(data => {
-        console.log(`Data received for component ${componentId}:`, data);
-        fetchThreatModels(componentId, container);
-      })
-      .catch(() => {
-        // If cache clearing fails, still try to refresh
-        fetchThreatModels(componentId, container);
-      });
+    // Fetch updated threat models
+    fetchThreatModels(componentId, container);
   })
   .catch(error => {
     console.error('Error removing threat model:', error);
@@ -466,25 +458,15 @@ function assignSelectedThreatModels(componentId) {
 
     // Close the modal
     if (modal) {
+      alert('Threat models assigned successfully!');
       modal.hide();
     }
     
-    // Clear cache first, then refresh the models list
-    fetch(`/api/components/${componentId}/clear-cache`, { method: 'POST' })
-      .then(() => {
-        // Reload the threat models list
-        const container = document.getElementById('threatModelAssignmentsContainer');
-        if (container) {
-          fetchThreatModels(componentId, container);
-        }
-      })
-      .catch(() => {
-        // If cache clearing fails, still try to refresh
-        const container = document.getElementById('threatModelAssignmentsContainer');
-        if (container) {
-          fetchThreatModels(componentId, container);
-        }
-      });
+    // Refresh threat models
+    const container = document.getElementById('threatModelAssignmentsContainer');
+    if (container) {
+      fetchThreatModels(componentId, container);
+    }
   })
   .catch(error => {
     // Clear the timeout

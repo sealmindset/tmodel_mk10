@@ -225,6 +225,7 @@ app.use('/api/reference-architecture',
 
 // Application Routes
 app.use('/components', require('./routes/components'));
+app.use('/safeguards', require('./routes/safeguards'));
 app.use('/models', require('./routes/models'));
 app.use('/vulnerability-dashboard', require('./routes/vulnerability-dashboard'));
 app.use('/api-explorer', require('./routes/api-explorer'));

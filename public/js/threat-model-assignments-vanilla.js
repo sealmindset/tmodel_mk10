@@ -293,16 +293,8 @@ function removeThreatModel(threatModelId, projectId, container) {
   })
   .then(data => {
     alert('Threat model removed successfully');
-    // Clear cache first, then fetch threat models
-    fetch(`/api/projects/${projectId}/clear-cache`, { method: 'POST' })
-      .then(data => {
-        console.log(`Data received for project ${projectId}:`, data);
-        fetchThreatModels(projectId, container);
-      })
-      .catch(() => {
-        // If cache clearing fails, still try to refresh
-        fetchThreatModels(projectId, container);
-      });
+    // Fetch updated threat models
+    fetchThreatModels(projectId, container);
   })
   .catch(error => {
     console.error('Error removing threat model:', error);
