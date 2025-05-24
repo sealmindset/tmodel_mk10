@@ -518,30 +518,32 @@ class Component {
           // Extract threat model IDs
           const threatModelIds = threatModelsResult.rows.map(row => row.id);
           
-          // Build the IN clause for the query
-          const placeholders = threatModelIds.map((_, i) => `$${i + 2}`).join(', ');
-          
-          const threatsQuery = `
-            SELECT 
-              CASE 
-                WHEN risk_score >= 20 THEN 'Critical'
-                WHEN risk_score >= 15 THEN 'High'
-                WHEN risk_score >= 8 THEN 'Medium'
-                ELSE 'Low'
-              END as risk_level,
-              COUNT(*)::int as count
-            FROM threat_model.threats
-            WHERE threat_model_id IN (${placeholders})
-            GROUP BY risk_level
-          `;
-          
-          const threatsParams = [componentId, ...threatModelIds];
-          const threatsResult = await client.query(threatsQuery, threatsParams.slice(1)); // Remove componentId
-          
-          // Format the threats by risk level
-          threatsResult.rows.forEach(row => {
-            threatsByRiskLevel[row.risk_level] = row.count;
-          });
+          // Only proceed if we actually have threat model IDs
+          if (threatModelIds.length > 0) {
+            // Build the IN clause for the query
+            const placeholders = threatModelIds.map((_, i) => `$${i + 1}`).join(', ');
+            
+            const threatsQuery = `
+              SELECT 
+                CASE 
+                  WHEN risk_score >= 20 THEN 'Critical'
+                  WHEN risk_score >= 15 THEN 'High'
+                  WHEN risk_score >= 8 THEN 'Medium'
+                  ELSE 'Low'
+                END as risk_level,
+                COUNT(*)::int as count
+              FROM threat_model.threats
+              WHERE threat_model_id IN (${placeholders})
+              GROUP BY risk_level
+            `;
+            
+            const threatsResult = await client.query(threatsQuery, threatModelIds);
+            
+            // Format the threats by risk level
+            threatsResult.rows.forEach(row => {
+              threatsByRiskLevel[row.risk_level] = row.count;
+            });
+          }
         }
         
         // Format the vulnerabilities by severity

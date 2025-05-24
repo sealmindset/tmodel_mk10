@@ -44,7 +44,7 @@
                   </div>
                   
                   <div class="mb-3">
-                    <label for="tm_promptId" class="form-label">Prompt Template</label>
+                    <label for="tm_promptTitle" class="form-label">Prompt Template</label>
                     <div class="input-group">
                       <input type="hidden" id="tm_promptId" name="selectedPromptId">
                       <input type="text" class="form-control" id="tm_promptTitle" name="promptTitle" placeholder="Select a prompt template" readonly>

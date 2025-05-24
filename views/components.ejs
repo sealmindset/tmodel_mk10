@@ -14,9 +14,6 @@
       <button type="button" class="btn btn-outline-secondary" id="refreshComponents">
         <i class="bi bi-arrow-repeat me-1"></i>Refresh
       </button>
-      <button type="button" class="btn btn-outline-primary ms-2" id="assignSafeguardsBtn">
-        <i class="bi bi-shield-check me-1"></i>Assign Safeguards
-      </button>
     </div>
   </div>
 
@@ -89,7 +86,6 @@
   </div>
 </div>
 
-<div id="safeguardsAssignmentsModal"></div>
 <%- include('partials/footer') %>
 
 <!-- jQuery (required for DataTables) -->
@@ -100,7 +96,6 @@
 <script src="https://cdn.datatables.net/responsive/2.4.0/js/dataTables.responsive.min.js"></script>
 <script src="https://cdn.datatables.net/responsive/2.4.0/js/responsive.bootstrap5.min.js"></script>
 
-<script src="/js/reusable-assign-safeguards-modal.js" defer></script>
 <script>
   document.addEventListener('DOMContentLoaded', function() {
     if (window.jQuery) {
@@ -115,24 +110,6 @@
       });
     } else {
       console.error('jQuery is required for DataTables to function.');
-    }
-    // Assign Safeguards button handler
-    const assignSafeguardsBtn = document.getElementById('assignSafeguardsBtn');
-    if (assignSafeguardsBtn) {
-      assignSafeguardsBtn.onclick = function() {
-        // For page-level assignment, you may want to prompt for a component or assign to all
-        // For now, prompt to select a component row (or adapt as needed)
-        const selectedRows = document.querySelectorAll('#components-table .subject-checkbox:checked');
-        if (selectedRows.length !== 1) {
-          alert('Please select exactly one component to assign safeguards.');
-          return;
-        }
-        const componentId = selectedRows[0].value;
-        openAssignSafeguardsModal({
-          componentId: componentId,
-          onAssigned: function() { window.location.reload(); }
-        });
-      };
     }
   });
 </script>
