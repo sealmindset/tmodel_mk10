@@ -3,8 +3,10 @@
  */
 const express = require('express');
 const router = express.Router();
-const Component = require('../../database/models/component');
 const { ensureAuthenticated } = require('../../middleware/auth');
+const db = require('../../db/db');
+const Component = require('../../database/models/component.js');
+const safeguardAssignmentService = require('../../services/safeguardAssignmentService');
 
 /**
  * @route   GET /api/components
@@ -333,21 +335,68 @@ router.get('/:id/statistics', ensureAuthenticated, async (req, res) => {
 });
 
 /**
+ * @route   GET /api/components/:id/unassigned-safeguards
+ * @desc    Get safeguards not assigned to a component
+ * @access  Private
+ */
+router.get('/:id/unassigned-safeguards', ensureAuthenticated, async (req, res) => {
+  try {
+    const unassignedSafeguards = await safeguardAssignmentService.getUnassignedSafeguardsForComponent(req.params.id);
+    res.json({ success: true, data: unassignedSafeguards });
+  } catch (error) {
+    console.error('Error fetching unassigned safeguards:', error);
+    res.status(500).json({ error: 'Failed to fetch unassigned safeguards' });
+  }
+});
+
+/**
  * @route   POST /api/components/:id/safeguards/assign
- * @desc    Bulk assign safeguards to a component
+ * @desc    Assign multiple safeguards to a component
  * @access  Private
  */
 router.post('/:id/safeguards/assign', ensureAuthenticated, async (req, res) => {
   try {
-    const { safeguardIds } = req.body;
-    if (!Array.isArray(safeguardIds)) {
-      return res.status(400).json({ success: false, error: 'safeguardIds must be an array' });
+    // Support both 'ids' and 'safeguardIds' format for backward compatibility
+    const { ids, safeguardIds } = req.body;
+    const safeguardIDsToAssign = ids || safeguardIds || [];
+    
+    if (!Array.isArray(safeguardIDsToAssign) || safeguardIDsToAssign.length === 0) {
+      return res.status(400).json({ error: 'No safeguard IDs provided or invalid format' });
     }
-    await Component.assignSafeguards(req.params.id, safeguardIds);
-    res.json({ success: true });
+    
+    const result = await safeguardAssignmentService.assignSafeguardsToComponentWithLogging(req.params.id, safeguardIDsToAssign);
+    
+    if (result.success) {
+      res.json({ success: true, count: result.count, ids: result.ids });
+    } else {
+      res.status(400).json({ error: result.message });
+    }
   } catch (error) {
     console.error('Error assigning safeguards:', error);
-    res.status(500).json({ success: false, error: 'Server error' });
+    res.status(500).json({ error: 'Failed to assign safeguards' });
+  }
+});
+
+/**
+ * @route   DELETE /api/components/:id/safeguards/:safeguardId
+ * @desc    Remove a safeguard from a component
+ * @access  Private
+ */
+router.delete('/:id/safeguards/:safeguardId', ensureAuthenticated, async (req, res) => {
+  try {
+    const result = await safeguardAssignmentService.removeSafeguardFromComponent(
+      req.params.id,
+      req.params.safeguardId
+    );
+    
+    if (result.success) {
+      res.json({ success: true });
+    } else {
+      res.status(400).json({ error: result.message });
+    }
+  } catch (error) {
+    console.error('Error removing safeguard:', error);
+    res.status(500).json({ error: 'Failed to remove safeguard' });
   }
 });
 

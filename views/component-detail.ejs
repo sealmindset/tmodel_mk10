@@ -53,8 +53,8 @@ function getSafeguardStatusClass(status) {
       <button type="button" class="btn btn-primary" id="editComponentBtn">
         <i class="bi bi-pencil me-1"></i>Edit Component
       </button>
-      <button type="button" class="btn btn-success" id="addSafeguardBtn">
-        <i class="bi bi-shield-check me-1"></i>Add Safeguard
+      <button type="button" class="btn btn-success" id="headerAssignSafeguardsBtn">
+        <i class="bi bi-shield-check me-1"></i>Assign Safeguards
       </button>
       <button type="button" class="btn btn-warning text-white" id="scanComponentBtn">
         <i class="bi bi-radar me-1"></i>Scan for Vulnerabilities
@@ -64,6 +64,9 @@ function getSafeguardStatusClass(status) {
   
   <!-- Alert container for notifications -->
   <div id="componentDetailAlertContainer"></div>
+  
+  <!-- Hidden component ID for JavaScript access -->
+  <input type="hidden" id="componentId" value="<%= component.id %>" data-component-id="<%= component.id %>">
   
   <!-- Component Overview Card -->
   <div class="card mb-4">
@@ -245,68 +248,25 @@ function getSafeguardStatusClass(status) {
   <div class="card mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
       <h5 class="mb-0">Safeguards</h5>
-      <button class="btn btn-sm btn-outline-primary" id="addSafeguardBtn2">
-        <i class="bi bi-shield-plus me-1"></i>Add Safeguard
-      </button>
+      <div class="btn-group">
+        <button class="btn btn-sm btn-outline-primary" id="assignSafeguardsBtn">
+          <i class="bi bi-shield-check me-1"></i>Assign Safeguards
+        </button>
+        <button class="btn btn-sm btn-outline-primary" id="addSafeguardBtn2">
+          <i class="bi bi-shield-plus me-1"></i>Add Safeguard
+        </button>
+      </div>
     </div>
     <div class="card-body">
-      <% if (safeguards && safeguards.length > 0) { %>
-        <div class="table-responsive">
-          <table class="table table-hover" id="safeguardsTable">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Type</th>
-                <th>Status</th>
-                <th>Notes</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <% safeguards.forEach(safeguard => { %>
-                <tr>
-                  <td><%= safeguard.name %></td>
-                  <td><%= safeguard.type || 'N/A' %></td>
-                  <td>
-                    <span class="badge bg-<%= getSafeguardStatusClass(safeguard.status) %>">
-                      <%= safeguard.status %>
-                    </span>
-                  </td>
-                  <td><%= safeguard.notes || 'No notes' %></td>
-                  <td>
-                    <div class="btn-group">
-                      <button class="btn btn-sm btn-outline-primary edit-safeguard-btn" 
-                              data-safeguard-id="<%= safeguard.id %>"
-                              data-safeguard-name="<%= safeguard.name %>"
-                              data-safeguard-status="<%= safeguard.status %>"
-                              data-safeguard-notes="<%= safeguard.notes || '' %>">
-                        <i class="bi bi-pencil"></i>
-                      </button>
-                      <button class="btn btn-sm btn-outline-danger remove-safeguard-btn"
-                              data-safeguard-id="<%= safeguard.id %>"
-                              data-safeguard-name="<%= safeguard.name %>">
-                        <i class="bi bi-trash"></i>
-                      </button>
-                      <button class="btn btn-sm btn-outline-secondary refarch-btn"
-                              data-safeguard-id="<%= safeguard.id %>"
-                              data-safeguard-name="<%= safeguard.name %>">
-                        <i class="bi bi-sliders"></i>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              <% }); %>
-            </tbody>
-          </table>
+      <!-- Container for dynamically loaded safeguards -->
+      <div id="safeguardAssignmentsContainer">
+        <div class="text-center py-3">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+          <p class="mt-2">Loading safeguards...</p>
         </div>
-      <% } else { %>
-        <div class="alert alert-info">
-          No safeguards have been added to this component yet.
-          <button class="btn btn-sm btn-primary ms-3" id="addFirstSafeguardBtn">
-            <i class="bi bi-shield-plus me-1"></i>Add First Safeguard
-          </button>
-        </div>
-      <% } %>
+      </div>
     </div>
   </div>
   
@@ -516,11 +476,289 @@ function getSafeguardStatusClass(status) {
   </div>
 </div>
 
+<!-- Create New Safeguard Modal -->
+<div class="modal fade" id="createSafeguardModal" tabindex="-1" aria-labelledby="createSafeguardModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="createSafeguardModalLabel">Create New Safeguard</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="createSafeguardForm">
+          <input type="hidden" id="componentId" value="<%= component.id %>">
+          
+          <div class="mb-3">
+            <label for="safeguardName" class="form-label">Safeguard Name *</label>
+            <input type="text" class="form-control" id="safeguardName" required>
+          </div>
+          
+          <div class="mb-3">
+            <label for="safeguardType" class="form-label">Type *</label>
+            <select class="form-select" id="safeguardType" required>
+              <option value="">Select Type</option>
+              <option value="Preventive">Preventive</option>
+              <option value="Detective">Detective</option>
+              <option value="Corrective">Corrective</option>
+              <option value="Recovery">Recovery</option>
+              <option value="Deterrent">Deterrent</option>
+            </select>
+          </div>
+          
+          <div class="mb-3">
+            <label for="safeguardDescription" class="form-label">Description</label>
+            <textarea class="form-control" id="safeguardDescription" rows="3"></textarea>
+          </div>
+          
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="implementationStatus" class="form-label">Implementation Status</label>
+              <select class="form-select" id="implementationStatus">
+                <option value="Not Implemented">Not Implemented</option>
+                <option value="Partially Implemented">Partially Implemented</option>
+                <option value="Implemented">Implemented</option>
+                <option value="Planned">Planned</option>
+              </select>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label for="effectiveness" class="form-label">Effectiveness Rating (1-5)</label>
+              <input type="number" class="form-control" id="effectiveness" min="1" max="5" value="3">
+            </div>
+          </div>
+          
+          <div class="mb-3">
+            <label for="safeguardNotes" class="form-label">Notes</label>
+            <textarea class="form-control" id="safeguardNotes" rows="2"></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="saveSafeguardBtn">Create Safeguard</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <%- include('partials/footer', { extraJs: [] }) %>
+  <!-- Modal Manager - load this first to ensure proper modal handling -->
+  <script src="/js/modal-manager.js"></script>
   <script src="/js/reusable-assign-threat-models-modal.js"></script>
+  <script src="/js/reusable-assign-safeguards-modal.js"></script>
+  <script src="/js/component-safeguards.js"></script>
+  <script src="/js/safeguard-assignments.js"></script>
 
   <!-- Component-specific scripts -->
   <script src="/js/component-threat-models.js"></script>
   <script src="/js/componentDetail.js"></script>
+
+  <!-- Initialize Component Detail Scripts -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      /**
+       * This function ensures no modals are left open or in a broken state
+       * It properly cleans up all Bootstrap modal instances
+       */
+      function cleanupModalState() {
+        // First, properly dispose of any Bootstrap modal instances
+        document.querySelectorAll('.modal').forEach(modalEl => {
+          try {
+            if (modalEl) {
+              const bsInstance = bootstrap.Modal.getInstance(modalEl);
+              if (bsInstance) bsInstance.dispose();
+            } else {
+              console.error('cleanupModalState: Modal element not found for disposal:', modalEl);
+            }
+          } catch (e) {
+            console.warn('Failed to dispose modal:', e);
+          }
+        });
+        
+        // Remove modal-open class from body
+        document.body.classList.remove('modal-open');
+        
+        // Remove any leftover backdrops
+        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+      }
+      
+      /**
+       * Shows the safeguard assignment modal correctly
+       */
+      // Shows the dynamic assign safeguards modal
+      function showSafeguardAssignmentModal(e) {
+        if (e) e.preventDefault();
+        const componentId = document.getElementById('componentId')?.value;
+        if (!componentId) {
+          alert('Component ID not found.');
+          return;
+        }
+        openAssignSafeguardsModal({
+          componentId,
+          onAssigned: function() {
+            // Refresh the safeguards list
+            const container = document.getElementById('safeguardAssignmentsContainer');
+            if (container) {
+              fetchSafeguards(componentId, container);
+            }
+          }
+        });
+      }
+      
+      /**
+       * Shows the create safeguard modal correctly
+       */
+      function showCreateSafeguardModal(e) {
+        if (e) e.preventDefault();
+        console.log('Opening create safeguard modal');
+        
+        // Clean up first
+        cleanupModalState();
+        
+        // Open the modal with a slight delay to ensure cleanup is complete
+        setTimeout(() => {
+          const modalEl = document.getElementById('createSafeguardModal');
+          if (!modalEl) {
+            console.error('Create safeguard modal not found in DOM');
+            return;
+          }
+          
+          try {
+            // Initialize a fresh modal instance
+            const modal = new bootstrap.Modal(modalEl);
+            modal.show();
+          } catch (error) {
+            console.error('Error showing create safeguard modal:', error);
+          }
+        }, 100);
+      }
+      
+      // Set up event listeners for the Assign Safeguards button
+      const assignSafeguardBtn = document.getElementById('assignSafeguardsBtn');
+      if (assignSafeguardBtn) {
+        assignSafeguardBtn.addEventListener('click', showSafeguardAssignmentModal);
+      }
+      
+      // Set up event listener for header Assign Safeguards button
+      const headerAssignBtn = document.getElementById('headerAssignSafeguardsBtn');
+      if (headerAssignBtn) {
+        headerAssignBtn.addEventListener('click', showSafeguardAssignmentModal);
+      }
+      
+      // Set up event listener for Add Safeguard button - show create modal
+      const addSafeguardBtn = document.getElementById('addSafeguardBtn2');
+      if (addSafeguardBtn) {
+        addSafeguardBtn.addEventListener('click', showCreateSafeguardModal);
+        console.log('Assigned create modal handler to addSafeguardBtn2');
+      }
+      
+      // Also handle the empty state add first safeguard button
+      const addFirstSafeguardBtn = document.getElementById('addFirstSafeguardBtn');
+      if (addFirstSafeguardBtn) {
+        addFirstSafeguardBtn.addEventListener('click', showCreateSafeguardModal);
+        console.log('Assigned create modal handler to addFirstSafeguardBtn');
+      }
+            // Handle saving a new safeguard
+      const saveSafeguardBtn = document.getElementById('saveSafeguardBtn');
+      if (saveSafeguardBtn) {
+        saveSafeguardBtn.addEventListener('click', async function() {
+          // Get form values
+          const componentId = document.getElementById('componentId').value;
+          const name = document.getElementById('safeguardName').value;
+          const type = document.getElementById('safeguardType').value;
+          const description = document.getElementById('safeguardDescription').value;
+          const implementation_status = document.getElementById('implementationStatus').value;
+          const effectiveness = document.getElementById('effectiveness').value;
+          const notes = document.getElementById('safeguardNotes').value;
+          
+          // Validate required fields (these are required by the API)
+          if (!name) {
+            alert('Safeguard name is required');
+            return;
+          }
+          
+          if (!type) {
+            alert('Safeguard type is required');
+            return;
+          }
+          
+          if (!description) {
+            alert('Safeguard description is required');
+            return;
+          }
+          
+          try {
+            console.log('Submitting safeguard with data:', {
+              name,
+              type,
+              description,
+              implementation_status,
+              effectiveness: parseInt(effectiveness, 10),
+              notes
+            });
+            
+            const response = await fetch('/api/safeguards', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                name,
+                type,
+                description,
+                implementation_status,
+                notes, 
+                effectiveness: parseInt(effectiveness, 10)
+              })
+            });
+            
+            if (!response.ok) {
+              const errorText = await response.text();
+              console.error('Server error response:', errorText);
+              throw new Error(`Server responded with ${response.status}: ${errorText}`);
+            }
+            
+            const result = await response.json();
+            
+            if (result.success) {
+              // Close the modal
+              const modalEl = document.getElementById('createSafeguardModal');
+              if (modalEl) {
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                if (modal) {
+                  modal.hide();
+                }
+              } else {
+                console.error('Success handler: createSafeguardModal element not found in DOM');
+              }
+              
+              // Show success message
+              const alertContainer = document.getElementById('componentDetailAlertContainer');
+              if (alertContainer) {
+                alertContainer.innerHTML = `
+                  <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    Safeguard created successfully!
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                  </div>
+                `;
+              }
+              
+              // Reload the page to show the new safeguard
+              setTimeout(() => {
+                window.location.reload();
+              }, 1500);
+            } else {
+              alert('Error creating safeguard: ' + (result.error || 'Unknown error'));
+            }
+          } catch (error) {
+            console.error('Error creating safeguard:', error);
+            alert('Error creating safeguard: ' + error.message);
+          }
+        });
+      }
+    });
+  </script>
+  <!-- jQuery (must be loaded before assignment modal JS) -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <!-- Assignment Modal JS -->
 </body>
 </html>

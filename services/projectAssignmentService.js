@@ -264,6 +264,7 @@ async function removeThreatModelFromComponent(componentId, threatModelId) {
   if (!componentId || !threatModelId) {
     throw new Error('componentId and threatModelId are required');
   }
+  const pool = await getDbPool();
   const client = await pool.connect();
   await client.query('BEGIN');
   try {

@@ -67,6 +67,7 @@ router.get('/:id', ensureAuthenticated, async (req, res) => {
  * @access  Private
  */
 router.post('/', ensureAuthenticated, async (req, res) => {
+  console.log('[Add Safeguard] Received body:', req.body);
   try {
     const {
       name,

@@ -1,12 +1,27 @@
 (function(window) {
   // Reusable Assign Safeguards Modal
   function openAssignSafeguardsModal({ componentId, onAssigned }) {
-    let modalContainer = document.getElementById('safeguardsAssignmentsModal');
-    if (!modalContainer) {
-      modalContainer = document.createElement('div');
-      modalContainer.id = 'safeguardsAssignmentsModal';
-      document.body.appendChild(modalContainer);
+    // Remove any existing Bootstrap modal backdrops
+    document.querySelectorAll('.modal-backdrop').forEach(el => el.parentNode.removeChild(el));
+    // Remove any existing modal with the same ID from the DOM before injecting new HTML
+    const existingModal = document.getElementById('assignSafeguardsModal');
+    if (existingModal && existingModal.parentNode) {
+      // Hide and dispose any existing Bootstrap modal instance
+      try {
+        const inst = bootstrap.Modal.getInstance(existingModal);
+        if (inst) { inst.hide(); inst.dispose(); }
+      } catch (e) {}
+      existingModal.parentNode.removeChild(existingModal);
     }
+    // Remove any existing modal container
+    let modalContainer = document.getElementById('safeguardsAssignmentsModal');
+    if (modalContainer && modalContainer.parentNode) {
+      modalContainer.parentNode.removeChild(modalContainer);
+    }
+    // Create a new container
+    modalContainer = document.createElement('div');
+    modalContainer.id = 'safeguardsAssignmentsModal';
+    document.body.appendChild(modalContainer);
     modalContainer.innerHTML = '';
 
     const modalHtml = `
@@ -35,15 +50,56 @@
       </div>
     `;
     modalContainer.innerHTML = modalHtml;
-    const modal = document.getElementById('assignSafeguardsModal');
-    const bsModal = new bootstrap.Modal(modal);
-    bsModal.show();
+    // Wait for the next animation frame to ensure the modal is fully rendered
+    requestAnimationFrame(() => {
+      const modal = document.getElementById('assignSafeguardsModal');
+      console.log('[DEBUG] assignSafeguardsModal element:', modal);
+      let bsModal = null;
+      if (!modal) {
+        console.error('[ERROR] assignSafeguardsModal not found in DOM, aborting show.');
+        return;
+      }
+      // Defensive: check for existing instance and dispose if needed
+      try {
+        bsModal = bootstrap.Modal.getInstance(modal);
+        if (bsModal) {
+          // If the instance exists but is broken (disposed), dispose and create a new one
+          if (!modal._isShown && typeof bsModal.show === 'function') {
+            // Instance seems healthy, reuse
+          } else {
+            bsModal.dispose();
+            bsModal = null;
+          }
+        }
+      } catch (e) {
+        console.warn('[WARN] Error getting Bootstrap modal instance:', e);
+        bsModal = null;
+      }
+      if (!bsModal) {
+        bsModal = new bootstrap.Modal(modal);
+      }
+      console.log('[DEBUG] assignSafeguardsModal Bootstrap instance:', bsModal);
+      try {
+        bsModal.show();
+        // When the modal is hidden, remove the container from the DOM
+        modal.addEventListener('hidden.bs.modal', function cleanup() {
+          if (modalContainer && modalContainer.parentNode) {
+            modalContainer.parentNode.removeChild(modalContainer);
+          }
+          modal.removeEventListener('hidden.bs.modal', cleanup);
+        });
+      } catch (e) {
+        console.error('[ERROR] Exception during bsModal.show():', e);
+      }
+    });
     loadAvailableSafeguards(componentId);
     const assignSelectedBtn = document.getElementById('assignSelectedSafeguardsBtn');
     if (assignSelectedBtn) {
       assignSelectedBtn.onclick = function() {
         assignSelectedSafeguards(componentId, () => {
-          bsModal.hide();
+          const modal = document.getElementById('assignSafeguardsModal');
+          const bsModal = modal ? bootstrap.Modal.getInstance(modal) : null;
+          if (bsModal) bsModal.hide();
           if (typeof onAssigned === 'function') onAssigned();
         });
       };
