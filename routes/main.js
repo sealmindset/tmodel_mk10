@@ -101,6 +101,16 @@ router.get('/create', async (req, res) => {
 });
 
 // Helper functions for dashboard statistics using PostgreSQL only
+async function getComponentsByType() {
+  const result = await db.query('SELECT type, COUNT(*) FROM threat_model.components GROUP BY type');
+  return result.rows.map(row => ({ type: row.type, count: parseInt(row.count, 10) }));
+}
+
+async function getSafeguardsByType() {
+  const result = await db.query('SELECT type, COUNT(*) FROM threat_model.safeguards GROUP BY type');
+  return result.rows.map(row => ({ type: row.type, count: parseInt(row.count, 10) }));
+}
+
 async function getTotalModelCount() {
   // Use threatModelService to count all threat models
   const result = await db.query('SELECT COUNT(*) FROM threat_model.threat_models');
@@ -387,6 +397,29 @@ router.get('/results', async (req, res) => {
   } catch (error) {
     console.error('[ROUTE] /results - Error loading results page:', error);
     res.status(500).send('Error loading results page.');
+  }
+});
+
+// API endpoint to get dashboard stats for charts
+router.get('/api/dashboard-stats', async (req, res) => {
+  try {
+    // Get all dashboard stats in parallel
+    const [modelsByMonth, componentsByType, safeguardsByType] = await Promise.all([
+      getModelsByMonth(),
+      getComponentsByType(),
+      getSafeguardsByType()
+    ]);
+    res.json({
+      success: true,
+      data: {
+        modelsByMonth,
+        componentsByType,
+        safeguardsByType
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching dashboard stats:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch dashboard stats' });
   }
 });
 
