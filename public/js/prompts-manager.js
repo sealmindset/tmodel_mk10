@@ -264,9 +264,18 @@ function saveNewPrompt() {
       
       // Show the prompts list section
       document.getElementById('prompts-list-section').classList.remove('d-none');
-      document.getElementById('add-new-prompt').classList.add('d-none');
-      
-      // Refresh the prompts list
+      const newPromptModalElem = document.getElementById('newPromptModal');
+      if (newPromptModalElem) {
+        const bootstrapModal = bootstrap.Modal.getInstance(newPromptModalElem);
+        if (bootstrapModal) bootstrapModal.hide();
+      }
+
+      // If on /prompts page, reload to refresh the table
+      if (window.location.pathname === '/prompts') {
+        window.location.reload();
+        return;
+      }
+      // Otherwise, just refresh the prompts list in the modal
       fetchPrompts();
       
       showToast('Success', 'Prompt saved successfully', 'success');
