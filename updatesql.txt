@@ -1,0 +1,3 @@
+UPDATE threat_model.settings
+SET value = 'http://localhost:8000/api/ollama'
+WHERE key = 'ollama.api_url';

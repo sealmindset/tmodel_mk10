@@ -5,21 +5,21 @@ const assistantDB = require('./assistantDB');
 
 exports.getAvailableModels = async () => {
   // Fetch models from local Ollama instance
-  const ollamaUrl = process.env.OLLAMA_API_URL || 'http://localhost:11434';
-  const response = await axios.get(`${ollamaUrl}/api/tags`);
+  const fastApiBaseUrl = process.env.FASTAPI_BASE_URL || 'http://localhost:8000';
+  const response = await axios.get(`${fastApiBaseUrl}/api/ollama/models`);
   return response.data.models.map(model => ({
     name: model.name,
-    label: model.name.replace(/[:@]/, ' ')
+    label: model.name.replace(/[:@]/g, ' ')
   }));
 };
 
 exports.getChatResponse = async ({ model, message, context_enabled }) => {
-  const ollamaUrl = process.env.OLLAMA_API_URL || 'http://localhost:11434';
+  const fastApiBaseUrl = process.env.FASTAPI_BASE_URL || 'http://localhost:8000';
   // Prompt template for consistency
   const prompt = context_enabled
     ? `You are a security expert. Context: Threat modeling. User: ${message}`
     : message;
-  const response = await axios.post(`${ollamaUrl}/api/generate`, {
+  const response = await axios.post(`${fastApiBaseUrl}/api/ollama/generate`, {
     model,
     prompt,
     stream: false

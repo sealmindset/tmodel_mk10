@@ -11,7 +11,7 @@ class OllamaUtil {
   constructor() {
     this.OLLAMA_API_URL_KEY = 'ollama.api_url';
     this.OLLAMA_MODEL_KEY = 'ollama.model';
-    this.OLLAMA_API_URL = 'http://localhost:11434/api';
+    this.OLLAMA_API_URL = process.env.FASTAPI_BASE_URL || 'http://localhost:8000/api/ollama';
     this.DEFAULT_MODEL = 'llama4:latest';
     this.apiStatusMessageLogged = false;
     this.apiEvents = [];
@@ -248,7 +248,8 @@ class OllamaUtil {
   async getModels() {
     try {
       await this.ensureInitialized();
-      const response = await axios.get(`${this.OLLAMA_API_URL}/tags`);
+      
+      const response = await axios.get(`${this.OLLAMA_API_URL}/models`);
       return response.data.models || [];
     } catch (error) {
       logger.error('Error getting models from Ollama:', error);
@@ -289,7 +290,7 @@ class OllamaUtil {
    */
   async testConnection(apiUrl) {
     try {
-      const response = await axios.get(`${apiUrl}/api/tags`, {
+      const response = await axios.get(`${apiUrl}/models`, {
         timeout: 5000 // 5 second timeout
       });
       return { success: response.status === 200 };

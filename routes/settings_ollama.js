@@ -12,8 +12,8 @@ router.get('/', async (req, res) => {
   let models = [];
   try {
     let apiUrl = settings['ollama.api_url'];
-    if (!apiUrl || !apiUrl.trim()) apiUrl = 'http://localhost:11434/api/tags';
-    models = await getOllamaModels(apiUrl);
+    // Always use FastAPI backend for Ollama models
+    models = await getOllamaModels();
     if (!Array.isArray(models)) models = [];
   } catch (e) {
     models = [];
@@ -47,13 +47,7 @@ router.post('/', async (req, res) => {
   const settings = await settingsService.getAllSettings();
   let models = [];
   try {
-    let apiUrl = settings['ollama.api_url'];
-    if (!apiUrl || !apiUrl.trim()) {
-      apiUrl = 'http://localhost:11434/api/tags';
-    } else if (!apiUrl.endsWith('/tags')) {
-      apiUrl = apiUrl.replace(/\/+$/, '') + '/tags';
-    }
-    models = await getOllamaModels(apiUrl);
+    models = await getOllamaModels();
     if (!Array.isArray(models)) models = [];
   } catch (e) {
     models = [];
