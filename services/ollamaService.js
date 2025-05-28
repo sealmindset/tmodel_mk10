@@ -1,19 +1,21 @@
-const axios = require('axios');
+const { exec } = require('child_process');
 
-async function getOllamaModels(apiUrl) {
-  const FASTAPI_BASE_URL = process.env.FASTAPI_BASE_URL || 'http://localhost:8000';
-  const endpoint = apiUrl || `${FASTAPI_BASE_URL}/api/ollama/models`;
-  try {
-    const response = await axios.get(endpoint);
-    console.log('Ollama models API response:', response.data);
-    if (response.data && Array.isArray(response.data.models)) {
-      // Normalize to array of strings
-      return response.data.models.map(m => m.name || m.model || m);
-    }
-    return [];
-  } catch (err) {
-    return [];
-  }
+async function getOllamaModels() {
+  return await new Promise((resolve, reject) => {
+    exec('ollama list --json', (error, stdout, stderr) => {
+      if (error) {
+        console.error('Ollama CLI error (list):', error);
+        return resolve([]);
+      }
+      try {
+        const parsed = JSON.parse(stdout);
+        resolve(parsed.models ? parsed.models.map(m => m.name) : []);
+      } catch (e) {
+        console.error('Failed to parse Ollama CLI output (list):', e);
+        resolve([]);
+      }
+    });
+  });
 }
 
 module.exports = { getOllamaModels };

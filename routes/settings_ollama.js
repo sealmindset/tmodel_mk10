@@ -11,8 +11,7 @@ router.get('/', async (req, res) => {
   const settings = await settingsService.getAllSettings();
   let models = [];
   try {
-    let apiUrl = settings['ollama.api_url'];
-    // Always use FastAPI backend for Ollama models
+    // Use Ollama CLI for models
     models = await getOllamaModels();
     if (!Array.isArray(models)) models = [];
   } catch (e) {
@@ -37,12 +36,11 @@ router.post('/', async (req, res) => {
       }
     });
     message = { type: 'info', text: 'Attempted to start ollama serve.' };
-  } else if (ollama_api_url && ollama_model) {
-    await settingsService.storeSetting('ollama.api_url', ollama_api_url, 'string');
+  } else if (ollama_model) {
     await settingsService.storeSetting('ollama.model', ollama_model, 'string');
-    message = { type: 'success', text: 'Ollama settings updated.' };
+    message = { type: 'success', text: 'Ollama settings updated for CLI.' };
   } else {
-    message = { type: 'danger', text: 'Please provide both API URL and model.' };
+    message = { type: 'danger', text: 'Please provide a model.' };
   }
   const settings = await settingsService.getAllSettings();
   let models = [];

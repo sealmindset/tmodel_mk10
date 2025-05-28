@@ -3,7 +3,7 @@ console.log('[DEBUG] ollama.js loaded');
  * Ollama API Utility
  * Provides methods for interacting with the local Ollama API
  */
-const axios = require('axios');
+const { exec, spawn } = require('child_process');
 const pool = require('../db/db');
 const logger = require('../utils/logger').forModule('ollama');
 
@@ -128,20 +128,21 @@ class OllamaUtil {
         console.log('[OLLAMA] Skipping initialization check');
       }
       
-      console.log(`[OLLAMA] Making request to: ${this.OLLAMA_API_URL}/tags`);
+      console.log(`[OLLAMA] Making request to: ${this.OLLAMA_API_URL}/models`);
       const startTime = Date.now();
-      const response = await axios.get(`${this.OLLAMA_API_URL}/tags`, {
-        timeout: 5000 // 5 second timeout
+      const response = await axios.get(`${this.OLLAMA_API_URL}/models`, {
+        timeout: 5000,
+        validateStatus: null // Accept any status
       });
       const duration = Date.now() - startTime;
       
-      console.log(`[OLLAMA] API response status: ${response.status} (${duration}ms)`);
+      console.log(`[OLLAMA] API /models response status: ${response.status} (${duration}ms)`);
       const isSuccess = response.status === 200;
       
       if (isSuccess) {
-        console.log('[OLLAMA] Successfully connected to Ollama API');
+        console.log('[OLLAMA] Successfully connected to Ollama API via /models');
       } else {
-        console.error(`[OLLAMA] Unexpected status code: ${response.status}`, response.data);
+        console.error(`[OLLAMA] Unexpected status code from /models: ${response.status}`, response.data);
       }
       
       return isSuccess;
@@ -177,42 +178,25 @@ class OllamaUtil {
    */
   async getCompletion(prompt, model = 'llama4', maxTokens = 100) {
     try {
-      console.log('[OLLAMA] getCompletion called');
       await this.ensureInitialized();
-      console.log(`[OLLAMA] Sending request to ${this.OLLAMA_API_URL}/generate with model: ${model}`);
-      console.log(`[OLLAMA] Message length: ${prompt.length} characters`);
-      
-      // Create a robust axios instance with increased timeout
-      const response = await axios.post(`${this.OLLAMA_API_URL}/generate`, {
-        model,
-        prompt,
-        max_tokens: maxTokens,
-        stream: false // Explicitly request non-streaming response
-      }, {
-        timeout: 120000, // 2 minute timeout for large requests
-        maxBodyLength: 10 * 1024 * 1024, // 10MB max body length
-        maxContentLength: 10 * 1024 * 1024 // 10MB max content length
+      return await new Promise((resolve, reject) => {
+        const proc = spawn('ollama', ['run', model]);
+        let output = '';
+        let errorOutput = '';
+        proc.stdout.on('data', (data) => { output += data.toString(); });
+        proc.stderr.on('data', (data) => { errorOutput += data.toString(); });
+        proc.on('close', (code) => {
+          if (code !== 0) {
+            logger.error(`Ollama CLI exited with code ${code}: ${errorOutput}`);
+            return reject(new Error(`Ollama CLI exited with code ${code}`));
+          }
+          resolve({ response: output.trim() });
+        });
+        proc.stdin.write(prompt);
+        proc.stdin.end();
       });
-      
-      console.log('[OLLAMA] Response received successfully');
-      return response.data;
     } catch (error) {
-      console.error('[OLLAMA] Error in getCompletion:', {
-        message: error.message,
-        code: error.code,
-        config: {
-          url: error.config?.url,
-          method: error.config?.method,
-          timeout: error.config?.timeout
-        },
-        response: {
-          status: error.response?.status,
-          statusText: error.response?.statusText,
-          data: error.response?.data
-        }
-      });
-      
-      logger.error('Error getting completion from Ollama:', error);
+      logger.error('Error getting completion from Ollama CLI:', error);
       throw error;
     }
   }
@@ -227,16 +211,11 @@ class OllamaUtil {
   async getChatCompletion(messages, model = 'llama4', maxTokens = 100) {
     try {
       await this.ensureInitialized();
-      
-      const response = await axios.post(`${this.OLLAMA_API_URL}/chat`, {
-        model,
-        messages,
-        max_tokens: maxTokens
-      });
-      
-      return response.data;
+      // Flatten messages into a single prompt (simple approach)
+      const prompt = messages.map(m => `${m.role}: ${m.content}`).join('\n');
+      return await this.getCompletion(prompt, model, maxTokens);
     } catch (error) {
-      logger.error('Error getting chat completion from Ollama:', error);
+      logger.error('Error getting chat completion from Ollama CLI:', error);
       throw error;
     }
   }
@@ -248,11 +227,23 @@ class OllamaUtil {
   async getModels() {
     try {
       await this.ensureInitialized();
-      
-      const response = await axios.get(`${this.OLLAMA_API_URL}/models`);
-      return response.data.models || [];
+      return await new Promise((resolve, reject) => {
+        exec('ollama list --json', (error, stdout, stderr) => {
+          if (error) {
+            logger.error('Ollama CLI error (list):', error);
+            return reject(error);
+          }
+          try {
+            const parsed = JSON.parse(stdout);
+            resolve(parsed.models ? parsed.models.map(m => m.name) : []);
+          } catch (e) {
+            logger.error('Failed to parse Ollama CLI output (list):', e);
+            reject(e);
+          }
+        });
+      });
     } catch (error) {
-      logger.error('Error getting models from Ollama:', error);
+      logger.error('Error getting models from Ollama CLI:', error);
       throw error;
     }
   }
@@ -285,17 +276,15 @@ class OllamaUtil {
 
   /**
    * Test connection to Ollama API
-   * @param {string} apiUrl - The API URL to test
    * @returns {Promise<{success: boolean, error?: string}>} Connection test result
    */
-  async testConnection(apiUrl) {
+  async testConnection() {
     try {
-      const response = await axios.get(`${apiUrl}/models`, {
-        timeout: 5000 // 5 second timeout
-      });
-      return { success: response.status === 200 };
+      // Try to list models using the CLI
+      await this.getModels();
+      return { success: true };
     } catch (error) {
-      logger.error('Error testing Ollama connection:', error);
+      logger.error('Error testing Ollama CLI connection:', error);
       return {
         success: false,
         error: error.message
