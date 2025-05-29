@@ -121,48 +121,57 @@ class OllamaUtil {
   async checkStatus(skipInitialization = false) {
     console.log('[OLLAMA] checkStatus() started');
     try {
+      // Only check initialization if not skipping
       if (!skipInitialization) {
         console.log('[OLLAMA] Ensuring Ollama is initialized...');
         await this.ensureInitialized();
       } else {
         console.log('[OLLAMA] Skipping initialization check');
       }
-      
-      console.log(`[OLLAMA] Making request to: ${this.OLLAMA_API_URL}/models`);
-      const startTime = Date.now();
-      const response = await axios.get(`${this.OLLAMA_API_URL}/models`, {
-        timeout: 5000,
-        validateStatus: null // Accept any status
+      // Use the CLI to check if models are available
+      return await new Promise((resolve) => {
+        const { exec } = require('child_process');
+        exec('ollama list --json', (error, stdout, stderr) => {
+          if (!error) {
+            // Try parsing JSON output (newer versions)
+            try {
+              const parsed = JSON.parse(stdout);
+              const hasModels = Array.isArray(parsed.models) && parsed.models.length > 0;
+              if (hasModels) {
+                console.log('[OLLAMA] Ollama CLI is available and returned models (JSON).');
+                return resolve(true);
+              } else {
+                console.error('[OLLAMA] Ollama CLI (JSON) returned no models.');
+                return resolve(false);
+              }
+            } catch (e) {
+              console.warn('[OLLAMA] Ollama CLI --json output not parseable, falling back to plain output.');
+              // Fall through to plain parsing below
+            }
+          }
+          // If --json is not supported, try plain output
+          exec('ollama list', (plainErr, plainStdout, plainStderr) => {
+            if (plainErr) {
+              console.error('[OLLAMA] Ollama CLI not available or failed (plain):', plainErr.message);
+              logger.error('Error checking Ollama CLI status (plain):', plainErr);
+              return resolve(false);
+            }
+            // Parse plain text output for at least one model
+            const lines = plainStdout.split('\n').filter(l => l.trim().length > 0);
+            // First line is usually a header, so check for >1 lines
+            if (lines.length > 1) {
+              console.log('[OLLAMA] Ollama CLI is available and returned models (plain).');
+              return resolve(true);
+            } else {
+              console.error('[OLLAMA] Ollama CLI (plain) returned no models.');
+              return resolve(false);
+            }
+          });
+        });
       });
-      const duration = Date.now() - startTime;
-      
-      console.log(`[OLLAMA] API /models response status: ${response.status} (${duration}ms)`);
-      const isSuccess = response.status === 200;
-      
-      if (isSuccess) {
-        console.log('[OLLAMA] Successfully connected to Ollama API via /models');
-      } else {
-        console.error(`[OLLAMA] Unexpected status code from /models: ${response.status}`, response.data);
-      }
-      
-      return isSuccess;
     } catch (error) {
-      console.error('[OLLAMA] Error in checkStatus():', {
-        message: error.message,
-        code: error.code,
-        config: {
-          url: error.config?.url,
-          method: error.config?.method,
-          timeout: error.config?.timeout
-        },
-        response: {
-          status: error.response?.status,
-          statusText: error.response?.statusText,
-          data: error.response?.data
-        }
-      });
-      
-      logger.error('Error checking Ollama status:', error);
+      console.error('[OLLAMA] Error in checkStatus():', error);
+      logger.error('Error checking Ollama CLI status:', error);
       return false;
     } finally {
       console.log('[OLLAMA] checkStatus() completed');
