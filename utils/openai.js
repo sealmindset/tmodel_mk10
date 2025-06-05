@@ -384,10 +384,10 @@ const testConnection = async (apiKey) => {
       }))
       .sort((a, b) => b.created - a.created); // Sort newest first
     
-    // Cache API key in Redis for future use
+    // Cache API key in Redis for future use (implementation removed)
     try {
-      await // Redis client usage removed. Use PostgreSQL or environment variables.set(OPENAI_API_KEY_REDIS_KEY, apiKey);
-      logger.debug('Cached tested API key in Redis');
+      // await redisClient.set(OPENAI_API_KEY_REDIS_KEY, apiKey);
+      // logger.debug('Cached tested API key in Redis');
     } catch (redisError) {
       logger.warn('Failed to cache tested API key in Redis', redisError);
     }
