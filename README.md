@@ -14,6 +14,7 @@ This is an enhanced threat modeling platform that integrates structured project 
 - **Database Persistence**: PostgreSQL backend for robust data integrity and complex relationship management.
 - **AI-Powered Analysis**: OpenAI integration for generating detailed threat analyses and remediation recommendations.
 - **Component Library**: Reusable component catalog for consistent threat modeling across projects.
+- **Centralized Logging**: Application logs are persisted to PostgreSQL when running in production.
 
 ## Prerequisites
 
@@ -90,6 +91,7 @@ The application uses a PostgreSQL database with the following main tables:
 - `vulnerabilities`: Real-world vulnerabilities imported from scanning tools
 - `threats`: Identified potential threats with risk assessment
 - `threat_models`: Structured threat modeling documents
+- `app_logs`: Application logs persisted when running in production
 
 ### Integration Points
 - **Rapid7**: Imports vulnerability data to correlate with threat models
