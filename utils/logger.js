@@ -10,6 +10,10 @@
  */
 const util = require('util');
 const path = require('path');
+const db = require('../db/db');
+
+// Determine if we should persist logs to the database
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 // In-memory log storage (non-persistent, for dev only)
 const inMemoryLogs = [];
@@ -82,9 +86,26 @@ function getCallerInfo() {
  * @param {Object} logEntry - The log entry to store
  */
 function storeLogInMemory(logEntry) {
-  inMemoryLogs.unshift(logEntry);
-  if (inMemoryLogs.length > 1000) inMemoryLogs.length = 1000;
-  // TODO: Replace with persistent storage (e.g., database) for production
+  if (IS_PRODUCTION) {
+    // Persist logs to the database in production
+    db.query(
+      `INSERT INTO threat_model.app_logs (timestamp, level, module, message, data, error)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [
+        logEntry.timestamp,
+        logEntry.level,
+        logEntry.module,
+        logEntry.message,
+        logEntry.data,
+        logEntry.error ? JSON.stringify(logEntry.error) : null
+      ]
+    ).catch((err) => {
+      console.error('Failed to store log entry in database', err);
+    });
+  } else {
+    inMemoryLogs.unshift(logEntry);
+    if (inMemoryLogs.length > 1000) inMemoryLogs.length = 1000;
+  }
 }
 
 /**
@@ -181,7 +202,36 @@ function log(level, module, message, data = null, error = null) {
  */
 async function getLogs(options = {}) {
   const { level, module, limit = 100, offset = 0 } = options;
-  // Filter and paginate in-memory logs
+
+  if (IS_PRODUCTION) {
+    const conditions = [];
+    const params = [];
+    let idx = 1;
+
+    if (level) {
+      conditions.push(`level = $${idx}`);
+      params.push(level.toUpperCase());
+      idx++;
+    }
+
+    if (module) {
+      conditions.push(`module = $${idx}`);
+      params.push(module);
+      idx++;
+    }
+
+    let query = 'SELECT timestamp, level, module, message, data, error FROM threat_model.app_logs';
+    if (conditions.length) {
+      query += ' WHERE ' + conditions.join(' AND ');
+    }
+    query += ` ORDER BY timestamp DESC LIMIT $${idx} OFFSET $${idx + 1}`;
+    params.push(limit, offset);
+
+    const result = await db.query(query, params);
+    return result.rows;
+  }
+
+  // In development, use in-memory logs
   let logs = inMemoryLogs;
   if (level) logs = logs.filter(entry => entry.level === level.toUpperCase());
   if (module) logs = logs.filter(entry => entry.module === module);
