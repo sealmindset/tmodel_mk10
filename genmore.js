@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const ensureAuthenticated = require('./middleware/ensureAuthenticated');
 
+const axios = require('axios');
 const openaiUtil = require('./utils/openai');
 const ollamaUtil = require('./utils/ollama');
 

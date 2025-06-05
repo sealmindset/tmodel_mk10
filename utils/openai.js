@@ -75,9 +75,10 @@ const refreshClient = async () => {
     });
 
     if (apiKey) {
-      // Only log first few characters of API key for debugging
+      // Log first and last 4 characters and length for debugging
       const keyStart = apiKey.substring(0, 4);
-      logger.debug(`API key starts with: ${keyStart}...`);
+      const keyEnd = apiKey.substring(apiKey.length - 4);
+      logger.info(`API key for OpenAI client: ${keyStart}...${keyEnd} (length: ${apiKey.length})`);
     } else {
       logger.warn('No API key available for OpenAI client refresh');
     }
@@ -168,11 +169,16 @@ const logApiEvent = (type, data) => {
   }
   
   // Log to console for debugging
-  console.log(`OpenAI API ${type}:`, 
-    type === 'request' ? 
-      `Model: ${data.model}, Prompt: ${data.prompt?.substring(0, 50)}...` : 
-      `Response received, tokens: ${data.usage?.total_tokens || 'N/A'}`
-  );
+  if (type === 'request') {
+    console.log(`OpenAI API request: Model: ${data.model}, Prompt: ${data.prompt?.substring(0, 50)}...`);
+  } else {
+    // Defensive: Only log usage if it exists
+    if (data && data.usage && typeof data.usage.total_tokens !== 'undefined') {
+      console.log(`OpenAI API response: Tokens used: ${data.usage.total_tokens}`);
+    } else {
+      console.log('OpenAI API response: No usage data available.');
+    }
+  }
 };
 
 /**
@@ -193,37 +199,24 @@ const getCompletion = async (prompt, model = 'gpt-3.5-turbo', maxTokens = 100) =
     // Refresh the client to ensure we have the latest API key
     await refreshClient();
 
-    let requestParams;
     let response;
-    
-    // For chat models
     if (model.includes('gpt-3.5') || model.includes('gpt-4')) {
-      requestParams = {
-        model: model,
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: maxTokens,
-      };
-      
-      // Log request event
+      // Use chat completion endpoint for chat models
       logApiEvent('request', {
         model,
         prompt,
         maxTokens,
-        type: 'chat',
+        type: 'chat.completion',
         timestamp: new Date().toISOString()
       });
-      
-      response = await openai.chat.completions.create(requestParams);
-    } 
-    // For older completion models
-    else {
-      requestParams = {
-        model: model,
-        prompt: prompt,
-        max_tokens: maxTokens,
-      };
-      
-      // Log request event
+      response = await openai.chat.completions.create({
+        model,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: maxTokens
+      });
+      logger.info('Raw OpenAI API response:', response);
+    } else {
+      // Use legacy completion endpoint for legacy models
       logApiEvent('request', {
         model,
         prompt,
@@ -231,14 +224,18 @@ const getCompletion = async (prompt, model = 'gpt-3.5-turbo', maxTokens = 100) =
         type: 'completion',
         timestamp: new Date().toISOString()
       });
-      
-      response = await openai.completions.create(requestParams);
+      response = await openai.completions.create({
+        model,
+        prompt,
+        max_tokens: maxTokens
+      });
+      logger.info('Raw OpenAI API response:', response);
     }
-    
+
     // Log response event
-    logApiEvent('response', response.data);
-    
-    return response.data;
+    logApiEvent('response', response);
+
+    return response;
   } catch (error) {
     // Log error event
     logApiEvent('error', {
@@ -246,11 +243,11 @@ const getCompletion = async (prompt, model = 'gpt-3.5-turbo', maxTokens = 100) =
       code: error.response?.status,
       details: error.response?.data
     });
-    
     console.error('Error fetching from OpenAI API:', error.message);
     throw error;
   }
 };
+
 
 /**
  * Fetch available models from OpenAI API

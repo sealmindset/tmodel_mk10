@@ -199,7 +199,7 @@ class OllamaUtil {
             logger.error(`Ollama CLI exited with code ${code}: ${errorOutput}`);
             return reject(new Error(`Ollama CLI exited with code ${code}`));
           }
-          resolve({ response: output.trim() });
+          resolve(output.trim());
         });
         proc.stdin.write(prompt);
         proc.stdin.end();

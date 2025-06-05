@@ -222,6 +222,8 @@ app.use('/api/rapid7-test', require('./routes/api/rapid7-test'));
 app.use('/api/reference-architecture',
   require('./src/server/routes/referenceArchitecture')({ pool: app.locals.dbPool })
 );
+app.use('/api/report-prompts', require('./routes/api/reportPrompts'));
+app.use('/api/reports', require('./routes/api/reports'));
 
 // Application Routes
 app.use('/components', require('./routes/components'));
@@ -234,6 +236,9 @@ app.use('/enterprise-architecture', require('./routes/enterpriseArchitectureCont
 
 // Mount project detail controller for /projects/:id and related routes
 app.use('/', require('./routes/projectDetailController'));
+
+// Reporting Routes
+app.use('/reporting', require('./routes/reporting'));
 
 // Bootstrap everything and then start listening
 (async () => {

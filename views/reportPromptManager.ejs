@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Report Prompt Manager</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/css/style.css"> <!-- Assuming a general stylesheet exists -->
+    <style>
+        .prompt-card {
+            margin-bottom: 15px;
+        }
+        .actions a {
+            margin-right: 10px;
+        }
+        #promptFormModal .modal-dialog {
+            max-width: 800px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <h1>Report Prompt Manager</h1>
+        <hr>
+
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label for="reportTypeSelect">Select Report Type:</label>
+                <select id="reportTypeSelect" class="form-control">
+                    <option value="">-- Select a Report Type --</option>
+                    <option value="project_portfolio">Project Portfolio Overview</option>
+                    <option value="component_inventory">Component Inventory</option>
+                    <option value="safeguard_status">Safeguard Implementation Status</option>
+                    <!-- Add more predefined report types as needed -->
+                </select>
+            </div>
+            <div class="col-md-6 text-right mt-md-4">
+                <button id="createNewPromptBtn" class="btn btn-primary" disabled>Create New Prompt for Selected Type</button>
+            </div>
+        </div>
+
+        <div id="promptsContainer" class="mt-3">
+            <!-- Prompts will be loaded here -->
+            <p class="text-muted">Please select a report type to see or manage its prompts.</p>
+        </div>
+        <div id="generatedReportDisplayArea" class="mt-4" style="display:none;">
+            <h3>Generated Report</h3>
+            <pre id="generatedReportDisplay" style="white-space: pre-wrap; background-color: #f8f9fa; border: 1px solid #dee2e6; padding: 15px; border-radius: .25rem;"></pre>
+        </div>
+    </div>
+
+    <!-- Prompt Form Modal -->
+    <div class="modal fade" id="promptFormModal" tabindex="-1" role="dialog" aria-labelledby="promptFormModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="promptFormModalLabel">Create/Edit Prompt</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form id="promptForm">
+                        <input type="hidden" id="promptId" name="id">
+                        <input type="hidden" id="formReportType" name="report_type">
+                        <div class="form-group">
+                            <label for="promptName">Prompt Name:</label>
+                            <input type="text" class="form-control" id="promptName" name="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="promptText">Prompt Text:</label>
+                            <textarea class="form-control" id="promptText" name="prompt_text" rows="10" required></textarea>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group col-md-6">
+                                <label for="llmProvider">LLM Provider:</label>
+                                <select id="llmProvider" name="llm_provider" class="form-control">
+                                    <option value="openai">OpenAI</option>
+                                    <option value="ollama">Ollama</option>
+                                    <!-- Add other providers as needed -->
+                                </select>
+                            </div>
+                            <div class="form-group col-md-6">
+                                <label for="llmModel">LLM Model:</label>
+                                <input type="text" class="form-control" id="llmModel" name="llm_model" required>
+                                <small class="form-text text-muted">e.g., gpt-4, llama3:latest</small>
+                            </div>
+                        </div>
+                         <div class="form-group form-check">
+                            <input type="checkbox" class="form-check-input" id="isDefault" name="is_default" disabled>
+                            <label class="form-check-label" for="isDefault">Is Default Prompt (Read-only)</label>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="savePromptBtn">Save Prompt</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="/js/reportPromptManager.js"></script>
+</body>
+</html>

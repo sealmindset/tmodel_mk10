@@ -107,7 +107,18 @@ router.post('/', ensureAuthenticated, async (req, res) => {
       // Create the project
       // Log project creation attempt
       console.log('[Project Create][DB Insert]', JSON.stringify(projectData));
-      const project = await Project.create(projectData);
+      let project;
+      try {
+        project = await Project.create(projectData);
+      } catch (err) {
+        if (err.code === '23505') { // Unique violation
+          console.error('[Project Create][Duplicate]', err.detail);
+          if (!res.headersSent) {
+            return res.status(409).json({ success: false, error: 'Project already exists', detail: err.detail });
+          }
+        }
+        throw err;
+      }
       console.log('[Project Create][DB Success]', JSON.stringify(project));
       
       // Add components if provided
@@ -135,13 +146,18 @@ router.post('/', ensureAuthenticated, async (req, res) => {
       const fullProject = await Project.getById(project.id);
       const projectComponents = await Project.getComponents(project.id);
       
-      res.status(201).json({ 
-        success: true, 
-        data: {
-          ...fullProject,
-          components: projectComponents
-        }
-      });
+      if (!res.headersSent) {
+        res.status(201).json({ 
+          success: true, 
+          data: {
+            ...fullProject,
+            components: projectComponents
+          }
+        });
+      } else {
+        console.warn('[Project Create] Response already sent, skipping duplicate response.');
+      }
+
     } catch (err) {
       await client.query('ROLLBACK');
       // Log DB error details

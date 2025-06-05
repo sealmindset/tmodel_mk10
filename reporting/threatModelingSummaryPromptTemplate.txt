@@ -1,0 +1,46 @@
+# Threat Modeling Activity Summary Report Prompt Template
+
+**Audience:** Security, Risk, Project Managers
+
+**Instructions for LLM:**
+Generate a clear, high-level summary of threat modeling activity across all projects. Use the provided data to construct:
+- A count of threat models created, grouped by status (e.g., Draft, Final, etc.)
+- A table of threat models by project
+- A summary of recent threat modeling activity (created/updated in the last 90 days)
+- High-level summaries only (do not include vulnerability details)
+- Use concise, professional language suitable for security, risk, and project management audiences.
+
+**Data Placeholders:**
+- {{THREAT_MODEL_DATA_JSON}}: JSON array of all threat models, each with fields: id, name, status, project_name, created_at, updated_at
+- {{THREAT_MODEL_TABLE}}: Markdown table of threat models by project
+- {{RECENT_ACTIVITY_TABLE}}: Markdown table of recently created/updated threat models
+- {{STATUS_SUMMARY}}: Markdown summary of threat model counts by status
+
+**Prompt Template:**
+
+---
+
+# Threat Modeling Activity Summary
+
+Below is a summary of threat modeling activity across all projects, including the number and status of threat models, their association with projects, and recent activity.
+
+## Threat Model Status Summary
+
+{{STATUS_SUMMARY}}
+
+## Threat Models by Project
+
+{{THREAT_MODEL_TABLE}}
+
+## Recent Threat Modeling Activity (Last 90 Days)
+
+{{RECENT_ACTIVITY_TABLE}}
+
+## Data (JSON)
+```
+{{THREAT_MODEL_DATA_JSON}}
+```
+
+---
+
+Respond in well-organized English prose and include markdown tables where helpful. Do not include vulnerability details or technical specifics.

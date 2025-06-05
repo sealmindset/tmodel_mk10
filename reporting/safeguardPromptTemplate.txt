@@ -1,0 +1,48 @@
+# Safeguard Implementation Status Report Prompt Template
+
+**Audience:** Security, Compliance, Risk
+
+**Instructions for LLM:**
+Generate a clear, actionable summary of safeguard (control) implementation status across the environment. Use the provided data to construct:
+- A table of all safeguards with their types, implementation status (Planned, Implemented, Verified, N/A), and effectiveness ratings (if available).
+- For each safeguard, list which components have it applied.
+- Highlight any gaps or areas needing attention.
+- Use concise, professional language suitable for security, compliance, and risk audiences.
+
+**Data Placeholders:**
+- {{SAFEGUARD_DATA_JSON}}: JSON array of all safeguards, each with fields: id, name, type, implementation_status, effectiveness, components_applied (array of component names/IDs)
+- {{SAFEGUARD_TABLE}}: Markdown table of safeguard summary (see below)
+
+**Prompt Template:**
+
+---
+
+# Safeguard Implementation Status Report
+
+Below is a summary of all safeguards (controls) in the environment, their types, implementation status, effectiveness ratings, and which components have each safeguard applied.
+
+## Safeguard Summary Table
+
+{{SAFEGUARD_TABLE}}
+
+## Detailed Safeguard List
+
+For each safeguard, provide:
+- Name, Type
+- Implementation Status (Planned, Implemented, Verified, N/A)
+- Effectiveness Rating (if available)
+- Components Applied (list component names or IDs)
+
+Data (JSON):
+```
+{{SAFEGUARD_DATA_JSON}}
+```
+
+## Gaps and Recommendations
+- Identify any safeguards that are not implemented or not verified.
+- Highlight components missing required safeguards.
+- Suggest next steps for improving safeguard coverage and effectiveness.
+
+---
+
+Respond in well-organized English prose and include markdown tables where helpful.

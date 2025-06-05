@@ -34,7 +34,15 @@
     saveNewProjectBtn.parentNode.replaceChild(newSaveBtn, saveNewProjectBtn);
     
     // Add our improved event listener
+    let saveInProgress = false;
     newSaveBtn.addEventListener('click', function(event) {
+      if (saveInProgress) {
+        console.warn('Save already in progress, ignoring duplicate click');
+        return;
+      }
+      saveInProgress = true;
+      newSaveBtn.disabled = true;
+
       event.preventDefault();
       console.log('Save New Project button clicked');
       
@@ -169,6 +177,16 @@
             statusElement.querySelector('.reload-btn').addEventListener('click', function() {
               window.location.reload();
             });
+            // Gracefully close the modal if present
+            const modalElem = document.getElementById('newProjectModal');
+            if (modalElem) {
+              const bsModal = bootstrap.Modal.getInstance(modalElem) || new bootstrap.Modal(modalElem);
+              bsModal.hide();
+              // Extra fail-safe: remove backdrop and unlock body after short delay
+              setTimeout(cleanupModalBackdrop, 300);
+            }
+            // Clean up modal and backdrop
+            cleanupModalBackdrop();
           } else {
             // Fallback if no project ID is available
             setTimeout(() => {
@@ -215,7 +233,21 @@
           });
         });
       });
+    })
+    .finally(() => {
+      saveInProgress = false;
+      newSaveBtn.disabled = false;
+      cleanupModalBackdrop();
     });
+  });
+
+  // Utility to ensure modal backdrop is removed and body unlocked
+  function cleanupModalBackdrop() {
+    document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+    document.body.classList.remove('modal-open');
+    document.body.style.overflow = '';
+    document.body.style.paddingRight = '';
+  }
     
     // Also fix the Add Component Row button
     const addComponentRowBtn = document.getElementById('addComponentRow');
