@@ -1,5 +1,6 @@
 // Service for handling components and assignments
-const db = require('../db');
+// Use the shared PostgreSQL database pool
+const db = require('../database');
 
 async function getAllComponents() {
   const result = await db.query('SELECT id, name, description FROM components ORDER BY name');
