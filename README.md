@@ -48,6 +48,13 @@ OPENAI_API_KEY=your_openai_key
 OPENAI_MODEL=gpt-4
 ```
 
+### Managing Runtime Settings
+
+After starting the application you can modify service credentials and defaults
+from the web UI under `/settings`. The page lets you configure the default LLM
+provider, OpenAI API key and model, Ollama connection details and Rapid7 API
+information. All values are stored in the PostgreSQL `settings` table.
+
 ## Installation & Setup
 
 1. Clone the repository

@@ -7,6 +7,7 @@ const ollamaUtil      = require('../utils/ollama');
 console.log('[DEBUG] ollamaUtil keys (settings-new.js):', Object.keys(ollamaUtil));
 const settingsService = require('../services/settingsService');
 const dbSettings      = require('../services/dbSettingsService');
+const rapid7Service   = require('../services/rapid7Service');
 
 // Dev auth bypass
 function ensureAuthenticated(req, res, next) {
@@ -119,8 +120,62 @@ router.post('/', ensureAuthenticated, upload.none(), async (req, res) => {
       if (llmProvider === 'openai') await openaiUtil.refreshClient();
       else await ollamaUtil.loadSettings();
       req.session.message = { type: 'success', text: 'LLM Provider saved.' };
+    } else if (settingsType === 'openai') {
+      const { openaiApiKey, openaiModel } = req.body;
+      if (openaiApiKey) {
+        await settingsService.storeSetting(
+          'settings:openai:api_key',
+          openaiApiKey,
+          'OpenAI API key'
+        );
+      }
+      if (openaiModel) {
+        await settingsService.storeSetting(
+          'settings:api:openai:model',
+          openaiModel,
+          'Default OpenAI model'
+        );
+      }
+      await openaiUtil.refreshClient();
+      req.session.message = { type: 'success', text: 'OpenAI settings saved.' };
+    } else if (settingsType === 'ollama') {
+      const { ollamaApiUrl, ollamaModel } = req.body;
+      if (ollamaApiUrl) {
+        await settingsService.storeSetting(
+          'settings:api:ollama:url',
+          ollamaApiUrl,
+          'Ollama API URL'
+        );
+      }
+      if (ollamaModel) {
+        await settingsService.storeSetting(
+          'settings:api:ollama:model',
+          ollamaModel,
+          'Default Ollama model'
+        );
+      }
+      await ollamaUtil.loadSettings();
+      req.session.message = { type: 'success', text: 'Ollama settings saved.' };
+    } else if (settingsType === 'rapid7') {
+      const { rapid7ApiUrl, rapid7ApiKey } = req.body;
+      if (rapid7ApiUrl) {
+        await settingsService.storeSetting(
+          'settings:rapid7:api_url',
+          rapid7ApiUrl,
+          'Rapid7 API URL'
+        );
+      }
+      if (rapid7ApiKey) {
+        await settingsService.storeSetting(
+          'settings:rapid7:api_key',
+          rapid7ApiKey,
+          'Rapid7 API key'
+        );
+      }
+      await rapid7Service.refreshClient();
+      req.session.message = { type: 'success', text: 'Rapid7 settings saved.' };
     }
-    // TODO: handle other settingsType cases
+    // end of settingsType cases
     res.redirect('/settings');
   } catch (err) {
     console.error('Error POST /settings', err);
