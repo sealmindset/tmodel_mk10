@@ -87,7 +87,7 @@ const checkOllamaStatus = async () => {
  */
 const checkApiStatus = async () => {
   try {
-    // Get the current LLM provider from Redis
+    // Get the current LLM provider from settings
     let currentProvider = 'openai'; // Default if not set
     
     try {
