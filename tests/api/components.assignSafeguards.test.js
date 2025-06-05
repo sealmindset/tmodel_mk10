@@ -36,6 +36,7 @@ describe('POST /api/components/:id/safeguards/assign', () => {
   });
 
   afterAll(async () => {
+    await db.query('DELETE FROM component_safeguards WHERE component_id = $1', [componentId]);
     await db.end();
   });
 
@@ -45,6 +46,11 @@ describe('POST /api/components/:id/safeguards/assign', () => {
       .send({ safeguardIds: [safeguardId1, safeguardId2] })
       .expect(200);
     expect(res.body.success).toBe(true);
+    const { rows } = await db.query(
+      'SELECT * FROM component_safeguards WHERE component_id = $1',
+      [componentId]
+    );
+    expect(rows).toHaveLength(2);
   });
 
   test('returns error for invalid component ID', async () => {
