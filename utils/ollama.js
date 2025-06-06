@@ -1,4 +1,6 @@
 console.log('[DEBUG] ollama.js loaded');
+const { logLlmUsage } = require('./llmUsageLogger');
+const { v4: uuidv4 } = require('uuid');
 /**
  * Ollama API Utility
  * Provides methods for interacting with the local Ollama API
@@ -179,30 +181,77 @@ class OllamaUtil {
   }
 
   /**
-   * Get a completion from the Ollama API
-   * @param {string} prompt - The prompt to send to the API
-   * @param {string} model - The model to use (default: llama3:latest)
-   * @param {number} maxTokens - Maximum number of tokens to generate
+   * Get a completion from the Ollama API and log usage
+   * @param {string} prompt
+   * @param {string} model
+   * @param {number} maxTokens
+   * @param {object} options - { session_id, task_type, meta }
    * @returns {Promise<Object>} The API response
    */
-  async getCompletion(prompt, model = 'llama4', maxTokens = 100) {
+  async getCompletion(prompt, model = 'llama4', maxTokens = 100, options = {}) {
     try {
       await this.ensureInitialized();
+      logger.info(`[OLLAMA] getCompletion called with model: ${model}, prompt: ${prompt.substring(0, 80)}...`);
+      let session_id = options.session_id || null;
+      let task_type = options.task_type || null;
+      let meta = options.meta || null;
       return await new Promise((resolve, reject) => {
-        const proc = spawn('ollama', ['run', model]);
         let output = '';
         let errorOutput = '';
+        logger.info(`[OLLAMA][DEBUG] About to run: ollama run '${model}' <prompt>`);
+        logger.info(`[OLLAMA][DEBUG] Prompt: ${prompt}`);
+        logger.info(`[OLLAMA][DEBUG] process.env.PATH: ${process.env.PATH}`);
+        logger.info(`[OLLAMA][DEBUG] process.cwd(): ${process.cwd()}`);
+        const proc = spawn('ollama', ['run', model]);
+        // Write the prompt to stdin and close it
+        proc.stdin.write(prompt);
+        proc.stdin.end();
+        // Add a 15s timeout to kill hanging processes
+        const timeout = setTimeout(() => {
+          logger.error('[OLLAMA][ERROR] Ollama CLI timed out after 15s, killing process.');
+          proc.kill('SIGKILL');
+          if (output.trim()) {
+            logger.warn('[OLLAMA][WARN] Process timed out but output was received. Returning output anyway.');
+            return resolve(output.trim());
+          }
+          return reject(new Error('Ollama CLI timed out after 15 seconds and produced no output.'));
+        }, 15000);
         proc.stdout.on('data', (data) => { output += data.toString(); });
         proc.stderr.on('data', (data) => { errorOutput += data.toString(); });
-        proc.on('close', (code) => {
+        proc.on('close', async (code) => {
+          clearTimeout(timeout);
+          logger.info(`[OLLAMA][DEBUG] CLI exited with code ${code}`);
+          logger.info(`[OLLAMA][DEBUG] STDOUT: ${output}`);
+          logger.info(`[OLLAMA][DEBUG] STDERR: ${errorOutput}`);
           if (code !== 0) {
-            logger.error(`Ollama CLI exited with code ${code}: ${errorOutput}`);
-            return reject(new Error(`Ollama CLI exited with code ${code}`));
+            logger.error(`[OLLAMA][ERROR] CLI error (code ${code}): ${errorOutput}`);
+            return reject(new Error(`Ollama CLI exited with code ${code}. STDERR: ${errorOutput}. STDOUT: ${output}`));
+          }
+          if (!output.trim()) {
+            logger.error(`[OLLAMA][ERROR] Blank response from Ollama CLI for prompt: "${prompt}"`);
+            return reject(new Error('Blank response from Ollama CLI'));
+          }
+          // Log usage (tokens not available for Ollama, so only prompt/response)
+          try {
+            await logLlmUsage({
+              session_id: session_id || uuidv4(),
+              task_type,
+              model_provider: 'ollama',
+              model_name: model,
+              tokens_prompt: null,
+              tokens_completion: null,
+              tokens_total: null,
+              cost_usd: null,
+              currency: null,
+              prompt,
+              response: output.trim(),
+              meta
+            });
+          } catch (logErr) {
+            logger.error('[OLLAMA][ERROR] Failed to log Ollama LLM usage', logErr);
           }
           resolve(output.trim());
         });
-        proc.stdin.write(prompt);
-        proc.stdin.end();
       });
     } catch (error) {
       logger.error('Error getting completion from Ollama CLI:', error);

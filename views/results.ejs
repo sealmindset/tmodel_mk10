@@ -177,6 +177,10 @@
             <div class="mb-4 position-relative">
               <div class="d-flex justify-content-between align-items-start mb-2">
                 <label for="editedResponse" class="form-label mb-0">Response Content</label>
+                <button type="button" class="btn btn-outline-secondary btn-sm ms-2" id="reformatTemplateBtn">
+                  <i class="bi bi-magic"></i> Reformat to Template
+                </button>
+                <div class="form-text">Click to reformat the threat model output to the canonical template.</div>
                 <div style="max-width: 400px;">
                   <div class="input-group mb-1">
                     <input type="text" id="threatSearchInput" class="form-control" placeholder="Search for threats..." aria-label="Search threats">
@@ -224,12 +228,11 @@
                 Match <span id="currentMatchIndex">0</span> of <span id="totalMatches">0</span>
               </div>
               <div class="position-relative">
-  <textarea name="editedResponse" id="editedResponse" rows="12"
-    class="form-control edit-textarea" style="min-height: 600px; overflow-y: auto; padding-right: 48px;"><%= response %></textarea>
-  <button type="button" id="copyResponseBtn" class="btn btn-outline-secondary position-absolute top-0 end-0 m-2" style="z-index: 2;" title="Copy response to clipboard">
-    <i class="bi bi-clipboard"></i> Copy
-  </button>
-</div>
+                <textarea class="form-control edit-textarea threat-markdown" id="editedResponse" name="editedResponse" rows="18"><%= threatModel && threatModel.responseText ? threatModel.responseText : '' %></textarea>
+                <button type="button" id="copyResponseBtn" class="btn btn-outline-secondary position-absolute top-0 end-0 m-2" style="z-index: 2;" title="Copy response to clipboard">
+                  <i class="bi bi-clipboard"></i> Copy
+                </button>
+              </div>
             </div>
 
 
@@ -2257,5 +2260,124 @@
       </div>
     </div>
   </div>
+<script>
+// --- Threat Model Template ---
+const THREAT_TEMPLATE = [
+  { key: 'Threat', label: '## Threat: ', heading: true },
+  { key: 'Description', label: '**Description:**', heading: false },
+  { key: 'TTPs', label: '**Tactics, Techniques, and Procedures (TTPs):**', heading: false },
+  { key: 'Risk', label: '**Risk:**', heading: false },
+  { key: 'RealWorldExample', label: '**Real-World Example:**', heading: false },
+  { key: 'Impact', label: '**Impact if Exploited:**', heading: false },
+  { key: 'ThreatActor', label: '**Threat Actor:**', heading: false },
+  { key: 'AttackVector', label: '**Attack Vector:**', heading: false },
+  { key: 'DetectionResponse', label: '**Detection and Response:**', heading: false },
+  { key: 'Likelihood', label: '**Likelihood:**', heading: false },
+  { key: 'Dependencies', label: '**Dependencies:**', heading: false },
+  { key: 'Mitigations', label: '**Mitigation(s):**', heading: false },
+  { key: 'LogMonitor', label: '**Log & Monitor:**', heading: false }
+];
+
+// Map of canonical section names to possible heading regexes
+const SECTION_ALIASES = {
+  'Description': [/^(\*\*|###)?\s*Description:?/i],
+  'TTPs': [/^(\*\*|###)?\s*Tactics,? Techniques,? and Procedures \(TTPs\):?/i],
+  'Risk': [/^(\*\*|###)?\s*Risk:?/i],
+  'RealWorldExample': [/^(\*\*|###)?\s*Real-World Example:?/i],
+  'Impact': [/^(\*\*|###)?\s*Impact if Exploited:?/i],
+  'ThreatActor': [/^(\*\*|###)?\s*Threat Actor:?/i],
+  'AttackVector': [/^(\*\*|###)?\s*Attack Vector:?/i],
+  'DetectionResponse': [/^(\*\*|###)?\s*Detection and Response:?/i],
+  'Likelihood': [/^(\*\*|###)?\s*Likelihood:?/i],
+  'Dependencies': [/^(\*\*|###)?\s*Dependencies:?/i],
+  'Mitigations': [/^(\*\*|###)?\s*Mitigation\(s\):?/i],
+  'LogMonitor': [/^(\*\*|###)?\s*Log ?&? Monitor:?/i]
+};
+
+function parseThreatBlocks(text) {
+  // Split on any heading that looks like a threat block
+  const blocks = text.split(/(^##?\s*Threat:.*$)/gmi);
+  let result = [];
+  for (let i = 1; i < blocks.length; i += 2) {
+    let title = blocks[i].replace(/^#+\s*Threat:\s*/i, '').trim();
+    let body = blocks[i+1] || '';
+    result.push({ title, body });
+  }
+  return result.length ? result : [{ title: '', body: text }];
+}
+
+function extractAllSections(text) {
+  // Find all sections and their content regardless of heading style
+  const sectionMap = {};
+  let current = null;
+  let lines = text.split(/\r?\n/);
+  let buffer = [];
+  let sectionKey = null;
+  for (let i = 0; i < lines.length; ++i) {
+    let line = lines[i];
+    // Check for new section heading
+    let found = false;
+    for (const [key, patterns] of Object.entries(SECTION_ALIASES)) {
+      for (const pat of patterns) {
+        if (pat.test(line.trim())) {
+          if (current && sectionKey) {
+            sectionMap[sectionKey] = buffer.join('\n').trim();
+          }
+          sectionKey = key;
+          buffer = [];
+          found = true;
+          break;
+        }
+      }
+      if (found) break;
+    }
+    if (!found) {
+      buffer.push(line);
+    } else {
+      // Remove heading from this line, keep rest as content
+      let content = line.replace(/^(\*\*|###)?\s*([A-Za-z,&() ]+):?\s*/, '');
+      if (content) buffer.push(content);
+    }
+  }
+  if (sectionKey) {
+    sectionMap[sectionKey] = buffer.join('\n').trim();
+  }
+  return sectionMap;
+}
+
+function reformatThreatBlock(block) {
+  let out = [];
+  // 1. Title
+  out.push(`## Threat: ${block.title}`);
+  // 2. Extract all sections from the block body
+  const sectionMap = extractAllSections(block.body);
+  // 3. Output sections in canonical order
+  for (let i = 1; i < THREAT_TEMPLATE.length; ++i) {
+    const section = THREAT_TEMPLATE[i];
+    let val = sectionMap[section.key];
+    if (!val) val = `<Fill in: ${section.label.replace(/\*\*/g, '').replace(/:$/, '')}>`;
+    out.push(`${section.label} ${val}`);
+  }
+  out.push('\n---\n');
+  return out.join('\n\n');
+}
+
+function reformatThreatModelTemplate(text) {
+  // Replace all headings that start with ### with double asterisks
+  return text.replace(/^###\s*(.+?):/gm, function(_, heading) {
+    return `**${heading.trim()}:**`;
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  const btn = document.getElementById('reformatTemplateBtn');
+  const textarea = document.getElementById('editedResponse');
+  if (btn && textarea) {
+    btn.onclick = function() {
+      textarea.value = reformatThreatModelTemplate(textarea.value);
+    };
+  }
+});
+</script>
 </body>
 </html>

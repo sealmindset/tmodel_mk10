@@ -1,0 +1,82 @@
+<%- include('partials/header', { pageTitle: 'LLM Usage Meter', active: 'llm-usage', extraCss: [
+  'https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css',
+  'https://cdn.datatables.net/responsive/2.4.0/css/responsive.bootstrap5.min.css'
+] }) %>
+
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="mb-0">LLM Usage Meter</h1>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table id="llm-usage-table" class="table table-striped table-bordered" style="width:100%">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Task Type</th>
+              <th>Provider</th>
+              <th>Model</th>
+              <th>Prompt Tokens</th>
+              <th>Completion Tokens</th>
+              <th>Total Tokens</th>
+              <th>Cost (USD)</th>
+              <th>Session</th>
+              <th>Event ID</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Populated by DataTables -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal for usage event details -->
+  <div class="modal fade" id="usageDetailModal" tabindex="-1" aria-labelledby="usageDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="usageDetailModalLabel">LLM Usage Event Details</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div id="usage-detail-loading" class="text-center py-4" style="display:none;">
+            <div class="spinner-border" role="status"></div>
+            <div>Loading...</div>
+          </div>
+          <div id="usage-detail-content" style="display:none;">
+            <dl class="row">
+              <dt class="col-sm-3">Timestamp</dt>
+              <dd class="col-sm-9" id="detail-timestamp"></dd>
+              <dt class="col-sm-3">Task Type</dt>
+              <dd class="col-sm-9" id="detail-task-type"></dd>
+              <dt class="col-sm-3">Provider</dt>
+              <dd class="col-sm-9" id="detail-provider"></dd>
+              <dt class="col-sm-3">Model</dt>
+              <dd class="col-sm-9" id="detail-model"></dd>
+              <dt class="col-sm-3">Session ID</dt>
+              <dd class="col-sm-9" id="detail-session-id"></dd>
+              <dt class="col-sm-3">Tokens (Prompt/Completion/Total)</dt>
+              <dd class="col-sm-9"><span id="detail-tokens"></span></dd>
+              <dt class="col-sm-3">Cost</dt>
+              <dd class="col-sm-9" id="detail-cost"></dd>
+              <dt class="col-sm-3">Prompt</dt>
+              <dd class="col-sm-9"><pre class="bg-light p-2" id="detail-prompt"></pre></dd>
+              <dt class="col-sm-3">Response</dt>
+              <dd class="col-sm-9"><pre class="bg-light p-2" id="detail-response"></pre></dd>
+              <dt class="col-sm-3">Meta</dt>
+              <dd class="col-sm-9"><pre class="bg-light p-2" id="detail-meta"></pre></dd>
+            </dl>
+          </div>
+          <div id="usage-detail-error" class="alert alert-danger d-none"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%- include('partials/footer') %>
+<script src="/js/llm-usage.js"></script>

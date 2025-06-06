@@ -3,6 +3,7 @@ const express  = require('express');
 const router   = express.Router();
 
 router.use('/projects',           require('./projects'));
+router.use('/ollama-models',      require('./ollamaModels'));
 router.use('/safeguards',         require('./safeguards'));
 router.use('/vulnerabilities',    require('./vulnerabilities'));
 router.use('/threats',            require('./threats'));

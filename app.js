@@ -163,7 +163,7 @@ app.post('/ask', ensureAuthenticated, async (req, res) => {
       if (llmProvider === 'ollama') {
         const ollamaUtil = require('./utils/ollama');
         const ollamaResp = await ollamaUtil.getCompletion(composedPrompt, model, 400);
-        llmResponseText = ollamaResp?.choices?.[0]?.text || ollamaResp?.response || '';
+        llmResponseText = ollamaResp || '';
         console.log('Ollama LLM response:', llmResponseText.slice(0, 200));
       } else {
         const openaiUtil = require('./utils/openai');
@@ -202,6 +202,7 @@ app.use('/settings-minimal-test', require('./routes/settings_minimal_test'));
 app.use('/llm-test-raw', require('./routes/llm-test-raw'));
 // app.use('/dbsettings', require('./routes/dbsettings')); // Archived/removed
 app.use('/projects', require('./routes/projects'));
+app.use('/llm-usage', require('./routes/llm-usage'));
 app.use('/', ensureAuthenticated, require('./routes/main'));
 app.use('/test-llm-provider', require('./routes/settings'));
 app.use('/settings/llm-provider', require('./routes/settings_llm_provider'));

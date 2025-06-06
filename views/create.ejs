@@ -24,6 +24,8 @@
           <label for="subject" class="form-label">System to Analyze</label>
           <input type="text" class="form-control" id="subject" name="subject" placeholder="e.g., Web Application, Mobile App, API Service">
         </div>
+
+
         
         <script>
           // Handle query parameter for pre-filling the subject field
@@ -81,19 +83,29 @@
             { name: 'gpt-4', label: 'GPT-4' },
             { name: 'gpt-4-turbo', label: 'GPT-4 Turbo' }
           ];
-          const ollamaModels = <%- JSON.stringify(availableOllamaModels || []) %>;
-          const llmProviderDefault = '<%= llmProvider %>';
-          const openaiModelDefault = '<%= openaiModel %>';
-          const ollamaModelDefault = '<%= ollamaModel %>';
+          const llmProviderDefault = <%- JSON.stringify(llmProvider) %>;
+          const openaiModelDefault = <%- JSON.stringify(openaiModel) %>;
+          const ollamaModelDefault = <%- JSON.stringify(ollamaModel) %>;
 
-          function updateModelDropdown(provider) {
+          async function updateModelDropdown(provider) {
             const modelSelect = document.getElementById('aiModel');
             const providerInfo = document.getElementById('providerInfo');
             modelSelect.innerHTML = '';
             let models = [];
             let defaultModel = '';
             if (provider === 'ollama') {
-              models = ollamaModels;
+              // Dynamically fetch Ollama models
+              try {
+                const res = await fetch('/api/ollama-models');
+                const data = await res.json();
+                if (data.success && Array.isArray(data.models)) {
+                  models = data.models;
+                } else {
+                  models = [{ name: ollamaModelDefault }];
+                }
+              } catch (err) {
+                models = [{ name: ollamaModelDefault }];
+              }
               defaultModel = ollamaModelDefault;
               providerInfo.innerHTML = 'Using local Ollama models. <a href="/settings">Change provider in settings</a>.';
             } else {
@@ -103,7 +115,9 @@
             }
             models.forEach(model => {
               const opt = document.createElement('option');
+              // Always set value to just the name, never label/size/age
               opt.value = model.name;
+              // For display, show just the name (or label if present)
               opt.textContent = model.label || model.name;
               if (model.name === defaultModel) opt.selected = true;
               modelSelect.appendChild(opt);

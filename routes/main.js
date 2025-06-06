@@ -41,7 +41,60 @@ router.get('/', async (req, res) => {
 });
 
 // Create new threat model page
+const { getOllamaModels } = require('../utils/ollamaModelList');
 router.get('/create', async (req, res) => {
+
+// Handle threat model creation (POST)
+router.post('/create', async (req, res) => {
+  try {
+    const { subject, llmProvider, model } = req.body;
+    if (!subject) {
+      return res.status(400).render('create', {
+        user: req.session.username,
+        error: 'System to Analyze (subject) is required.',
+        success: null,
+        llmProvider,
+        openaiModel: await settingsService.getSettingByKey('openai.api_model'),
+        ollamaModel: await settingsService.getSettingByKey('ollama.model'),
+        availableOllamaModels: []
+      });
+    }
+    // Determine provider
+    const provider = llmProvider || await settingsService.getSettingByKey('llm.provider');
+    let completion = '';
+    let usedModel = model;
+    if (provider === 'ollama') {
+      // Use selected Ollama model or fallback
+      usedModel = usedModel || await settingsService.getSettingByKey('ollama.model') || 'llama3.3:latest';
+      completion = await ollamaUtil.getCompletion(subject, usedModel);
+    } else {
+      // Use OpenAI or other provider logic
+      usedModel = usedModel || await settingsService.getSettingByKey('openai.api_model') || 'gpt-3.5-turbo';
+      completion = await openaiUtil.getCompletion(subject, usedModel);
+    }
+    // Save the threat model (ensure single creation)
+    const newModel = await threatModelService.createThreatModel({
+      title: subject,
+      description: subject,
+      model: usedModel,
+      responseText: completion,
+      createdBy: req.session.username || 'unknown',
+      createdAt: new Date().toISOString()
+    });
+    return res.redirect(`/results?subjectid=${newModel.id}`);
+  } catch (error) {
+    console.error('Error creating threat model:', error);
+    return res.status(500).render('create', {
+      user: req.session.username,
+      error: 'Failed to create threat model. ' + (error.message || ''),
+      success: null,
+      llmProvider: await settingsService.getSettingByKey('llm.provider'),
+      openaiModel: await settingsService.getSettingByKey('openai.api_model'),
+      ollamaModel: await settingsService.getSettingByKey('ollama.model'),
+      availableOllamaModels: []
+    });
+  }
+});
   try {
     // Get LLM provider settings from PostgreSQL
     const llmProvider = await settingsService.getSettingByKey('llm.provider');
@@ -52,36 +105,25 @@ router.get('/create', async (req, res) => {
     console.log('OpenAI Model from DB:', openaiModel);
     console.log('Ollama Model from DB:', ollamaModel);
 
-    // Initialize available Ollama models
+    // Initialize available Ollama models with DB default only as fallback
     let availableOllamaModels = [{ name: ollamaModel }];
 
-    // If Ollama is the provider, try to get available models
+    // If Ollama is the provider, get the local model list using the CLI utility
     if (llmProvider === 'ollama') {
       try {
-        const ollamaStatus = await ollamaUtil.checkStatus();
-        if (ollamaStatus) {
-          availableOllamaModels = await ollamaUtil.getModels();
-
-          // Make sure our selected model is in the list
-          const modelExists = availableOllamaModels.some(model => model.name === ollamaModel);
-          if (!modelExists && ollamaModel) {
-            availableOllamaModels.push({ name: ollamaModel });
-          }
-
-          // Add llama3.3 if it's not in the list
-          const llama3Exists = availableOllamaModels.some(model => model.name === 'llama3.3' || model.name === 'llama3.3:latest');
-          if (!llama3Exists) {
-            availableOllamaModels.push({ name: 'llama3.3:latest' });
-          }
-
-          if (availableOllamaModels.length === 0) {
-            availableOllamaModels = [{ name: ollamaModel || 'llama3.3:latest' }];
-          }
-
-          console.log('Available Ollama models:', availableOllamaModels.map(m => m.name).join(', '));
+        availableOllamaModels = await getOllamaModels();
+        // Fallback if none found
+        if (!availableOllamaModels || availableOllamaModels.length === 0) {
+          availableOllamaModels = [{ name: ollamaModel || 'llama3.3:latest' }];
+        }
+        // Ensure the DB default is in the list
+        const modelExists = availableOllamaModels.some(model => model.name === ollamaModel);
+        if (!modelExists && ollamaModel) {
+          availableOllamaModels.push({ name: ollamaModel });
         }
       } catch (err) {
         console.error('Error fetching Ollama models:', err);
+        availableOllamaModels = [{ name: ollamaModel || 'llama3.3:latest' }];
       }
     }
 
@@ -350,11 +392,29 @@ router.get('/models', async (req, res) => {
     const sortedSubjects = subjects.sort((a, b) => {
       return new Date(b.createdAt) - new Date(a.createdAt);
     });
+    // Get LLM provider and available Ollama models for selection UI
+    const settingsService = require('../services/settingsService');
+    const { getOllamaModels } = require('../utils/ollamaModelList');
+    let llmProvider = 'openai';
+    let ollamaModels = [];
+    try {
+      llmProvider = await settingsService.getSettingByKey('llm.provider');
+      if (llmProvider === 'ollama') {
+        ollamaModels = await getOllamaModels();
+      }
+    } catch (err) {
+      console.warn('Unable to load Ollama models or provider:', err);
+    }
+    // Also get the default Ollama model from DB for default selection
+    const ollamaModel = await settingsService.getSettingByKey('ollama.model');
     res.render('models', {
       user: req.session.username,
       subjects: sortedSubjects,
       error: null,
-      success: null
+      success: null,
+      llmProvider,
+      ollamaModels,
+      ollamaModel
     });
   } catch (error) {
     console.error('Error loading models page:', error);

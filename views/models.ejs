@@ -122,6 +122,77 @@
     </div>
   </div>
 
+  <!-- Ollama Model Selection (only if Ollama is provider) -->
+  <div id="ollamaModelDropdownContainer" style="display: <%= llmProvider === 'ollama' ? 'block' : 'none' %>;">
+    <div class="row mb-3">
+      <div class="col-md-6">
+        <label for="ollamaModelSelect" class="form-label">Ollama Model</label>
+        <select id="ollamaModelSelect" class="form-select"></select>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Default Ollama model from DB (for default selection)
+    const dbDefaultOllamaModel = <%- JSON.stringify(ollamaModel || '') %>;
+    // Helper to fetch and populate Ollama models
+    async function populateOllamaModelsDropdown() {
+      const dropdown = document.getElementById('ollamaModelSelect');
+      if (!dropdown) return;
+      try {
+        const res = await fetch('/api/ollama-models');
+        const data = await res.json();
+        dropdown.innerHTML = '';
+        if (data.success && Array.isArray(data.models)) {
+          data.models.forEach(model => {
+            const opt = document.createElement('option');
+            opt.value = model.name;
+            opt.textContent = `${model.name} (${model.size || ''}${model.size ? ',' : ''} ${model.age || ''})`;
+            if (dbDefaultOllamaModel && model.name === dbDefaultOllamaModel) {
+              opt.selected = true;
+            }
+            dropdown.appendChild(opt);
+          });
+        } else {
+          const opt = document.createElement('option');
+          opt.value = dbDefaultOllamaModel;
+          opt.textContent = dbDefaultOllamaModel || 'No models found';
+          dropdown.appendChild(opt);
+        }
+      } catch (err) {
+        dropdown.innerHTML = '';
+        const opt = document.createElement('option');
+        opt.value = dbDefaultOllamaModel;
+        opt.textContent = dbDefaultOllamaModel || 'Failed to load models';
+        dropdown.appendChild(opt);
+      }
+    }
+    // Listen for provider changes if such a dropdown exists
+    document.addEventListener('DOMContentLoaded', function() {
+      const providerDropdown = document.getElementById('llmProviderSelect');
+      const ollamaDropdownContainer = document.getElementById('ollamaModelDropdownContainer');
+      if (providerDropdown) {
+        providerDropdown.addEventListener('change', function() {
+          if (providerDropdown.value === 'ollama') {
+            ollamaDropdownContainer.style.display = 'block';
+            populateOllamaModelsDropdown();
+          } else {
+            ollamaDropdownContainer.style.display = 'none';
+          }
+        });
+        // Initial population if Ollama is selected
+        if (providerDropdown.value === 'ollama') {
+          ollamaDropdownContainer.style.display = 'block';
+          populateOllamaModelsDropdown();
+        }
+      } else {
+        // No provider dropdown, just populate if container is visible
+        if (ollamaDropdownContainer && ollamaDropdownContainer.style.display !== 'none') {
+          populateOllamaModelsDropdown();
+        }
+      }
+    });
+  </script>
+
   <!-- Models Table -->
   <div class="card shadow-sm">
     <div class="card-body p-0">

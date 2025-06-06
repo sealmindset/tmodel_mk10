@@ -194,14 +194,27 @@ const getApiEvents = () => apiEvents;
  * @param {number} maxTokens - Maximum number of tokens to generate
  * @returns {Promise<Object>} - The API response
  */
-const getCompletion = async (prompt, model = 'gpt-3.5-turbo', maxTokens = 100) => {
-  try {
-    // Refresh the client to ensure we have the latest API key
-    await refreshClient();
+const { logLlmUsage } = require('./llmUsageLogger');
+const { v4: uuidv4 } = require('uuid');
 
+/**
+ * Get a completion from the OpenAI API and log usage
+ * @param {string} prompt
+ * @param {string} model
+ * @param {number} maxTokens
+ * @param {object} options - { session_id, task_type, meta }
+ * @returns {Promise<Object>}
+ */
+const getCompletion = async (prompt, model = 'gpt-4', maxTokens = 100, options = {}) => {
+  try {
+    await refreshClient();
     let response;
+    let usage = null;
+    let completionText = '';
+    let task_type = options.task_type || null;
+    let session_id = options.session_id || null;
+    let meta = options.meta || null;
     if (model.includes('gpt-3.5') || model.includes('gpt-4')) {
-      // Use chat completion endpoint for chat models
       logApiEvent('request', {
         model,
         prompt,
@@ -215,8 +228,9 @@ const getCompletion = async (prompt, model = 'gpt-3.5-turbo', maxTokens = 100) =
         max_tokens: maxTokens
       });
       logger.info('Raw OpenAI API response:', response);
+      usage = response.usage || {};
+      completionText = response.choices && response.choices[0] ? response.choices[0].message.content : '';
     } else {
-      // Use legacy completion endpoint for legacy models
       logApiEvent('request', {
         model,
         prompt,
@@ -230,14 +244,31 @@ const getCompletion = async (prompt, model = 'gpt-3.5-turbo', maxTokens = 100) =
         max_tokens: maxTokens
       });
       logger.info('Raw OpenAI API response:', response);
+      usage = response.usage || {};
+      completionText = response.choices && response.choices[0] ? response.choices[0].text : '';
     }
-
-    // Log response event
     logApiEvent('response', response);
-
+    // Log to llm_usage_log
+    try {
+      await logLlmUsage({
+        session_id: session_id || uuidv4(),
+        task_type,
+        model_provider: 'openai',
+        model_name: model,
+        tokens_prompt: usage.prompt_tokens || null,
+        tokens_completion: usage.completion_tokens || null,
+        tokens_total: usage.total_tokens || null,
+        cost_usd: meta && meta.cost_usd ? meta.cost_usd : null, // Optionally pass cost in meta
+        currency: 'USD',
+        prompt,
+        response: completionText,
+        meta
+      });
+    } catch (logErr) {
+      logger.error('Failed to log OpenAI LLM usage', logErr);
+    }
     return response;
   } catch (error) {
-    // Log error event
     logApiEvent('error', {
       message: error.message,
       code: error.response?.status,
