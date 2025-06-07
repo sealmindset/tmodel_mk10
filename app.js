@@ -235,6 +235,9 @@ app.use('/api-explorer', require('./routes/api-explorer'));
 app.use('/rapid7-bypass', require('./routes/rapid7-bypass'));
 app.use('/enterprise-architecture', require('./routes/enterpriseArchitectureController'));
 
+// Mount the threat model merge UI route
+app.use('/', require('./routes/threatModelMerge'));
+
 // Mount project detail controller for /projects/:id and related routes
 app.use('/', require('./routes/projectDetailController'));
 

@@ -178,7 +178,7 @@ async function processPostgresSourceModel(modelId, primaryModelId, existingThrea
  * Add a threat to a PostgreSQL model
  */
 async function addThreatToPostgresModel(threat, primaryModelId, sourceModelId, sourceModelName, metrics) {
-  console.log(`Adding threat to PostgreSQL model ${primaryModelId}: ${threat.threat}`);
+  console.log(`Adding threat to PostgreSQL model ${primaryModelId}:`, threat.threat || threat.title, threat);
   
   const client = await pool.connect();
   try {
@@ -193,7 +193,7 @@ async function addThreatToPostgresModel(threat, primaryModelId, sourceModelId, s
     
     const result = await client.query(insertQuery, [
       primaryModelId,
-      threat.threat,
+      threat.threat || threat.title,
       threat.description,
       threat.mitigation,
       calculateRiskScore(threat.description),

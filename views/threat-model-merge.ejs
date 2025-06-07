@@ -39,34 +39,15 @@
             <div class="row" id="primaryPgModelsContainer">
               <% if (pgModels && pgModels.length > 0) { %>
                 <% pgModels.forEach(model => { %>
-                  <div class="col-md-6 mb-2 primary-model-item" data-name="<%= model.name.toLowerCase() %>">
+                  <div class="col-md-6 mb-2 primary-model-item" data-name="<%= (model.title || '').toLowerCase() %>">
                     <div class="form-check">
                       <input class="form-check-input primary-model-radio" type="radio" 
                              name="primaryModel" value="<%= model.id %>" id="primary-pg-<%= model.id %>" 
-                             data-type="pg" data-name="<%= model.name %>" required>
+                             data-type="pg" data-name="<%= model.title || '' %>" required>
                       <label class="form-check-label" for="primary-pg-<%= model.id %>">
-                        <%= model.name %> 
-                        <span class="badge bg-primary"><%= model.threat_count || 0 %> threats</span>
-                        <small class="text-muted d-block">PostgreSQL Model</small>
-                      </label>
-                    </div>
-                  </div>
-                <% }); %>
-              <% } %>
-            </div>
-            
-            <div class="row" id="primaryRedisModelsContainer">
-              <% if (redisModels && redisModels.length > 0) { %>
-                <% redisModels.forEach(model => { %>
-                  <div class="col-md-6 mb-2 primary-model-item" data-name="<%= model.title.toLowerCase() %>">
-                    <div class="form-check">
-                      <input class="form-check-input primary-model-radio" type="radio" 
-                             name="primaryModel" value="subj-<%= model.subjectid %>" id="primary-redis-<%= model.subjectid %>" 
-                             data-type="redis" data-name="<%= model.title %>" required>
-                      <label class="form-check-label" for="primary-redis-<%= model.subjectid %>">
                         <%= model.title %> 
-                        <span class="badge bg-info"><%= model.threatCount || 0 %> threats</span>
-                        <small class="text-muted d-block">Redis Model</small>
+                        <span class="badge bg-primary"><%= model.threat_count || 0 %> threats</span>
+                        <small class="text-muted d-block">LLM: <%= model.model || 'Unknown Model' %></small>
                       </label>
                     </div>
                   </div>
@@ -74,7 +55,7 @@
               <% } %>
             </div>
             
-            <% if ((!pgModels || pgModels.length === 0) && (!redisModels || redisModels.length === 0)) { %>
+            <% if (!pgModels || pgModels.length === 0) { %>
               <div class="alert alert-info">
                 No threat models available for merging. Please create some threat models first.
               </div>
@@ -98,34 +79,15 @@
             <div class="row" id="pgModelsContainer">
               <% if (pgModels && pgModels.length > 0) { %>
                 <% pgModels.forEach(model => { %>
-                  <div class="col-md-6 mb-2 model-item" data-name="<%= model.name.toLowerCase() %>">
+                  <div class="col-md-6 mb-2 model-item" data-name="<%= (model.title || '').toLowerCase() %>">
                     <div class="form-check">
                       <input class="form-check-input source-model-checkbox" type="checkbox" 
                              value="<%= model.id %>" id="pg-<%= model.id %>" 
-                             data-type="pg" data-name="<%= model.name %>">
+                             data-type="pg" data-name="<%= model.title || '' %>">
                       <label class="form-check-label" for="pg-<%= model.id %>">
-                        <%= model.name %> 
-                        <span class="badge bg-primary"><%= model.threat_count || 0 %> threats</span>
-                        <small class="text-muted d-block">PostgreSQL Model</small>
-                      </label>
-                    </div>
-                  </div>
-                <% }); %>
-              <% } %>
-            </div>
-            
-            <div class="row" id="redisModelsContainer">
-              <% if (redisModels && redisModels.length > 0) { %>
-                <% redisModels.forEach(model => { %>
-                  <div class="col-md-6 mb-2 model-item" data-name="<%= model.title.toLowerCase() %>">
-                    <div class="form-check">
-                      <input class="form-check-input source-model-checkbox" type="checkbox" 
-                             value="subj-<%= model.subjectid %>" id="redis-<%= model.subjectid %>" 
-                             data-type="redis" data-name="<%= model.title %>">
-                      <label class="form-check-label" for="redis-<%= model.subjectid %>">
                         <%= model.title %> 
-                        <span class="badge bg-info"><%= model.threatCount || 0 %> threats</span>
-                        <small class="text-muted d-block">Redis Model</small>
+                        <span class="badge bg-primary"><%= model.threat_count || 0 %> threats</span>
+                        <small class="text-muted d-block">LLM: <%= model.model || 'Unknown Model' %></small>
                       </label>
                     </div>
                   </div>
@@ -133,7 +95,7 @@
               <% } %>
             </div>
             
-            <% if ((!pgModels || pgModels.length === 0) && (!redisModels || redisModels.length === 0)) { %>
+            <% if (!pgModels || pgModels.length === 0) { %>
               <div class="alert alert-info">
                 No threat models available for merging. Please create some threat models first.
               </div>
@@ -486,7 +448,7 @@
                 <div class="col-md-6">
                   <div class="alert alert-info">
                     <h6>Primary Model</h6>
-                    <p class="mb-0" id="primaryModelDetailName">${model.name || 'Unknown'}</p>
+                    <p class="mb-0" id="primaryModelDetailName">${model.title || 'Unknown'}</p>
                   </div>
                 </div>
               </div>
@@ -511,7 +473,7 @@
               metrics.model_details.forEach(model => {
                 detailedResultsHtml += `
                   <tr>
-                    <td>${model.name || 'Unknown'}</td>
+                    <td>${model.title || 'Unknown'}</td>
                     <td><span class="badge bg-${model.type === 'redis' ? 'info' : 'primary'}">${model.type || 'unknown'}</span></td>
                     <td>${model.total_threats || 0}</td>
                     <td>
@@ -550,7 +512,7 @@
             document.getElementById('viewMergedModelBtn').href = model.is_redis_model ? `/results?subjectid=${model.id}` : `/threat-models/${model.id}`;
             
             // Set primary model name in the detailed results
-            document.getElementById('primaryModelDetailName').textContent = model.name || 'Unknown';
+            document.getElementById('primaryModelDetailName').textContent = model.title || 'Unknown';
             
             // Set up the button to show detailed results
             document.getElementById('showDetailedResultsBtn').addEventListener('click', function() {
@@ -745,7 +707,7 @@
         mergeMetrics.model_details.forEach(model => {
           detailedResultsHtml += `
             <tr>
-              <td>${model.name}</td>
+              <td>${model.title}</td>
               <td><span class="badge bg-${model.type === 'redis' ? 'info' : 'primary'}">${model.type}</span></td>
               <td>${model.total_threats}</td>
               <td>
