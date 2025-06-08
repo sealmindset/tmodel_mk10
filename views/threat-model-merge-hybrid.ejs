@@ -1,0 +1,45 @@
+<%- include('partials/header') %>
+<!-- Custom styles for the merge UI -->
+<link rel="stylesheet" href="/css/merge-ui.css">
+
+<div class="container-fluid mt-4">
+  <div class="row">
+    <div class="col-12">
+      <h1>Threat Models Management</h1>
+      <p>From this page, you can view and merge threat models using drag and drop.</p>
+      
+      <!-- React Merge UI Mount Point -->
+      <div class="card">
+        <div class="card-header">
+          <h3>Drag and Drop Merge Interface</h3>
+          <p class="text-muted">Select and merge threat models using drag and drop.</p>
+        </div>
+        <div class="card-body">
+          <div id="react-merge-ui-root"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Pass server data to React (properly escaped) -->
+<!-- Initial data passed from server to React app -->
+<script>
+  // Add a debugging variable to track what's happening
+  window.__DEBUG_INFO__ = {};
+  
+  // Pass the server data to React
+  window.__INITIAL_DATA__ = <%- JSON.stringify(pgModels || []) %>;
+  
+  // Log debugging info
+  window.__DEBUG_INFO__.modelCount = window.__INITIAL_DATA__ ? window.__INITIAL_DATA__.length : 0;
+  window.__DEBUG_INFO__.firstModel = window.__INITIAL_DATA__[0] || null;
+  
+  console.log('Debug info:', window.__DEBUG_INFO__);
+  console.log('Models available for React:', window.__DEBUG_INFO__.modelCount);
+</script>
+
+<!-- Load React bundle -->
+<script src="/merge-ui.bundle.js" defer></script>
+
+<%- include('partials/footer') %>

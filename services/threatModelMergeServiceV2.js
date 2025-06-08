@@ -39,11 +39,8 @@ async function mergeThreatModels(primaryModelId, sourceModelIds, mergedBy) {
     model_details: []
   };
 
-  let primaryModel = null;
-  let existingThreats = [];
-
   // Process primary PostgreSQL model
-  await handlePostgresPrimaryModel(primaryModelId, mergeMetrics);
+  const { primaryModel, existingThreats } = await handlePostgresPrimaryModel(primaryModelId, mergeMetrics);
 
   // Process source PostgreSQL models
   for (const sourceId of sourceModelIds) {
@@ -64,7 +61,6 @@ async function mergeThreatModels(primaryModelId, sourceModelIds, mergedBy) {
  */
 async function handlePostgresPrimaryModel(modelId, metrics) {
   console.log(`Processing PostgreSQL primary model: ${modelId}`);
-  
   let modelResult, threatsResult;
   const client = await pool.connect();
   try {
@@ -74,12 +70,13 @@ async function handlePostgresPrimaryModel(modelId, metrics) {
     if (modelResult.rows.length === 0) {
       throw new Error(`Primary PostgreSQL threat model with ID ${modelId} not found`);
     }
-    primaryModel = modelResult.rows[0];
+    const primaryModel = modelResult.rows[0];
     // Get existing threats
     const threatsQuery = `SELECT * FROM threat_model.threats WHERE threat_model_id = $1`;
     threatsResult = await client.query(threatsQuery, [modelId]);
-    existingThreats = threatsResult.rows;
+    const existingThreats = threatsResult.rows;
     console.log(`Found ${existingThreats.length} existing threats in PostgreSQL model ${modelId}`);
+    return { primaryModel, existingThreats };
   } catch (error) {
     // If there's an error with the UUID format, provide a clearer message
     if (error.code === '22P02') { // invalid input syntax for type uuid

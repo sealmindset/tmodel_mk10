@@ -560,9 +560,9 @@
       
       try {
         // Get primary model data
-      const primaryResponse = await fetch('/results/data?subjectid=' + primaryRedisId);
+      const primaryResponse = await fetch(`/results/data?subjectid=${primaryRedisId}`);
       if (!primaryResponse.ok) {
-        throw new Error('Failed to fetch primary model data: ' + primaryResponse.statusText);
+        throw new Error(`Failed to fetch primary model data: ${primaryResponse.statusText}`);
       }
       
       const primaryData = await primaryResponse.json();
@@ -579,22 +579,22 @@
         if (sourceId === primaryRedisId) continue;
         
         // Get source model data
-        const sourceResponse = await fetch('/results/data?subjectid=' + sourceId);
+        const sourceResponse = await fetch(`/results/data?subjectid=${sourceId}`);
         if (!sourceResponse.ok) {
-          console.warn('Failed to fetch source model ' + sourceId + ', skipping');
+          console.warn(`Failed to fetch source model ${sourceId}, skipping`);
           continue;
         }
         
         const sourceData = await sourceResponse.json();
         if (!sourceData || !sourceData.response) {
-          console.warn('Source model ' + sourceId + ' data is invalid, skipping');
+          console.warn(`Source model ${sourceId} data is invalid, skipping`);
           continue;
         }
         
         // Add model to metrics
         const modelDetail = {
-          id: 'subj-' + sourceId,
-          title: sourceData.title || ('Model ' + sourceId),
+          id: `subj-${sourceId}`,
+          title: sourceData.title || `Model ${sourceId}`,
           type: 'redis',
           total_threats: parseInt(sourceData.threatCount || '0', 10),
           threats_added: 1, // Simplified for now
@@ -603,7 +603,7 @@
         mergeMetrics.model_details.push(modelDetail);
         
         // Add a merge note
-        const mergeNote = '\n\n## Merged from model: ' + (sourceData.title || ('Model ' + sourceId)) + ' (ID: ' + sourceId + ')\n';
+        const mergeNote = `\n\n## Merged from model: ${sourceData.title || `Model ${sourceId}`} (ID: ${sourceId})\n`;
         
         // Append source content to primary model
         primaryResponseText += mergeNote + sourceData.response;
@@ -626,117 +626,126 @@
       });
       
       if (!updateResponse.ok) {
-        throw new Error('Failed to update primary model: ' + updateResponse.statusText);
+        throw new Error(`Failed to update primary model: ${updateResponse.statusText}`);
       }
       
       // Update threat count
       const newThreatCount = currentThreatCount + mergeMetrics.total_threats_added;
       
       // Get primary model name
-      const primaryModelName = primaryData.title || "Model " + primaryRedisId;
+      const primaryModelName = primaryData.title || `Model ${primaryRedisId}`;
       
       // Show success message and results
-      showAlert("Threat models merged successfully!", "success");
+      showAlert('Threat models merged successfully!', 'success');
       
       // Show merge results
       mergeResultsCard.classList.remove('d-none');
       
-      // Show results summary in the card using string concatenation instead of template literals
-      let resultsHtml = 
-        '<div class="alert alert-success">' +
-        '  <h6>Merge Completed Successfully</h6>' +
-        '  <p>The threat models have been merged successfully.</p>' +
-        '</div>' +
+      // Show results summary in the card
+      let resultsHtml = `
+        <div class="alert alert-success">
+          <h6>Merge Completed Successfully</h6>
+          <p>The threat models have been merged successfully.</p>
+        </div>
         
-        '<div class="card mb-3">' +
-        '  <div class="card-header">Merge Statistics</div>' +
-        '  <div class="card-body">' +
-        '    <ul>' +
-        '      <li><strong>Threats Added:</strong> ' + mergeMetrics.total_threats_added + '</li>' +
-        '      <li><strong>Threats Skipped (Duplicates):</strong> ' + mergeMetrics.total_threats_skipped + '</li>' +
-        '      <li><strong>Redis Models Processed:</strong> ' + mergeMetrics.redis_models_processed + '</li>' +
-        '    </ul>' +
-        '  </div>' +
-        '</div>' +
+        <div class="card mb-3">
+          <div class="card-header">Merge Statistics</div>
+          <div class="card-body">
+            <ul>
+              <li><strong>Threats Added:</strong> ${mergeMetrics.total_threats_added}</li>
+              <li><strong>Threats Skipped (Duplicates):</strong> ${mergeMetrics.total_threats_skipped}</li>
+              <li><strong>Redis Models Processed:</strong> ${mergeMetrics.redis_models_processed}</li>
+            </ul>
+          </div>
+        </div>
         
-        '<div class="d-grid gap-2 d-md-flex justify-content-md-between">' +
-        '  <button type="button" class="btn btn-info" id="showDetailedResultsBtn">' +
-        '    <i class="bi bi-list-check me-1"></i>View Detailed Results' +
-        '  </button>' +
-        '  <a href="/results?subjectid=' + primaryRedisId + '" class="btn btn-primary">' +
-        '    <i class="bi bi-eye me-1"></i>View Merged Model' +
-        '  </a>' +
-        '</div>';
+        <div class="d-grid gap-2 d-md-flex justify-content-md-between">
+          <button type="button" class="btn btn-info" id="showDetailedResultsBtn">
+            <i class="bi bi-list-check me-1"></i>View Detailed Results
+          </button>
+          <a href="/results?subjectid=${primaryRedisId}" class="btn btn-primary">
+            <i class="bi bi-eye me-1"></i>View Merged Model
+          </a>
+        </div>
+      `;
       
-      // Prepare detailed results for the modal using string concatenation
-      let detailedResultsHtml = 
-        '<div class="row mb-3">' +
-        '  <div class="col-md-6">' +
-        '    <div class="alert alert-primary">' +
-        '      <h6>Summary</h6>' +
-        '      <ul class="list-unstyled mb-0">' +
-        '        <li><strong>Total Threats Added:</strong> ' + mergeMetrics.total_threats_added + '</li>' +
-        '        <li><strong>Total Threats Skipped:</strong> ' + mergeMetrics.total_threats_skipped + '</li>' +
-        '      </ul>' +
-        '    </div>' +
-        '  </div>' +
-        '  <div class="col-md-6">' +
-        '    <div class="alert alert-info">' +
-        '      <h6>Primary Model</h6>' +
-        '      <p class="mb-0">' + primaryModelName + '</p>' +
-        '    </div>' +
-        '  </div>' +
-        '</div>' +
+      // Prepare detailed results for the modal
+      let detailedResultsHtml = `
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <div class="alert alert-primary">
+              <h6>Summary</h6>
+              <ul class="list-unstyled mb-0">
+                <li><strong>Total Threats Added:</strong> ${mergeMetrics.total_threats_added}</li>
+                <li><strong>Total Threats Skipped:</strong> ${mergeMetrics.total_threats_skipped}</li>
+              </ul>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="alert alert-info">
+              <h6>Primary Model</h6>
+              <p class="mb-0">${primaryModelName}</p>
+            </div>
+          </div>
+        </div>
         
-        '<h6 class="border-bottom pb-2 mb-3">Source Model Details</h6>' +
-        '<div class="table-responsive">' +
-        '  <table class="table table-striped table-bordered">' +
-        '    <thead class="table-light">' +
-        '      <tr>' +
-        '        <th>Model Name</th>' +
-        '        <th>Type</th>' +
-        '        <th>Total Threats</th>' +
-        '        <th>Threats Added</th>' +
-        '        <th>Threats Skipped</th>' +
-        '      </tr>' +
-        '    </thead>' +
-        '    <tbody>';
+        <h6 class="border-bottom pb-2 mb-3">Source Model Details</h6>
+        <div class="table-responsive">
+          <table class="table table-striped table-bordered">
+            <thead class="table-light">
+              <tr>
+                <th>Model Name</th>
+                <th>Type</th>
+                <th>Total Threats</th>
+                <th>Threats Added</th>
+                <th>Threats Skipped</th>
+              </tr>
+            </thead>
+            <tbody>
+      `;
       
       // Add rows for each source model
       if (mergeMetrics.model_details && mergeMetrics.model_details.length > 0) {
         mergeMetrics.model_details.forEach(model => {
-          detailedResultsHtml += 
-            '<tr>' +
-            '  <td>' + model.title + '</td>' +
-            '  <td><span class="badge bg-' + (model.type === 'redis' ? 'info' : 'primary') + '">' + model.type + '</span></td>' +
-            '  <td>' + model.total_threats + '</td>' +
-            '  <td><span class="badge bg-success">' + model.threats_added + '</span></td>' +
-            '  <td><span class="badge bg-warning text-dark">' + model.threats_skipped + '</span></td>' +
-            '</tr>';
+          detailedResultsHtml += `
+            <tr>
+              <td>${model.title}</td>
+              <td><span class="badge bg-${model.type === 'redis' ? 'info' : 'primary'}">${model.type}</span></td>
+              <td>${model.total_threats}</td>
+              <td>
+                <span class="badge bg-success">${model.threats_added}</span>
+              </td>
+              <td>
+                <span class="badge bg-warning text-dark">${model.threats_skipped}</span>
+              </td>
+            </tr>
+          `;
         });
       } else {
-        detailedResultsHtml += 
-          '<tr>' +
-          '  <td colspan="5" class="text-center">No detailed model information available</td>' +
-          '</tr>';
+        detailedResultsHtml += `
+          <tr>
+            <td colspan="5" class="text-center">No detailed model information available</td>
+          </tr>
+        `;
       }
       
-      detailedResultsHtml += 
-        '    </tbody>' +
-        '  </table>' +
-        '</div>' +
+      detailedResultsHtml += `
+            </tbody>
+          </table>
+        </div>
         
-        '<div class="alert alert-warning mt-3">' +
-        '  <h6><i class="bi bi-info-circle me-1"></i>About Skipped Threats</h6>' +
-        '  <p class="mb-0">Threats are skipped when they are determined to be duplicates or very similar to threats already in the primary model. This helps prevent redundancy in your threat model.</p>' +
-        '</div>';
+        <div class="alert alert-warning mt-3">
+          <h6><i class="bi bi-info-circle me-1"></i>About Skipped Threats</h6>
+          <p class="mb-0">Threats are skipped when they are determined to be duplicates or very similar to threats already in the primary model. This helps prevent redundancy in your threat model.</p>
+        </div>
+      `;
       
       // Update the results card
       mergeResultsContent.innerHTML = resultsHtml;
       
       // Set up the detailed results modal
       document.getElementById('mergeResultsModalBody').innerHTML = detailedResultsHtml;
-      document.getElementById('viewMergedModelBtn').href = '/results?subjectid=' + primaryRedisId;
+      document.getElementById('viewMergedModelBtn').href = `/results?subjectid=${primaryRedisId}`;
       
       // Set primary model name in the detailed results
       document.getElementById('primaryModelDetailName').textContent = primaryModelName;
@@ -778,11 +787,12 @@
 
     // Show alert message
     function showAlert(message, type) {
-      const alertHtml = 
-        '<div class="alert alert-' + type + ' alert-dismissible fade show" role="alert">' +
-        '  ' + message +
-        '  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>' +
-        '</div>';
+      const alertHtml = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+          ${message}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      `;
       mergeAlertContainer.innerHTML = alertHtml;
     }
   }); // End of DOMContentLoaded event listener

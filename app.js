@@ -46,6 +46,12 @@ app.use(express.static('public'));
 // AI Assistant
 app.use('/assistant', assistantRoutes);
 
+// Import routes
+const threatModelsMergeRoute = require('./routes/threat-models-merge');
+
+// Mount route
+app.use('/', threatModelsMergeRoute);
+
 // Global error handler for debugging uncaught errors
 app.use((err, req, res, next) => {
   console.error('[GLOBAL ERROR HANDLER]', err.stack || err);
