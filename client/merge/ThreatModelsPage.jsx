@@ -2,7 +2,7 @@
 // Main page for drag-and-drop threat model merging (PostgreSQL only)
 import React, { useState, useEffect, useRef } from 'react';
 import ModelCard from './ModelCard';
-import ModelContentModal from './ModelContentModal';
+
 import MergePreviewModal from './MergePreviewModal';
 
 // Component for each selectable row in the available models table
@@ -49,16 +49,8 @@ export default function ThreatModelsPage({ initialModels = null }) {
   
   // Selection states
   const [selectedModelIds, setSelectedModelIds] = useState(new Set());
-  const [workspaceModels, setWorkspaceModels] = useState([]);
-  
-  // Drag and drop states
-  const [isDragging, setIsDragging] = useState(false);
-  const [selected, setSelected] = useState([]);
-  const dragSourceRef = useRef(null); // Reference to track the current drag source model
-  
-  // Modal states
-  const [showModal, setShowModal] = useState(false);
-  const [modalModel, setModalModel] = useState(null);
+  const [leftModels, setLeftModels] = useState([]); // Models in the left workspace
+  const [rightModels, setRightModels] = useState([]); // Models in the right workspace
   const [mergePreview, setMergePreview] = useState(null);
 
   useEffect(() => {
@@ -106,39 +98,40 @@ export default function ThreatModelsPage({ initialModels = null }) {
   
   // Handle adding selected models to the workspace
   function addToWorkspace() {
-    const modelsToAdd = models.filter(model => selectedModelIds.has(model.id) && 
-                                  !workspaceModels.some(m => m.id === model.id));
-    
+    const modelsToAdd = models.filter(model => selectedModelIds.has(model.id) &&
+      !leftModels.some(m => m.id === model.id) && !rightModels.some(m => m.id === model.id));
     if (modelsToAdd.length > 0) {
-      setWorkspaceModels([...workspaceModels, ...modelsToAdd]);
+      setLeftModels([...leftModels, ...modelsToAdd]);
     }
   }
   
   // Handle removing models from the workspace
-  function removeFromWorkspace(modelId) {
-    setWorkspaceModels(workspaceModels.filter(model => model.id !== modelId));
+  function removeFromLeft(modelId) {
+    setLeftModels(leftModels.filter(model => model.id !== modelId));
+  }
+  function removeFromRight(modelId) {
+    setRightModels(rightModels.filter(model => model.id !== modelId));
   }
   
   // Handle clearing all models from workspace
   function clearWorkspace() {
-    setWorkspaceModels([]);
+    setLeftModels([]);
+    setRightModels([]);
   }
   
-  // Drag and drop handlers for the workspace
-  function handleDragStart(model) {
-    console.log('Drag started with model:', model.title);
-    setSelected([model]);
-    setIsDragging(true);
-    // Store the current drag source in ref for easier access
-    dragSourceRef.current = model;
-    
-    // Debug info
-    console.log('Drag source model stored in ref:', model.id, model.title);
+  // Move a model from left to right
+  function moveToRight(modelId) {
+    const model = leftModels.find(m => m.id === modelId);
+    if (!model) return;
+    setLeftModels(leftModels.filter(m => m.id !== modelId));
+    setRightModels([...rightModels, model]);
   }
-  
-  function handleDragEnd() {
-    console.log('Drag ended');
-    setIsDragging(false);
+  // Move a model from right to left
+  function moveToLeft(modelId) {
+    const model = rightModels.find(m => m.id === modelId);
+    if (!model) return;
+    setRightModels(rightModels.filter(m => m.id !== modelId));
+    setLeftModels([...leftModels, model]);
   }
 
   // Helper to fetch full model details by ID
@@ -153,39 +146,46 @@ export default function ThreatModelsPage({ initialModels = null }) {
     }
   }
 
-  async function handleDrop(targetModel, sourceModelFromEvent) {
-    setIsDragging(false);
-    console.log('[ThreatModelsPage] Drop detected on model:', targetModel.title, targetModel.id);
-    
-    // Get the source model - prefer the one from our ref but fall back to the one from the event
-    const sourceModel = dragSourceRef.current || sourceModelFromEvent;
-    
-    if (!sourceModel) {
-      console.error('[ThreatModelsPage] No source model found for drop operation');
-      alert('Error: Unable to determine which model you are trying to merge from. Please try again.');
-      return;
-    }
-    
-    if (sourceModel.id === targetModel.id) {
-      console.log('[ThreatModelsPage] Cannot merge a model with itself');
-      alert('Cannot merge a model with itself. Please drag onto a different model.');
-      return;
-    }
-
-    // Show loading state in the modal
+  // Handle merge button click
+  async function handleMerge() {
+    if (leftModels.length !== 1 || rightModels.length !== 1) return;
     setMergePreview({ loading: true });
-
     try {
-      // Fetch full details for both models in parallel
       const [primary, source] = await Promise.all([
-        fetchModelDetails(targetModel.id),
-        fetchModelDetails(sourceModel.id)
+        fetchModelDetails(leftModels[0].id),
+        fetchModelDetails(rightModels[0].id)
       ]);
       if (!primary || !source) {
         alert('Failed to load full model details for merge preview.');
         setMergePreview(null);
         return;
       }
+      // Normalize threats array for frontend compatibility
+      function parseThreatsFromModel(text) {
+        if (!text) return [];
+        const sections = text.split(/(?=## )/g);
+        return sections
+          .filter(section => section.trim().length > 0)
+          .map(section => {
+            const titleMatch = section.match(/^## (.*?)(?:\n|$)/);
+            const title = titleMatch ? titleMatch[1].trim() : 'Unnamed Threat';
+            const content = section.replace(/^## .*?(?:\n|$)/, '').trim();
+            return { title, content, fullSection: section.trim() };
+          });
+      }
+      function normalizeThreats(model) {
+        if (Array.isArray(model.threats) && model.threats.length > 0) {
+          return model.threats.map(t => ({
+            title: t.title || t.name || 'Untitled Threat',
+            content: t.description || t.content || ''
+          }));
+        } else if (model.response_text) {
+          return parseThreatsFromModel(model.response_text);
+        }
+        return [];
+      }
+      primary.threats = normalizeThreats(primary);
+      source.threats = normalizeThreats(source);
       setMergePreview({
         primary,
         sources: [source]
@@ -194,18 +194,7 @@ export default function ThreatModelsPage({ initialModels = null }) {
       alert('Error loading model details for merge preview.');
       setMergePreview(null);
     }
-    dragSourceRef.current = null;
   }
-
-  function handleCardHover(model) {
-    // Only show the hover modal when not dragging
-    if (!isDragging) {
-      setModalModel(model);
-      setShowModal(!!model);
-    }
-  }
-  
-  /* Remove duplicate filteredModels */
 
   // Filter models based on search term
   const filteredModels = models.filter(model => {
@@ -223,7 +212,6 @@ export default function ThreatModelsPage({ initialModels = null }) {
           <i className="bi bi-diagram-3 me-2"></i>
           Threat Model Merge Tool
         </h3>
-        
         <div className="bg-light p-3 rounded-3 mb-4">
           <div className="d-flex align-items-center">
             <i className="bi bi-info-circle text-primary me-2 fs-5"></i>
@@ -231,10 +219,11 @@ export default function ThreatModelsPage({ initialModels = null }) {
               <strong>How to merge threat models:</strong>
               <ol className="mb-0 ps-3">
                 <li>Select models from the Available Models table</li>
-                <li>Click "Add to Workspace" to move them to the Workspace area</li>
-                <li>Drag one model card onto another in the Workspace to merge them</li>
-                <li>Select which threats to include in the merged model</li>
+                <li>Click "Add to Workspace" to move them to the <b>left panel</b></li>
+                <li>Use the <b>arrow button</b> to move one model to the <b>right panel</b></li>
+                <li>Click the <b>center merge button</b> to preview and merge</li>
               </ol>
+              <div className="mt-2 text-muted small">Drag-and-drop is no longer used. All actions are explicit and button-driven.</div>
             </div>
           </div>
         </div>
@@ -298,10 +287,7 @@ export default function ThreatModelsPage({ initialModels = null }) {
                           model={model}
                           isSelected={selectedModelIds.has(model.id)}
                           onToggleSelect={toggleModelSelection}
-                          onViewDetails={(model) => {
-                            setModalModel(model);
-                            setShowModal(true);
-                          }}
+                          onViewDetails={() => {}}
                         />
                       ))
                     )}
@@ -309,7 +295,6 @@ export default function ThreatModelsPage({ initialModels = null }) {
                 </table>
               </div>
             </div>
-            
             <div className="card-footer d-flex justify-content-between align-items-center">
               <div>
                 <small className="text-muted">{selectedModelIds.size} models selected</small>
@@ -326,7 +311,7 @@ export default function ThreatModelsPage({ initialModels = null }) {
           </div>
         </div>
         
-        {/* Right Panel: Workspace for Drag and Drop */}
+        {/* Right Panel: Split Workspace UI */}
         <div className="col-lg-6">
           <div className="card shadow-sm">
             <div className="card-header d-flex justify-content-between align-items-center">
@@ -337,60 +322,77 @@ export default function ThreatModelsPage({ initialModels = null }) {
               <button 
                 className="btn btn-sm btn-outline-secondary" 
                 onClick={clearWorkspace}
-                disabled={workspaceModels.length === 0}
+                disabled={leftModels.length + rightModels.length === 0}
               >
                 <i className="bi bi-trash me-1"></i>
                 Clear
               </button>
             </div>
-            
             <div className="card-body">
-              <div
-  className={`workspace-area p-3 border rounded ${isDragging ? 'dragging-active' : ''}`}
-  style={{ minHeight: '400px' }}
-  onDrop={e => { console.log('[WorkspaceArea] Top-level drop event fired'); e.preventDefault(); }}
-  onDragOver={e => { console.log('[WorkspaceArea] Top-level dragOver event fired'); e.preventDefault(); }}
->
-                {workspaceModels.length === 0 ? (
-                  <div className="text-center text-muted p-5">
-                    <i className="bi bi-arrow-left-right display-4 mb-3"></i>
-                    <p>Select models from the Available Models list and add them to this workspace for merging.</p>
-                  </div>
-                ) : (
-                  <div className="row row-cols-1 row-cols-md-2 g-3">
-                    {workspaceModels.map(model => (
-                      <div className="col" key={model.id}>
+              <div className="row align-items-center" style={{ minHeight: '400px' }}>
+                {/* Left panel */}
+                <div className="col-5 border-end">
+                  <h6 className="text-center">Left (Primary)</h6>
+                  {leftModels.length === 0 ? (
+                    <div className="text-muted text-center py-4">No models</div>
+                  ) : (
+                    leftModels.map(model => (
+                      <div className="mb-2" key={model.id}>
                         <ModelCard
                           model={model}
-                          onDragStart={() => handleDragStart(model)}
-                          onDragEnd={handleDragEnd}
-                          onDrop={(_evt, sourceModelFromEvent) => handleDrop(model, sourceModelFromEvent)}
-                          onRemove={() => removeFromWorkspace(model.id)}
-                          onHover={handleCardHover}
+                          onRemove={() => removeFromLeft(model.id)}
                           showRemoveButton={true}
+                          mergePreviewActive={!!mergePreview}
+                        />
+                        <div className="d-flex justify-content-center">
+                          <button className="btn btn-sm btn-outline-primary mt-1" onClick={() => moveToRight(model.id)} disabled={rightModels.length > 0}>
+                            <i className="bi bi-arrow-right"></i>
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+                {/* Arrow button */}
+                <div className="col-2 d-flex flex-column align-items-center justify-content-center">
+                  <button className="btn btn-success" style={{ fontSize: '2rem' }} onClick={handleMerge} disabled={!(leftModels.length === 1 && rightModels.length === 1)}>
+                    <i className="bi bi-arrow-left-right"></i>
+                  </button>
+                  <div className="my-2"></div>
+                  {rightModels.length === 1 && (
+                    <button className="btn btn-sm btn-outline-secondary" onClick={() => moveToLeft(rightModels[0].id)}>
+                      <i className="bi bi-arrow-left"></i>
+                    </button>
+                  )}
+                </div>
+                {/* Right panel */}
+                <div className="col-5">
+                  <h6 className="text-center">Right (Source)</h6>
+                  {rightModels.length === 0 ? (
+                    <div className="text-muted text-center py-4">No models</div>
+                  ) : (
+                    rightModels.map(model => (
+                      <div className="mb-2" key={model.id}>
+                        <ModelCard
+                          model={model}
+                          onRemove={() => removeFromRight(model.id)}
+                          showRemoveButton={true}
+                          mergePreviewActive={!!mergePreview}
                         />
                       </div>
-                    ))}
-                  </div>
-                )}
+                    ))
+                  )}
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
       
-      <ModelContentModal show={showModal} model={modalModel} onHide={() => setShowModal(false)} />
       <MergePreviewModal preview={mergePreview} onClose={() => setMergePreview(null)} />
       
       {/* Drag hint in workspace header instead of an overlay */}
-      {isDragging && (
-        <div className="workspace-drag-hint position-fixed bottom-0 start-50 translate-middle-x mb-3 p-2 bg-info text-white rounded shadow-sm">
-          <small>
-            <i className="bi bi-info-circle me-1"></i>
-            Drop onto another model card to merge
-          </small>
-        </div>
-      )}
+
     </div>
   );
 }

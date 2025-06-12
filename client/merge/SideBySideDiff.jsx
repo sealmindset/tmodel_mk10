@@ -10,15 +10,18 @@ export default function SideBySideDiff({ left, right, onSelectionChange }) {
   // Parse the threat model content into sections
   useEffect(() => {
     if (!left || !right) return;
-    
-    // Process left model content
-    const leftThreats = parseThreatsFromModel(left.response_text);
+
+    // Prefer the threats array if present, else parse from response_text
+    const leftThreats = Array.isArray(left.threats) && left.threats.length > 0
+      ? left.threats
+      : parseThreatsFromModel(left.response_text);
     setLeftContent(leftThreats);
-    
-    // Process right model content
-    const rightThreats = parseThreatsFromModel(right.response_text);
+
+    const rightThreats = Array.isArray(right.threats) && right.threats.length > 0
+      ? right.threats
+      : parseThreatsFromModel(right.response_text);
     setRightContent(rightThreats);
-    
+
     // Initial merged content is all threats from both models
     const initialMerged = [...new Set([...leftThreats, ...rightThreats])];
     setMergedContent(initialMerged);

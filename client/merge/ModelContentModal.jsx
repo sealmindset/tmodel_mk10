@@ -2,7 +2,7 @@
 // Modal popup for viewing a threat model's response content
 import React from 'react';
 
-export default function ModelContentModal({ show, model, onHide }) {
+
   // Debug: Log on every render to verify mounting and props
 // eslint-disable-next-line no-console
 console.log('[ModelContentModal] Rendered. show:', show, 'model:', model);

@@ -2,8 +2,15 @@
 // Draggable card for a single threat model
 import React, { useState } from 'react';
 
-export default function ModelCard({ model, onDragStart, onDragEnd, onDrop, onClick, onHover, onRemove, showRemoveButton = false }) {
+export default function ModelCard({ model, onDragStart, onDragEnd, onDrop, onClick, onRemove, showRemoveButton = false, mergePreviewActive = false }) {
   const [isDraggedOver, setIsDraggedOver] = useState(false);
+
+  // Clear drag-over state if merge preview modal is active
+  React.useEffect(() => {
+    if (mergePreviewActive && isDraggedOver) {
+      setIsDraggedOver(false);
+    }
+  }, [mergePreviewActive, isDraggedOver]);
   const [dragId] = useState(`drag-${Math.random().toString(36).substr(2, 9)}`);
   
   // Format the date in a readable format
@@ -93,6 +100,7 @@ export default function ModelCard({ model, onDragStart, onDragEnd, onDrop, onCli
     <div
       id={dragId}
       className={`card shadow-sm model-card ${isDraggedOver ? 'drag-over border border-primary border-3' : ''}`}
+      style={{ boxShadow: 'none', background: 'inherit', outline: 'none' }}
       draggable="true"
       onDragStart={handleDragStart}
       onDragEnd={() => { 
@@ -103,11 +111,9 @@ export default function ModelCard({ model, onDragStart, onDragEnd, onDrop, onCli
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       onClick={() => onClick && onClick(model)}
-      onMouseEnter={() => onHover && onHover(model)}
-      onMouseLeave={() => onHover && onHover(null)}
+
       aria-label={`${title} threat model card with ${threatCount} threats`}
-      role="button"
-      tabIndex="0"
+
     >
       <div className="card-body">
         <h5 className="card-title">{title}</h5>
@@ -132,7 +138,7 @@ export default function ModelCard({ model, onDragStart, onDragEnd, onDrop, onCli
             Remove
           </button>
         )}
-        {isDraggedOver && (
+        {isDraggedOver && !mergePreviewActive && (
           <div className="drop-indicator position-absolute top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center">
             <div className="bg-secondary bg-opacity-75 p-2 rounded text-light">
               <i className="bi bi-arrow-down-up me-1"></i>Drop to merge

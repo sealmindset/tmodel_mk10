@@ -18,25 +18,76 @@ router.post('/api/threat-models/merge-batch', async (req, res) => {
   try {
     await client.query('BEGIN');
     // Fetch primary model
-    const { rows: [primary] } = await client.query('SELECT * FROM threat_models WHERE id = $1 FOR UPDATE', [primaryId]);
+    const { rows: [primary] } = await client.query('SELECT * FROM threat_model.threat_models WHERE id = $1 FOR UPDATE', [primaryId]);
     if (!primary) throw new Error('Primary model not found');
-    let mergedThreats = new Set(JSON.parse(primary.threats || '[]'));
-    // Fetch and merge source models
-    for (const srcId of sourceIds) {
-      const { rows: [src] } = await client.query('SELECT * FROM threat_models WHERE id = $1', [srcId]);
-      if (!src) continue;
-      JSON.parse(src.threats || '[]').forEach(t => mergedThreats.add(t));
+    // Helper to dedupe threats by title+content
+    function dedupeThreats(threats) {
+      const seen = new Set();
+      const result = [];
+      for (const t of threats) {
+        if (!t || typeof t !== 'object') continue;
+        const key = (t.title || t.name || '') + '|' + (t.content || t.description || '');
+        if (!seen.has(key)) {
+          seen.add(key);
+          result.push({
+            title: t.title || t.name || 'Untitled Threat',
+            content: t.content || t.description || ''
+          });
+        }
+      }
+      return result;
     }
-    // Update primary model
+    // Helper to parse threats robustly, fallback to response_text if needed
+    function parseThreatsField(model) {
+      // Try to parse threats JSON
+      try {
+        if (model.threats && typeof model.threats === 'string' && model.threats.trim() !== '') {
+          const parsed = JSON.parse(model.threats);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (err) {
+        // Will fallback below
+      }
+      // Fallback: parse from response_text Markdown if available
+      if (model.response_text && typeof model.response_text === 'string' && model.response_text.trim() !== '') {
+        // Split on Markdown '##' headers
+        const sections = model.response_text.split(/(^|\n)## /).filter(s => s.trim() !== '');
+        return sections.map(section => {
+          // First line = title, rest = content
+          const [firstLine, ...rest] = section.split('\n');
+          return {
+            title: firstLine ? firstLine.trim() : 'Untitled Threat',
+            content: rest.join('\n').trim()
+          };
+        });
+      }
+      // No threats found
+      return [];
+    }
+
+    let allThreats = [];
+    allThreats = allThreats.concat(parseThreatsField(primary));
+    for (const srcId of sourceIds) {
+      const { rows: [src] } = await client.query('SELECT * FROM threat_model.threat_models WHERE id = $1', [srcId]);
+      if (!src) continue;
+      allThreats = allThreats.concat(parseThreatsField(src));
+    }
+    const mergedThreats = dedupeThreats(allThreats);
+
     await client.query(
-      'UPDATE threat_models SET threats = $1, threat_count = $2, updated_at = NOW() WHERE id = $3',
-      [JSON.stringify(Array.from(mergedThreats)), mergedThreats.size, primaryId]
+      'UPDATE threat_model.threat_models SET threats = $1, threat_count = $2, updated_at = NOW() WHERE id = $3',
+      [JSON.stringify(mergedThreats), mergedThreats.length, primaryId]
     );
     await client.query('COMMIT');
-    res.json({ success: true, mergedThreatCount: mergedThreats.size });
+    res.json({ success: true, mergedThreatCount: mergedThreats.length });
   } catch (e) {
     await client.query('ROLLBACK');
-    res.status(500).json({ error: e.message });
+    // Log full error stack and request data for debugging
+    console.error('[merge-batch ERROR]', {
+      error: e && e.stack ? e.stack : e,
+      requestBody: req.body
+    });
+    res.status(500).json({ error: e.message || String(e) });
   } finally {
     client.release();
   }
@@ -58,6 +109,29 @@ router.get('/api/threat-models/list', async (req, res) => {
     `);
     client.release();
     res.json(rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/threat-models/:id - fetch full details for a single threat model
+router.get('/api/threat-models/:id', async (req, res) => {
+  try {
+    const client = await db.connect();
+    const { id } = req.params;
+    const query = `
+      SELECT m.id, m.title, m.description, m.updated_at, m.threats, m.response_text
+      FROM threat_model.threat_models m
+      WHERE m.id = $1
+      LIMIT 1
+    `;
+    // Accept UUID as string, do not cast to integer
+    const { rows } = await client.query(query, [id]);
+    client.release();
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Threat model not found' });
+    }
+    res.json(rows[0]);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

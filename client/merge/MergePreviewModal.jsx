@@ -114,12 +114,15 @@ export default function MergePreviewModal({ preview, onClose }) {
             <button type="button" className="btn-close btn-close-white" onClick={onClose} aria-label="Close"></button>
           </div>
           <div className="modal-body p-0">
+            {/* Success toast/alert disabled for debugging modal display */}
+            {/*
             {success && (
               <div className="alert alert-success m-3">
                 <i className="bi bi-check-circle-fill me-2"></i>
                 Merge completed successfully! Redirecting...
               </div>
             )}
+            */}
             
             {error && (
               <div className="alert alert-danger m-3">

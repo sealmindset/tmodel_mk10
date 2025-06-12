@@ -73,7 +73,7 @@ process.on('uncaughtException', (error) => {
 });
 
 // CORS
-app.use(cors({ origin: 'https://tmodeling.onrender.com', credentials: true }));
+// app.use(cors({ origin: 'https://tmodeling.onrender.com', credentials: true })); // Removed to allow open CORS
 
 // Body parsing (for HTML forms and JSON, like curl and browser forms)
 app.use(express.urlencoded({ extended: false, limit: '10mb' })); // Handles application/x-www-form-urlencoded
@@ -249,6 +249,18 @@ app.use('/', require('./routes/projectDetailController'));
 
 // Reporting Routes
 app.use('/reporting', require('./routes/reporting'));
+
+// ROUTE DUMP: Print all registered routes at startup
+if (process.env.NODE_ENV !== 'production') {
+  console.log('=== REGISTERED EXPRESS ROUTES ===');
+  app._router.stack
+    .filter(r => r.route)
+    .forEach(r => {
+      const methods = Object.keys(r.route.methods).join(',').toUpperCase();
+      console.log(`${methods} ${r.route.path}`);
+    });
+  console.log('=== END ROUTE DUMP ===');
+}
 
 // Bootstrap everything and then start listening
 (async () => {
