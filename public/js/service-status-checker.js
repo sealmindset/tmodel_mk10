@@ -76,6 +76,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Function to check service status
     const checkServiceStatus = async () => {
       try {
+        console.log('[ServiceStatusChecker] Starting service status check...');
         // Initialize a local status object to store service statuses
         let serviceStatus = {
           postgres: false,
@@ -87,30 +88,30 @@ document.addEventListener('DOMContentLoaded', function() {
         // Direct check for PostgreSQL using the health endpoint
         if (postgresIndicator) {
           try {
-            console.log('Checking PostgreSQL status via /health endpoint');
+            console.log('[ServiceStatusChecker] Checking PostgreSQL status via /health endpoint');
             const pgResponse = await fetch('/health');
             if (pgResponse.ok) {
               const pgData = await pgResponse.json();
               const isConnected = pgData.db === 'UP';
-              
               // Update the status in our serviceStatus object to ensure consistent updates
               serviceStatus.postgres = isConnected;
-              
               // Immediately update the indicator
               postgresIndicator.classList.remove('loading', 'online', 'offline');
               postgresIndicator.classList.add(isConnected ? 'online' : 'offline');
               postgresIndicator.setAttribute('title', `PostgreSQL: ${isConnected ? 'Connected' : 'Disconnected'}`);
-              
-              console.log('Direct PostgreSQL check result:', isConnected ? 'Connected' : 'Disconnected');
+              console.log('[ServiceStatusChecker] Direct PostgreSQL check result:', isConnected ? 'Connected' : 'Disconnected');
             } else {
-              console.log('PostgreSQL health check HTTP error:', pgResponse.status);
+              console.warn('[ServiceStatusChecker] PostgreSQL health check HTTP error:', pgResponse.status);
               postgresIndicator.classList.remove('loading', 'online', 'offline');
               postgresIndicator.classList.add('offline');
               postgresIndicator.setAttribute('title', 'PostgreSQL: Disconnected');
               serviceStatus.postgres = false;
             }
           } catch (pgError) {
-            console.error('Error checking PostgreSQL health:', pgError);
+            console.error('[ServiceStatusChecker] Error checking PostgreSQL health:', pgError);
+            if (pgError instanceof TypeError && pgError.message && pgError.message.includes('Failed to fetch')) {
+              console.error('[ServiceStatusChecker] Likely a CORS or network error when fetching /health.');
+            }
             postgresIndicator.classList.remove('loading', 'online', 'offline');
             postgresIndicator.classList.add('offline');
             postgresIndicator.setAttribute('title', 'PostgreSQL: Disconnected');
@@ -127,14 +128,14 @@ document.addEventListener('DOMContentLoaded', function() {
           // Set status in our tracking object
           serviceStatus.rapid7 = false;
         }
-        
+
         // Now check all services using the status API
         try {
           // Set a timeout for the fetch to prevent long-running requests
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 3000);
-          
           // Explicitly exclude Rapid7 to prevent CORS errors
+          console.log('[ServiceStatusChecker] Checking /api/status for all services except Rapid7...');
           const response = await fetch('/api/status?forceCheck=true&provider=all&skipRapid7=true', {
             signal: controller.signal,
             // Add cache-busting to prevent cached responses
@@ -142,30 +143,29 @@ document.addEventListener('DOMContentLoaded', function() {
           }).catch(err => {
             // Silently handle network errors
             clearTimeout(timeoutId);
+            console.error('[ServiceStatusChecker] Network or CORS error when fetching /api/status:', err);
             return { ok: false };
           });
-          
           clearTimeout(timeoutId);
-          
           if (response.ok) {
             const data = await response.json();
-            // console.log('Service status check results:', data);
-            
+            console.log('[ServiceStatusChecker] Service status check results:', data);
             // Update our serviceStatus object with the API response
             serviceStatus = { ...serviceStatus, ...data };
-            
             // Update the UI with the final status
             updateStatusIndicators(serviceStatus);
+            console.log('[ServiceStatusChecker] Status indicators updated with API results.');
             return serviceStatus;
           } else {
-            // Silently handle HTTP errors
-            // Update UI with our local status data
+            console.error('[ServiceStatusChecker] Service status API call failed with status:', response.status);
             updateStatusIndicators(serviceStatus);
             return serviceStatus;
           }
-        } catch (error) {
-          // Silently handle other errors
-          // Update UI with our local status data
+        } catch (statusError) {
+          console.error('[ServiceStatusChecker] Error checking /api/status:', statusError);
+          if (statusError instanceof TypeError && statusError.message && statusError.message.includes('Failed to fetch')) {
+            console.error('[ServiceStatusChecker] Likely a CORS or network error when fetching /api/status.');
+          }
           updateStatusIndicators(serviceStatus);
           return serviceStatus;
         }
@@ -177,7 +177,7 @@ document.addEventListener('DOMContentLoaded', function() {
           ollama: false,
           timestamp: new Date().toISOString()
         };
-        // Silently handle errors
+        console.error('[ServiceStatusChecker] Unexpected error in checkServiceStatus:', error);
         updateStatusIndicators(defaultStatus);
         return defaultStatus;
       }

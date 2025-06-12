@@ -21,12 +21,28 @@ router.use('/components',         require('./components'));
 router.use('/',                   require('./projectAssignments'));
 
 // Health
+// Explicit OPTIONS preflight handler for /api/status
+router.options('/status', (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  console.log('[CORS] OPTIONS /api/status preflight handled.');
+  res.sendStatus(204);
+});
+
+// GET /api/status with explicit CORS headers
 router.get('/status', (_req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
   res.json({
     success: true,
     message: 'Threat Modeling API is operational',
     timestamp: new Date().toISOString()
   });
+  console.log('[CORS] GET /api/status CORS headers sent.');
 });
 
 // Proxy for legacy /api/provider-status endpoint

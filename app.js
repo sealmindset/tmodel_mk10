@@ -32,12 +32,23 @@ const port  = process.env.PORT || 3000;
 // Permanently enable open CORS for all UI-to-backend calls (dev, test, prod)
 // This allows all origins, all methods, all headers, and credentials.
 // DO NOT RESTRICT unless explicitly required for prod security.
+app.use((req, res, next) => {
+  // Set open CORS headers for every request (defense-in-depth)
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  next();
+});
+
+// Permanently enable open CORS for all UI-to-backend calls (dev, test, prod)
 app.use(cors({
   origin: '*',
   methods: ['GET','POST','PUT','DELETE','OPTIONS'],
   allowedHeaders: ['Content-Type','Authorization'],
   credentials: true
 }));
+console.log('[CORS] CORS middleware and headers applied globally.');
 
 // Configure middleware first (order matters)
 // Parse JSON request bodies
@@ -112,8 +123,21 @@ function ensureAuthenticated(req, res, next) {
 }
 
 // Health check
+app.options('/health', (req, res) => {
+  // Explicitly handle preflight for /health
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  console.log('[CORS] OPTIONS /health preflight handled.');
+  res.sendStatus(204);
+});
 app.get('/health', async (req, res) => {
   try {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+    res.header('Access-Control-Allow-Credentials', 'true');
     const pool = app.locals.dbPool;
     const { rows } = await pool.query('SELECT 1 AS ok');
     res.json({ status: 'UP', db: rows[0].ok === 1 ? 'UP' : 'DOWN', timestamp: new Date().toISOString() });

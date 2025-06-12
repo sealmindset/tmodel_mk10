@@ -613,34 +613,39 @@
         mergeMetrics.total_threats_added++;
       }
       
-      // Update the primary model with merged content
-      const updateResponse = await fetch('/update-response', {
+      // Merge via backend API
+      const mergePayload = {
+        primaryId: primaryRedisId,
+        sourceIds: sourceRedisIds,
+        mergedContent: primaryResponseText,
+        // If you have selected threat titles available, include them:
+        ...(typeof selectedThreatTitles !== 'undefined' ? { selectedThreatTitles } : {})
+      };
+
+      const mergeResponse = await fetch('/api/threat-models/merge-batch', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          subjectid: primaryRedisId,
-          response: primaryResponseText
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(mergePayload)
       });
-      
-      if (!updateResponse.ok) {
-        throw new Error('Failed to update primary model: ' + updateResponse.statusText);
+
+      if (!mergeResponse.ok) {
+        let errMsg = 'Failed to merge threat models: ' + mergeResponse.statusText;
+        try {
+          const errData = await mergeResponse.json();
+          if (errData && errData.error) errMsg += `: ${errData.error}`;
+        } catch {}
+        throw new Error(errMsg);
       }
-      
-      // Update threat count
-      const newThreatCount = currentThreatCount + mergeMetrics.total_threats_added;
-      
-      // Get primary model name
-      const primaryModelName = primaryData.title || "Model " + primaryRedisId;
-      
+
+      const mergeResult = await mergeResponse.json();
+      // Use returned data if available, else fallback to local variables
+      const newThreatCount = (mergeResult.data && mergeResult.data.model && mergeResult.data.model.threat_count) || (currentThreatCount + mergeMetrics.total_threats_added);
+      const primaryModelName = (mergeResult.data && mergeResult.data.model && mergeResult.data.model.title) || (primaryData.title || ("Model " + primaryRedisId));
+      const mergeMetricsResult = (mergeResult.data && mergeResult.data.metrics) || mergeMetrics;
+
       // Show success message and results
       showAlert("Threat models merged successfully!", "success");
-      
-      // Show merge results
       mergeResultsCard.classList.remove('d-none');
-      
       // Show results summary in the card using string concatenation instead of template literals
       let resultsHtml = 
         '<div class="alert alert-success">' +
