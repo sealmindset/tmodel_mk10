@@ -29,8 +29,15 @@ console.log('[APP] Ollama utility loaded. Initializing...');
 const app   = express();
 const port  = process.env.PORT || 3000;
 
-// Enable CORS
-app.use(cors());
+// Permanently enable open CORS for all UI-to-backend calls (dev, test, prod)
+// This allows all origins, all methods, all headers, and credentials.
+// DO NOT RESTRICT unless explicitly required for prod security.
+app.use(cors({
+  origin: '*',
+  methods: ['GET','POST','PUT','DELETE','OPTIONS'],
+  allowedHeaders: ['Content-Type','Authorization'],
+  credentials: true
+}));
 
 // Configure middleware first (order matters)
 // Parse JSON request bodies
