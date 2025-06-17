@@ -73,7 +73,9 @@ class Threat {
       category, 
       status, 
       min_risk_score, 
-      max_risk_score 
+      max_risk_score,
+      highlight_new_threats, // Option to highlight newly merged threats
+      sort_by_merge_date // Option to sort by merge date (newest first)
     } = filters;
     
     let query = 'SELECT * FROM threat_model.threats';
@@ -110,7 +112,12 @@ class Threat {
       query += ' WHERE ' + conditions.join(' AND ');
     }
     
-    query += ' ORDER BY risk_score DESC, name';
+    // Order newly merged threats first if requested
+    if (sort_by_merge_date) {
+      query += ' ORDER BY is_new_from_merge DESC, merge_date DESC, risk_score DESC, name';
+    } else {
+      query += ' ORDER BY risk_score DESC, name';
+    }
     
     const result = await db.query(query, values);
     return result.rows;

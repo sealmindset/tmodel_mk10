@@ -4,7 +4,7 @@
  * Provides functionality to merge multiple threat models into one
  * Handles PostgreSQL models
  */
-const pool = require('../database').pool;
+const pool = require('../database');
 
 
 /**
@@ -15,17 +15,17 @@ const pool = require('../database').pool;
  * @param {string} mergedBy - Username of the person performing the merge
  * @returns {Promise<Object>} - Updated primary model with merged threats
  */
-async function mergeThreatModels(primaryModelId, sourceModelIds, mergedBy) {
-  console.log('Starting merge operation with:', { primaryModelId, sourceModelIds, mergedBy });
-  
-  if (!primaryModelId || !sourceModelIds || !Array.isArray(sourceModelIds) || sourceModelIds.length === 0) {
+async function mergeThreatModels(primaryModelId, sourceIds, mergedBy, mergedContent, selectedThreatTitles = []) {
+  console.log('Starting merge operation with:', { primaryModelId, sourceIds, mergedBy, selectedThreatTitles });
+
+  if (!primaryModelId || !sourceIds || !Array.isArray(sourceIds) || sourceIds.length === 0) {
     throw new Error('Primary model ID and at least one source model ID are required');
   }
 
   // Filter out the primary model from source models if it's included
-  sourceModelIds = sourceModelIds.filter(id => id !== primaryModelId);
-  
-  if (sourceModelIds.length === 0) {
+  sourceIds = sourceIds.filter(id => id !== primaryModelId);
+
+  if (sourceIds.length === 0) {
     throw new Error('At least one source model different from the primary model is required');
   }
 
@@ -43,12 +43,34 @@ async function mergeThreatModels(primaryModelId, sourceModelIds, mergedBy) {
   const { primaryModel, existingThreats } = await handlePostgresPrimaryModel(primaryModelId, mergeMetrics);
 
   // Process source PostgreSQL models
-  for (const sourceId of sourceModelIds) {
-    await processPostgresSourceModel(sourceId, primaryModelId, existingThreats, mergeMetrics);
+  for (const sourceId of sourceIds) {
+    await processPostgresSourceModel(sourceId, primaryModelId, existingThreats, mergeMetrics, selectedThreatTitles);
   }
 
   // Update primary model metadata
-  await updatePostgresPrimaryModelMetadata(primaryModelId, sourceModelIds, mergedBy, mergeMetrics);
+  await updatePostgresPrimaryModelMetadata(primaryModelId, sourceIds, mergedBy, mergeMetrics);
+
+  // --- BEGIN: Update response_text with mergedContent if provided ---
+  if (mergedContent && typeof mergedContent === 'string') {
+    console.log(`[MERGE SERVICE] Updating primary model response_text with mergedContent (length: ${mergedContent.length})`);
+    const client = await pool.connect();
+    try {
+      const updateQuery = `UPDATE threat_model.threat_models SET response_text = $1 WHERE id = $2`;
+      const result = await client.query(updateQuery, [mergedContent, primaryModelId]);
+      if (result.rowCount === 1) {
+        console.log(`[MERGE SERVICE] Successfully updated response_text for primary model ${primaryModelId}`);
+      } else {
+        console.warn(`[MERGE SERVICE] No rows updated when trying to set response_text for model ${primaryModelId}`);
+      }
+    } catch (error) {
+      console.error(`[MERGE SERVICE] Error updating response_text for primary model ${primaryModelId}:`, error);
+    } finally {
+      client.release();
+    }
+  } else {
+    console.log('[MERGE SERVICE] No mergedContent provided; skipping response_text update.');
+  }
+  // --- END: Update response_text with mergedContent if provided ---
 
   return {
     model: primaryModel,
@@ -91,7 +113,7 @@ async function handlePostgresPrimaryModel(modelId, metrics) {
 /**
  * Process a PostgreSQL source model
  */
-async function processPostgresSourceModel(modelId, primaryModelId, existingThreats, metrics) {
+async function processPostgresSourceModel(modelId, primaryModelId, existingThreats, metrics, selectedThreatTitles) {
   console.log(`Processing PostgreSQL source model: ${modelId}`);
   
   const client = await pool.connect();
@@ -135,12 +157,12 @@ async function processPostgresSourceModel(modelId, primaryModelId, existingThrea
     // Get threats from source model
     const threatsQuery = `SELECT * FROM threat_model.threats WHERE threat_model_id = $1`;
     const threatsResult = await client.query(threatsQuery, [modelId]);
-    const threats = threatsResult.rows;
-    
-    console.log(`Found ${threats.length} threats in PostgreSQL model ${modelId}`);
-    
+    const sourceThreats = threatsResult.rows;
+    const threatsToMerge = sourceThreats.filter(t => selectedThreatTitles.includes(t.title));
+    console.log(`[MERGE SERVICE] Found ${sourceThreats.length} total threats in source model ${modelId}. Will merge ${threatsToMerge.length} selected threats.`);
+
     // Process each threat
-    for (const threat of threats) {
+    for (const threat of threatsToMerge) {
       // Check if this threat is similar to any existing threats
       const isSimilar = checkIfThreatIsSimilar(threat, existingThreats);
       
@@ -179,12 +201,14 @@ async function addThreatToPostgresModel(threat, primaryModelId, sourceModelId, s
   
   const client = await pool.connect();
   try {
+    // Add metadata to identify newly added threats from merge
     const insertQuery = `
       INSERT INTO threat_model.threats (
         threat_model_id, title, description, mitigation, risk_score,
-        impact, likelihood, source_model_id, source_model_name
+        impact, likelihood, source_model_id, source_model_name, 
+        is_new_from_merge, merge_date
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING id
     `;
     
@@ -197,7 +221,9 @@ async function addThreatToPostgresModel(threat, primaryModelId, sourceModelId, s
       3, // Default impact
       3, // Default likelihood
       sourceModelId,
-      sourceModelName
+      sourceModelName,
+      true, // is_new_from_merge
+      new Date() // merge_date - current timestamp
     ]);
     console.log(`Added threat to PostgreSQL model ${primaryModelId} with ID ${result.rows[0].id}`);
     
@@ -218,7 +244,7 @@ async function addThreatToPostgresModel(threat, primaryModelId, sourceModelId, s
  */
 async function updatePostgresPrimaryModelMetadata(modelId, sourceModelIds, mergedBy, metrics) {
   console.log(`Updating PostgreSQL model ${modelId} metadata`);
-  
+
   const client = await pool.connect();
   try {
     // Store merge metadata
@@ -228,44 +254,26 @@ async function updatePostgresPrimaryModelMetadata(modelId, sourceModelIds, merge
       source_models: sourceModelIds,
       metrics: metrics
     };
-    
+
     const updateQuery = `
       UPDATE threat_model.threat_models
       SET 
         updated_at = CURRENT_TIMESTAMP,
-        model_version = (CAST(model_version AS NUMERIC) + 0.1)::TEXT,
-        status = 'Draft',
+
         merge_metadata = $2
       WHERE id = $1
       RETURNING *
     `;
-    
+
     const result = await client.query(updateQuery, [modelId, JSON.stringify(mergeMetadata)]);
-    primaryModel = result.rows[0];
-    
+    const primaryModel = result.rows[0];
+
     console.log(`Updated PostgreSQL model ${modelId} metadata`);
-    
+
     return primaryModel;
   } finally {
     client.release();
   }
-      const mergeMetadata = {
-        merged_at: new Date().toISOString(),
-        merged_by: mergedBy,
-        source_models: sourceModelIds,
-        metrics: metrics
-      };
-      
-      const updateQuery = `
-        UPDATE threat_model.threat_models
-        SET 
-          updated_at = CURRENT_TIMESTAMP,
-          model_version = (CAST(model_version AS NUMERIC) + 0.1)::TEXT,
-          status = 'Draft',
-          merge_metadata = $2
-        WHERE id = $1
-        RETURNING *
-      `;
 }
 
 /**

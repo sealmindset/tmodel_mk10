@@ -2,6 +2,10 @@
  * Service Status Checker
  * 
  * Periodically checks Redis, PostgreSQL, Rapid7, OpenAI, and Ollama status and updates the indicators
+ *
+ * IMPORTANT: This script ONLY updates visual status indicators and tooltips.
+ * It NEVER disables, blocks, or greys out any merge or form actions based on health status.
+ * All merge and form actions remain enabled regardless of backend health.
  */
 
 document.addEventListener('DOMContentLoaded', function() {

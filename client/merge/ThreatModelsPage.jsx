@@ -5,6 +5,31 @@ import ModelCard from './ModelCard';
 
 import MergePreviewModal from './MergePreviewModal';
 
+// --- UTILITY FUNCTIONS ---
+
+// Normalize threats array for frontend compatibility
+const parseThreatsFromModel = (text) => {
+  if (!text) return [];
+  const sections = text.split(/(?=## )/g);
+  return sections.filter(s => s.trim()).map(s => {
+    const titleMatch = s.match(/^## (.*?)(?:\n|$)/);
+    const title = titleMatch ? titleMatch[1].trim() : 'Unnamed Threat';
+    const content = s.replace(/^## .*?(?:\n|$)/, '').trim();
+    return { title, content };
+  });
+};
+
+const normalizeThreats = (model) => {
+  if (Array.isArray(model.threats) && model.threats.length > 0) {
+    console.log(`[LOG][normalizeThreats] Using pre-existing threats array for model ${model.id}`);
+    return model.threats;
+  }
+  console.log(`[LOG][normalizeThreats] Parsing threats from response_text for model ${model.id}`);
+  const text = model.response_text || model.response || model.text || '';
+  return parseThreatsFromModel(text);
+};
+
+
 // Component for each selectable row in the available models table
 const SelectableModelRow = ({ model, isSelected, onToggleSelect, onViewDetails }) => {
   // Format the date in a readable format
@@ -148,50 +173,50 @@ export default function ThreatModelsPage({ initialModels = null }) {
 
   // Handle merge button click
   async function handleMerge() {
-    if (leftModels.length !== 1 || rightModels.length !== 1) return;
+    if (leftModels.length !== 1 || rightModels.length !== 1) {
+      alert('Please select exactly one primary (left) and one source (right) model for merging.');
+      return;
+    }
+
+    console.log('[LOG][handleMerge] Initiating merge...');
     setMergePreview({ loading: true });
+
     try {
+      console.log(`[LOG][handleMerge] Fetching details for Primary: ${leftModels[0].id} and Source: ${rightModels[0].id}`);
       const [primary, source] = await Promise.all([
         fetchModelDetails(leftModels[0].id),
         fetchModelDetails(rightModels[0].id)
       ]);
-      if (!primary || !source) {
-        alert('Failed to load full model details for merge preview.');
-        setMergePreview(null);
-        return;
-      }
-      // Normalize threats array for frontend compatibility
-      function parseThreatsFromModel(text) {
-        if (!text) return [];
-        const sections = text.split(/(?=## )/g);
-        return sections
-          .filter(section => section.trim().length > 0)
-          .map(section => {
-            const titleMatch = section.match(/^## (.*?)(?:\n|$)/);
-            const title = titleMatch ? titleMatch[1].trim() : 'Unnamed Threat';
-            const content = section.replace(/^## .*?(?:\n|$)/, '').trim();
-            return { title, content, fullSection: section.trim() };
-          });
-      }
-      function normalizeThreats(model) {
-        if (Array.isArray(model.threats) && model.threats.length > 0) {
-          return model.threats.map(t => ({
-            title: t.title || t.name || 'Untitled Threat',
-            content: t.description || t.content || ''
-          }));
-        } else if (model.response_text) {
-          return parseThreatsFromModel(model.response_text);
-        }
-        return [];
-      }
-      primary.threats = normalizeThreats(primary);
-      source.threats = normalizeThreats(source);
-      setMergePreview({
-        primary,
-        sources: [source]
+      console.log('[LOG][handleMerge] Fetched data:', { primary, source });
+
+      // CRITICAL: Create deep copies to prevent any state mutation
+      const primaryCopy = JSON.parse(JSON.stringify(primary));
+      const sourceCopy = JSON.parse(JSON.stringify(source));
+      console.log('[LOG][handleMerge] Created deep copies of models.');
+
+      // Normalize threats using the external utility functions
+      primaryCopy.threats = normalizeThreats(primaryCopy);
+      sourceCopy.threats = normalizeThreats(sourceCopy);
+      console.log('[LOG][handleMerge] Normalized threats for both models:', {
+        primaryThreatCount: primaryCopy.threats.length,
+        sourceThreatCount: sourceCopy.threats.length
       });
+
+      // Final check before setting state
+      console.log('[LOG][handleMerge] Final data being sent to MergePreviewModal:', {
+        primary: primaryCopy,
+        sources: [sourceCopy]
+      });
+
+      // Set the preview data for the modal
+      setMergePreview({
+        primary: primaryCopy,
+        sources: [sourceCopy]
+      });
+
     } catch (err) {
-      alert('Error loading model details for merge preview.');
+      console.error('[ERROR][handleMerge] Failed to prepare merge preview:', err);
+      alert('Error loading model details for merge preview. Check console for details.');
       setMergePreview(null);
     }
   }

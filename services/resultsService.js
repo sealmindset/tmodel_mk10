@@ -7,10 +7,30 @@ async function getAllResults() {
   return res.rows;
 }
 
-// Get a single threat model by ID
+// Get a single threat model by ID with newly merged threats
 async function getResultById(id) {
-  const res = await db.query('SELECT * FROM threat_model.threat_models WHERE id = $1', [id]);
-  return res.rows[0] || null;
+  // First get the basic threat model data
+  const modelRes = await db.query('SELECT * FROM threat_model.threat_models WHERE id = $1', [id]);
+  const threatModel = modelRes.rows[0] || null;
+  
+  if (threatModel) {
+    // Get newly merged threats for this model
+    const threatsRes = await db.query(
+      'SELECT id, name, description, category, is_new_from_merge, merge_date ' +
+      'FROM threat_model.threats ' +
+      'WHERE threat_model_id = $1 AND is_new_from_merge = true ' +
+      'ORDER BY merge_date DESC',
+      [id]
+    );
+    
+    // Add newly merged threats to the result
+    threatModel.newMergedThreats = threatsRes.rows || [];
+    
+    // Add counts of newly merged threats
+    threatModel.newMergedThreatCount = threatsRes.rowCount || 0;
+  }
+  
+  return threatModel;
 }
 
 // Create a new threat model

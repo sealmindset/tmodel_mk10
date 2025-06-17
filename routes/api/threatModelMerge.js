@@ -15,9 +15,10 @@ const threatModelMergeService = require('../../services/threatModelMergeServiceV
  */
 router.post('/threat-models/merge', ensureAuthenticated, async (req, res) => {
   try {
-    const { primaryModelId, sourceModelIds } = req.body;
+    const { primaryId: primaryModelId, sourceIds, mergedContent, selectedThreatTitles } = req.body;
+    console.log('[MERGE API] Incoming merge request:', JSON.stringify(req.body));
     
-    if (!primaryModelId || !sourceModelIds || !Array.isArray(sourceModelIds) || sourceModelIds.length === 0) {
+        if (!primaryModelId || !sourceIds || !Array.isArray(sourceIds) || sourceIds.length === 0) {
       return res.status(400).json({
         success: false,
         error: 'Primary model ID and at least one source model ID are required'
@@ -27,13 +28,15 @@ router.post('/threat-models/merge', ensureAuthenticated, async (req, res) => {
     // Get username from session
     const mergedBy = req.session.username || 'system';
     
-    console.log('Starting merge operation:', { primaryModelId, sourceModelIds, mergedBy });
+    console.log('Starting merge operation:', { primaryModelId, sourceIds, mergedBy });
     
     // Perform the merge operation
     const result = await threatModelMergeService.mergeThreatModels(
       primaryModelId,
-      sourceModelIds,
-      mergedBy
+      sourceIds,
+      mergedBy,
+      mergedContent, // Pass mergedContent to the service
+      selectedThreatTitles // Pass selectedThreatTitles to the service
     );
     
     res.json({

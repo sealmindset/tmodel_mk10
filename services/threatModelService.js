@@ -229,10 +229,163 @@ async function getSubjectText(id) {
   }
 }
 
+/**
+ * Merges selected threats from a source model into a target model
+ * @param {string} targetId The target threat model ID to merge threats into
+ * @param {Array} sourceThreats Array of threat objects to merge
+ * @returns {Promise<Object>} Result with addedThreats and skippedThreats arrays
+ */
+async function mergeSelectedThreats(targetId, sourceThreats) {
+  if (!targetId || !Array.isArray(sourceThreats)) {
+    throw new Error('Invalid parameters: targetId and sourceThreats array required');
+  }
+
+  try {
+    // Get the target model
+    const targetModel = await getThreatModel(targetId);
+    if (!targetModel) {
+      throw new Error(`Target model not found: ${targetId}`);
+    }
+
+    // Parse the existing threats from the response text
+    const existingThreats = parseThreatsFromResponse(targetModel.responseText);
+    logger.info(`Found ${existingThreats.length} existing threats in target model ${targetId}`);
+
+    // Arrays to track merge results
+    const addedThreats = [];
+    const skippedThreats = [];
+
+    // Process each source threat
+    for (const sourceThreat of sourceThreats) {
+      // Check if this threat already exists in the target model
+      const isDuplicate = checkDuplicateThreat(existingThreats, sourceThreat);
+      
+      if (isDuplicate) {
+        skippedThreats.push(sourceThreat);
+        continue;
+      }
+
+      // Add the threat to the target model
+      addedThreats.push(sourceThreat);
+    }
+
+    // If we have threats to add, update the model
+    if (addedThreats.length > 0) {
+      // Append the new threats to the response text
+      const updatedResponseText = appendThreatsToResponse(targetModel.responseText, addedThreats);
+
+      // Update the model in the database
+      await updateThreatModel(targetId, {
+        response_text: updatedResponseText,
+        merged_at: new Date(),
+        merged_threats_count: existingThreats.length + addedThreats.length
+      });
+
+      logger.info(`Successfully merged ${addedThreats.length} threats into model ${targetId}`);
+    } else {
+      logger.info(`No new threats to merge into model ${targetId}`);
+    }
+
+    return {
+      addedThreats,
+      skippedThreats
+    };
+  } catch (error) {
+    logger.error(`Error merging selected threats into model ${targetId}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Parse threats from response text
+ * @param {string} responseText The response text containing threat information
+ * @returns {Array} Array of parsed threat objects
+ */
+function parseThreatsFromResponse(responseText) {
+  if (!responseText) return [];
+  
+  const threats = [];
+  // This regex pattern looks for threat sections in the formatted response
+  const threatPattern = /### Threat: ([\s\S]*?)(?=### Threat:|$)/g;
+  let match;
+
+  while ((match = threatPattern.exec(responseText)) !== null) {
+    const threatText = match[1].trim();
+    const titleMatch = threatText.match(/\*\*Title:\*\*\s?(.+?)(?:\n|$)/);
+    const descriptionMatch = threatText.match(/\*\*Description:\*\*\s?(.+?)(?:\n|$)/);
+    
+    if (titleMatch) {
+      threats.push({
+        title: titleMatch[1].trim(),
+        description: descriptionMatch ? descriptionMatch[1].trim() : '',
+        content: match[0] // The full matching threat section
+      });
+    }
+  }
+
+  return threats;
+}
+
+/**
+ * Check if a threat is a duplicate of any in the existing threats
+ * @param {Array} existingThreats Array of existing threat objects
+ * @param {Object} newThreat The new threat object to check
+ * @returns {boolean} True if the threat is a duplicate
+ */
+function checkDuplicateThreat(existingThreats, newThreat) {
+  if (!newThreat || !newThreat.title) return true; // Skip if no title
+  
+  const newTitle = newThreat.title.toLowerCase().trim();
+  
+  return existingThreats.some(threat => {
+    if (!threat.title) return false;
+    const existingTitle = threat.title.toLowerCase().trim();
+    
+    // Consider it a duplicate if titles are similar
+    return existingTitle === newTitle || 
+           existingTitle.includes(newTitle) || 
+           newTitle.includes(existingTitle);
+  });
+}
+
+/**
+ * Append new threats to the response text
+ * @param {string} responseText The original response text
+ * @param {Array} newThreats Array of new threat objects to append
+ * @returns {string} Updated response text with new threats
+ */
+function appendThreatsToResponse(responseText, newThreats) {
+  if (!newThreats || newThreats.length === 0) return responseText;
+  
+  let updatedText = responseText;
+  
+  // Check if we need to add a threats section header
+  if (!responseText.includes('## Threat Model')) {
+    updatedText += '\n\n## Threat Model\n';
+  }
+  
+  // Add each new threat
+  for (const threat of newThreats) {
+    if (threat.title) {
+      updatedText += '\n\n### Threat: ' + threat.title;
+      
+      if (threat.description) {
+        updatedText += '\n**Description:** ' + threat.description;
+      }
+    } else if (threat.content) {
+      // If we have the full content, just append it
+      updatedText += '\n\n' + threat.content;
+    }
+  }
+  
+  return updatedText;
+}
+
 module.exports = {
   createThreatModel,
   getThreatModel,
   listThreatModels,
   updateThreatModel,
-  getSubjectText
+  getSubjectText,
+  mergeSelectedThreats
 };
