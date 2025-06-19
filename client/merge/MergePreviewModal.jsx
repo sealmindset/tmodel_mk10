@@ -3,12 +3,23 @@
 import React, { useState, useEffect } from 'react';
 import SideBySideDiff from './SideBySideDiff';
 
-export default function MergePreviewModal({ preview, onClose }) {
+export default function MergePreviewModal({ preview, onClose, onMergeComplete }) {
   const [selectedSourceThreats, setSelectedSourceThreats] = useState([]);
   const [mergedThreats, setMergedThreats] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(null);
   const [error, setError] = useState(null);
+  const [showSlowNotice, setShowSlowNotice] = useState(false);
+
+  useEffect(() => {
+    let timer;
+    if (submitting) {
+      timer = setTimeout(() => setShowSlowNotice(true), 1000);
+    } else {
+      setShowSlowNotice(false);
+    }
+    return () => clearTimeout(timer);
+  }, [submitting]);
 
   useEffect(() => {
     if (preview && preview.primary) {
@@ -39,18 +50,20 @@ export default function MergePreviewModal({ preview, onClose }) {
   }
 
   const handleSaveMerge = async () => {
+    setSubmitting(true); // Move to very top for instant feedback
+    setError(null);
+    setSuccess(null);
+
     if (selectedSourceThreats.length === 0) {
       alert('Please select at least one threat from the source model to merge.');
+      setSubmitting(false);
       return;
     }
 
     if (!window.confirm('Are you sure you want to save this merge? This will overwrite the primary model.')) {
+      setSubmitting(false);
       return;
     }
-
-    setSubmitting(true);
-    setError(null);
-    setSuccess(null);
 
     const finalContent = mergedThreats.map(threat => {
       return `## ${threat.title}\n\n${threat.content}`;
@@ -76,11 +89,13 @@ export default function MergePreviewModal({ preview, onClose }) {
         throw new Error(result.error || 'Failed to save merged threat model.');
       }
 
-      setSuccess('Merge successful! Redirecting...');
-
-      setTimeout(() => {
-        window.location.href = `/threat-model/${result.mergedModelId}`;
-      }, 2000);
+      // Notify parent to refresh data, then close the modal
+      if (onMergeComplete) {
+        await onMergeComplete();
+      }
+      if (onClose) {
+        onClose();
+      }
 
     } catch (e) {
       setError(e.message);
@@ -109,7 +124,7 @@ export default function MergePreviewModal({ preview, onClose }) {
                 <i className="bi bi-diagram-3 me-2"></i>
                 Merge Threat Models
               </h5>
-              <button type="button" className="btn-close btn-close-white" onClick={onClose} aria-label="Close"></button>
+              <button type="button" className="btn-close btn-close-white" onClick={onClose} aria-label="Close" id="merge-modal-close-btn"></button>
             </div>
             <div className="modal-body p-0">
               {success && (
@@ -181,23 +196,25 @@ export default function MergePreviewModal({ preview, onClose }) {
                 className="btn btn-outline-secondary" 
                 onClick={onClose} 
                 disabled={submitting}
+                aria-label="Cancel merge modal"
+                id="merge-cancel-btn"
               >
-                <i className="bi bi-x me-1"></i>
+                <i className="bi bi-x me-1" aria-hidden="true"></i>
                 Cancel
               </button>
               <button 
                 className="btn btn-success" 
                 onClick={handleSaveMerge} 
                 disabled={submitting || selectedSourceThreats.length === 0}
+                aria-label="Save merged threat model"
+                id="merge-save-btn"
+                type="button"
               >
                 {submitting ? (
-                  <>
-                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                    Processing...
-                  </>
+                  <span className="spinner-border spinner-border-sm ms-2" role="status" aria-hidden="true"></span>
                 ) : (
                   <>
-                    <i className="bi bi-check2 me-1"></i>
+                    <i className="bi bi-check2 me-1" aria-hidden="true"></i>
                     Save Merge
                   </>
                 )}

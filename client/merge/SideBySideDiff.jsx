@@ -102,6 +102,7 @@ export default function SideBySideDiff({ left, right, onSourceSelectionChange })
                       checked={selectedRightThreats.some(t => t.title === threat.title)}
                       onChange={() => {}}
                       id={`right-threat-${idx}`}
+                      name={`right-threat-${idx}`}
                     />
                     <label className="form-check-label" htmlFor={`right-threat-${idx}`}>
                       {threat.title}

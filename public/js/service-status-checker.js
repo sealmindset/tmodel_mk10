@@ -79,6 +79,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Function to check service status
     const checkServiceStatus = async () => {
+      const baseUrl = window.location.origin;
       try {
         console.log('[ServiceStatusChecker] Starting service status check...');
         // Initialize a local status object to store service statuses
@@ -93,9 +94,14 @@ document.addEventListener('DOMContentLoaded', function() {
         if (postgresIndicator) {
           try {
             console.log('[ServiceStatusChecker] Checking PostgreSQL status via /health endpoint');
-            const pgResponse = await fetch('/health');
-            if (pgResponse.ok) {
-              const pgData = await pgResponse.json();
+            const healthController = new AbortController();
+            const healthTimeoutId = setTimeout(() => healthController.abort(), 3000);
+            const healthResponse = await fetch(`${baseUrl}/health`, {
+              signal: healthController.signal,
+            });
+            clearTimeout(healthTimeoutId);
+            if (healthResponse.ok) {
+              const pgData = await healthResponse.json();
               const isConnected = pgData.db === 'UP';
               // Update the status in our serviceStatus object to ensure consistent updates
               serviceStatus.postgres = isConnected;
@@ -140,7 +146,7 @@ document.addEventListener('DOMContentLoaded', function() {
           const timeoutId = setTimeout(() => controller.abort(), 3000);
           // Explicitly exclude Rapid7 to prevent CORS errors
           console.log('[ServiceStatusChecker] Checking /api/status for all services except Rapid7...');
-          const response = await fetch('/api/status?forceCheck=true&provider=all&skipRapid7=true', {
+          const response = await fetch(`${baseUrl}/api/status?forceCheck=true&provider=all&skipRapid7=true`, {
             signal: controller.signal,
             // Add cache-busting to prevent cached responses
             headers: { 'Cache-Control': 'no-cache' }
@@ -187,35 +193,8 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     };
     
-    // Variable to track if we've had a successful check
-    let allServicesOnline = false;
-    let checkIntervalId = null;
-    
-    // Function to set the appropriate check interval based on status
-    const setCheckInterval = (allOnline) => {
-      if (checkIntervalId) {
-        clearInterval(checkIntervalId);
-        checkIntervalId = null;
-      }
-      
-      // Set hourly check if all services are online, otherwise check every 15 seconds
-      const interval = allOnline ? 3600000 : 15000; // 1 hour vs 15 seconds
-      checkIntervalId = setInterval(async () => {
-        await checkServiceStatus();
-      }, interval);
-      
-      console.log(`Status check frequency set to ${allOnline ? 'hourly' : 'every 15 seconds'}`);
-    };
-    
-    // Initial status check
-    checkServiceStatus().then(result => {
-      // Check if all critical services are online
-      if (result && result.postgres && result.openai) {
-        allServicesOnline = true;
-        setCheckInterval(true);
-      } else {
-        setCheckInterval(false);
-      }
-    });
+    // checkServiceStatus();
+    // setInterval(checkServiceStatus, 3600000); // 1 hour interval
+    // TEMP: Disabled all status checks for troubleshooting excessive polling
   }
 });

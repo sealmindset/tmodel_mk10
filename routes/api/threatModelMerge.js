@@ -14,6 +14,7 @@ const threatModelMergeService = require('../../services/threatModelMergeServiceV
  * @access Private
  */
 router.post('/threat-models/merge', ensureAuthenticated, async (req, res) => {
+  console.time('[MERGE API] /api/threat-models/merge');
   try {
     const { primaryId: primaryModelId, sourceIds, mergedContent, selectedThreatTitles } = req.body;
     console.log('[MERGE API] Incoming merge request:', JSON.stringify(req.body));
@@ -44,8 +45,10 @@ router.post('/threat-models/merge', ensureAuthenticated, async (req, res) => {
       message: 'Threat models merged successfully',
       data: result
     });
+    console.timeEnd('[MERGE API] /api/threat-models/merge');
   } catch (error) {
     console.error('Error merging threat models:', error);
+    console.timeEnd('[MERGE API] /api/threat-models/merge');
     res.status(500).json({
       success: false,
       error: error.message || 'Error merging threat models'

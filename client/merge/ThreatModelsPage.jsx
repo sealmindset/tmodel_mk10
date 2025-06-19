@@ -47,6 +47,7 @@ const SelectableModelRow = ({ model, isSelected, onToggleSelect, onViewDetails }
             checked={isSelected} 
             onChange={() => onToggleSelect(model)}
             id={`model-${model.id}`}
+            name={`model-${model.id}`}
           />
           <label className="form-check-label" htmlFor={`model-${model.id}`}>
             {title}
@@ -68,6 +69,8 @@ const SelectableModelRow = ({ model, isSelected, onToggleSelect, onViewDetails }
 }
 
 export default function ThreatModelsPage({ initialModels = null }) {
+  const [loading, setLoading] = useState(false);
+  console.log('[ThreatModelsPage] Component rendering started. Location:', window.location.href);
   // Model data states
   const [models, setModels] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -111,8 +114,9 @@ export default function ThreatModelsPage({ initialModels = null }) {
     if (newSelectedIds.has(model.id)) {
       // Remove from selection
       newSelectedIds.delete(model.id);
-      // Also remove from workspace if present
-      setWorkspaceModels(workspaceModels.filter(m => m.id !== model.id));
+      // Also remove from workspace if it's there
+      setLeftModels(prevLeftModels => prevLeftModels.filter(m => m.id !== model.id));
+      setRightModels(prevRightModels => prevRightModels.filter(m => m.id !== model.id));
     } else {
       // Add to selection
       newSelectedIds.add(model.id);
@@ -414,7 +418,53 @@ export default function ThreatModelsPage({ initialModels = null }) {
         </div>
       </div>
       
-      <MergePreviewModal preview={mergePreview} onClose={() => setMergePreview(null)} />
+      <MergePreviewModal
+        preview={mergePreview}
+        onClose={() => setMergePreview(null)}
+        onMergeComplete={async () => {
+          setLoading(true);
+          let attempts = 0;
+          let success = false;
+          let lastData = [];
+          while (attempts < 3 && !success) {
+            if (attempts > 0) {
+              // Wait 400ms before retrying
+              await new Promise(res => setTimeout(res, 400));
+            }
+            try {
+              const response = await fetch('/api/threat-models/list');
+              const data = await response.json();
+              lastData = Array.isArray(data) ? data : [];
+              if (lastData.length > 0) {
+                setModels(lastData);
+                success = true;
+              }
+            } catch (err) {
+              console.error(`Retry ${attempts+1}: Error refetching threat models after merge:`, err);
+            }
+            attempts++;
+          }
+          if (!success) {
+            setModels([]);
+            console.error('Failed to fetch threat models after merge, even after retries.');
+          }
+          setMergePreview(null);
+          setLoading(false);
+        }}
+      />
+      {loading && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, width: '100vw', height: '100vh',
+          background: 'rgba(255,255,255,0.7)',
+          zIndex: 2000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <div className="spinner-border text-primary" style={{ width: '4rem', height: '4rem' }} role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+        </div>
+      )}
       
       {/* Drag hint in workspace header instead of an overlay */}
 
