@@ -534,7 +534,12 @@ class Component {
                 COUNT(*)::int as count
               FROM threat_model.threats
               WHERE threat_model_id IN (${placeholders})
-              GROUP BY risk_level
+              GROUP BY CASE 
+                  WHEN risk_score >= 20 THEN 'Critical'
+                  WHEN risk_score >= 15 THEN 'High'
+                  WHEN risk_score >= 8 THEN 'Medium'
+                  ELSE 'Low'
+                END
             `;
             
             const threatsResult = await client.query(threatsQuery, threatModelIds);
