@@ -9,4 +9,4 @@ for port in {3000..3010}; do
 done
 clear
 clear
-npm run dev
+node app.js
