@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reports Simple Test</title>
+</head>
+<body>
+  <h1>Reports App Simple Test</h1>
+  <div id="reports-app">Loading reports app...</div>
+
+  <!-- Basic test script first -->
+  <script>
+    console.log('Inline script executed');
+    document.getElementById('reports-app').innerHTML += '<p>Inline script worked!</p>';
+  </script>
+
+  <!-- Simple test script -->
+  <script>
+    function testReportsFunction() {
+      console.log('Test function executed');
+      document.getElementById('reports-app').innerHTML += '<p>Test function executed!</p>';
+    }
+    
+    // Call it after a delay to ensure it runs
+    setTimeout(testReportsFunction, 500);
+  </script>
+
+  <!-- Reports App JavaScript (loaded last) -->
+  <script src="js/reports-app-vanilla-final.js"></script>
+</body>
+</html>

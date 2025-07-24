@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reports App Test</title>
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    .message-container {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 1050;
+      max-width: 350px;
+    }
+    .report-section {
+      margin-bottom: 1.5rem;
+    }
+    .hover-actions {
+      display: none;
+    }
+    .report-section:hover .hover-actions {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="container mt-4">
+    <div id="reports-app"></div>
+  </div>
+
+  <!-- Bootstrap and dependencies -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+  
+  <!-- Reports App JavaScript -->
+  <script src="js/reports-app-vanilla-final.js"></script>
+  
+  <!-- Console log any errors -->
+  <script>
+    window.addEventListener('error', function(e) {
+      console.error('JavaScript error:', e.message, 'at', e.filename, 'line', e.lineno);
+    });
+    
+    console.log('Test page loaded, checking for app initialization...');
+  </script>
+</body>
+</html>

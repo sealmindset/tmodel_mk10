@@ -646,4 +646,24 @@ router.get('/rapid7-url', async (req, res) => {
   }
 });
 
+/**
+ * @route GET /api/projects
+ * @desc Get all projects for the reports app
+ */
+router.get('/projects', async (req, res) => {
+  try {
+    // Set CORS headers to allow requests from browser-based reports app
+    res.set('Access-Control-Allow-Origin', '*');
+    
+    const result = await db.query(
+      'SELECT id, name, business_unit, criticality, status FROM projects ORDER BY name'
+    );
+    
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching projects:', error);
+    res.status(500).json({ error: 'Failed to fetch projects' });
+  }
+});
+
 module.exports = router;

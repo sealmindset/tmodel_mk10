@@ -50,8 +50,8 @@ app.use(express.json({ limit: '50mb' }));
 // Parse URL-encoded request bodies
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Serve static assets
-app.use(express.static('public'));
+// Serve static assets from /public at /public/*
+app.use('/public', express.static(path.join(__dirname, 'public')));
 
 // Now mount route handlers after middleware is configured
 // AI Assistant
@@ -240,8 +240,8 @@ app.use('/api/rapid7-test', require('./routes/api/rapid7-test'));
 app.use('/api/reference-architecture',
   require('./src/server/routes/referenceArchitecture')({ pool: app.locals.dbPool })
 );
-app.use('/api/report-prompts', require('./routes/api/reportPrompts'));
 app.use('/api/reports', require('./routes/api/reports'));
+app.use('/api/project-mapper', require('./routes/api/projectMapper')); // Project ID mapper for UUID-to-int conversion
 
 // Application Routes
 app.use('/components', require('./routes/components'));
@@ -260,6 +260,9 @@ app.use('/', require('./routes/projectDetailController'));
 
 // Reporting Routes
 app.use('/reporting', require('./routes/reporting'));
+
+// Reports App Routes
+app.use('/reports', require('./routes/reports'));
 
 // ROUTE DUMP: Print all registered routes at startup
 if (process.env.NODE_ENV !== 'production') {

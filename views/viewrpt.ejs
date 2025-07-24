@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %> | Threat Model Generator</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <!-- DataTables CSS -->
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css">
+    
+    <!-- Markdown Editor CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.css">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/public/css/style.css">
+
+    <style>
+        .report-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .tab-content {
+            padding: 20px;
+            border: 1px solid #dee2e6;
+            border-top: 0;
+            border-radius: 0 0 5px 5px;
+        }
+        #preview-pane {
+            padding: 20px;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            min-height: 500px;
+            max-height: 800px;
+            overflow-y: auto;
+        }
+        .export-btn {
+            margin-right: 8px;
+        }
+        .edit-controls {
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">Threat Model Generator</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/projects">Projects</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/reports">Reports</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/settings">Settings</a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <span class="nav-link text-light">
+                            <i class="fas fa-user"></i> <%= user.username %>
+                        </span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container mt-4 report-container">
+        <div class="row">
+            <div class="col">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h1 id="report-title">Report Viewer</h1>
+                    <div>
+                        <a href="/reports" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left"></i> Back to Reports
+                        </a>
+                    </div>
+                </div>
+                <hr>
+            </div>
+        </div>
+        
+        <!-- Report Actions -->
+        <div class="row mb-4">
+            <div class="col">
+                <div class="card">
+                    <div class="card-header">
+                        <ul class="nav nav-tabs card-header-tabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="view-tab" data-bs-toggle="tab" data-bs-target="#view" type="button" role="tab" aria-controls="view" aria-selected="true">View</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="edit-tab" data-bs-toggle="tab" data-bs-target="#edit" type="button" role="tab" aria-controls="edit" aria-selected="false">Edit</button>
+                            </li>
+                        </ul>
+                    </div>
+                    
+                    <div class="tab-content">
+                        <!-- View Tab -->
+                        <div class="tab-pane fade show active" id="view" role="tabpanel" aria-labelledby="view-tab">
+                            <div class="d-flex justify-content-end mb-3">
+                                <button class="btn btn-outline-primary export-btn" id="btn-pdf">
+                                    <i class="fas fa-file-pdf"></i> Export PDF
+                                </button>
+                                <button class="btn btn-outline-secondary export-btn" id="btn-markdown">
+                                    <i class="fas fa-file-code"></i> Download Markdown
+                                </button>
+                                <button class="btn btn-outline-secondary export-btn" id="btn-print">
+                                    <i class="fas fa-print"></i> Print
+                                </button>
+                            </div>
+                            
+                            <div id="preview-pane" class="markdown-body"></div>
+                        </div>
+                        
+                        <!-- Edit Tab -->
+                        <div class="tab-pane fade" id="edit" role="tabpanel" aria-labelledby="edit-tab">
+                            <div class="edit-controls">
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle"></i> 
+                                    Edit the report content below. Changes will be saved when you click "Save Changes".
+                                </div>
+                                
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <button class="btn btn-primary" id="btn-save">
+                                            <i class="fas fa-save"></i> Save Changes
+                                        </button>
+                                    </div>
+                                    <div>
+                                        <button class="btn btn-outline-secondary" id="btn-regenerate-section">
+                                            <i class="fas fa-sync-alt"></i> Regenerate Section
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <textarea id="markdown-editor"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Project Info Card -->
+        <div class="row mb-4">
+            <div class="col">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Project Information</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="project-info">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p><strong>Project:</strong> <span id="project-name">Loading...</span></p>
+                                    <p><strong>Business Unit:</strong> <span id="business-unit">Loading...</span></p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p><strong>Criticality:</strong> <span id="criticality">Loading...</span></p>
+                                    <p><strong>Date Generated:</strong> <span id="date-generated">Loading...</span></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap and jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Markdown Editor and Renderer -->
+    <script src="https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <!-- PDF Export Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <!-- View Report Page Script -->
+    <script src="/public/js/view-report.js"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const reportId = "<%= reportId %>";
+            initViewReportPage(reportId);
+        });
+    </script>
+</body>
+</html>

@@ -2,6 +2,7 @@
  * LLM API Routes
  * 
  * Routes for LLM-related functionality (OpenAI and Ollama)
+ * Includes report content generation endpoint
  */
 const express = require('express');
 const router = express.Router();
@@ -57,6 +58,59 @@ router.get('/status', async (req, res) => {
     res.status(500).json({ 
       success: false, 
       error: `Error checking ${req.query.provider || 'LLM'} status` 
+    });
+  }
+});
+
+/**
+ * @route POST /api/llm/generate
+ * @desc Generate content using LLM (OpenAI or Ollama)
+ * Used by the Reports app to generate content for report sections
+ */
+router.post('/generate', async (req, res) => {
+  try {
+    const { prompt, provider, model } = req.body;
+    
+    if (!prompt) {
+      return res.status(400).json({ success: false, error: 'Prompt is required' });
+    }
+    
+    let response;
+    const maxTokens = req.body.max_tokens || 2500;
+    
+    if (provider === 'ollama') {
+      // For Ollama, getCompletion is more appropriate but fall back to the existing method if needed
+      response = ollamaUtil.getCompletion ? 
+                await ollamaUtil.getCompletion(prompt, model || 'llama3', maxTokens) : 
+                await ollamaUtil.generateText(prompt, model || 'llama3');
+    } else {
+      // Default to OpenAI - use getCompletion which exists in the utility
+      response = await openaiUtil.getCompletion(prompt, model || 'gpt-4', maxTokens);
+    }
+    
+    // Record the prompt and completion in the API events
+    if (provider === 'ollama') {
+      ollamaUtil.logApiEvent('completion', {
+        prompt,
+        model: model || 'llama3',
+        completion: response,
+        timestamp: new Date()
+      });
+    } else {
+      openaiUtil.logApiEvent('completion', {
+        prompt,
+        model: model || 'gpt-4',
+        completion: response,
+        timestamp: new Date()
+      });
+    }
+    
+    res.json({ success: true, text: response });
+  } catch (error) {
+    console.error(`Error generating LLM content:`, error);
+    res.status(500).json({ 
+      success: false, 
+      error: `Error generating content: ${error.message}` 
     });
   }
 });
