@@ -57,11 +57,13 @@ router.post('/complete', async (req, res) => {
     // 3. Prepare content for storage
     let contentToStore;
     if (typeof reportContent === 'string') {
-      contentToStore = reportContent;
+      // assume markdown string for single-section legacy case
+      contentToStore = JSON.stringify({ sections: { full: reportContent } });
     } else if (typeof reportContent === 'object') {
-      contentToStore = JSON.stringify(reportContent);
+      const wrapped = reportContent.sections ? reportContent : { sections: reportContent };
+      contentToStore = JSON.stringify(wrapped);
     } else {
-      contentToStore = String(reportContent);
+      contentToStore = JSON.stringify({ sections: { unknown: String(reportContent) } });
     }
 
     // 4. Create a new report record in the database
@@ -76,28 +78,14 @@ router.post('/complete', async (req, res) => {
         const projectMapperResponse = await fetch(`http://localhost:3000/api/project-mapper/${projectId}`);
         if (projectMapperResponse.ok) {
           const projectMapperData = await projectMapperResponse.json();
-          if (projectMapperData.integerId) {
-            projectIdForStorage = projectMapperData.integerId;
+          if (projectMapperData.projectId) {
+            projectIdForStorage = projectMapperData.projectId;
           }
         } else {
           logger.warn(`Project mapper returned status ${projectMapperResponse.status}`);
         }
       } catch (error) {
         logger.warn(`Could not get integer project ID from mapper, using UUID directly: ${error.message}`);
-      }
-      if (!projectIdForStorage) {
-        // Fallback: attempt DB lookup only if mapper did not give us an ID
-        try {
-          const idResult = await pool.query('SELECT id FROM reports.project_map WHERE uuid = $1', [projectId]);
-          if (idResult.rows.length) {
-            projectIdForStorage = idResult.rows[0].id;
-          } else {
-            throw new Error('No integer mapping found for project UUID');
-          }
-        } catch (error) {
-          logger.error(`Failed to map project UUID to integer ID: ${error.message}`);
-          return res.status(400).json({ error: 'Unable to map project UUID to internal project ID' });
-        }
       }
     }
     

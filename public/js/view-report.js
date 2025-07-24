@@ -113,10 +113,16 @@ function setupReportView(report) {
   // Get report content
   let markdownContent = '';
   if (report.content) {
+    let contentObj = null;
     if (typeof report.content === 'string') {
       try {
-        markdownContent = JSON.parse(report.content);
+        contentObj = JSON.parse(report.content);
+        if (contentObj) {
+          const sectionsObject = contentObj.sections || contentObj;
+          markdownContent = formatReportContentToMarkdown(sectionsObject);
+        }
       } catch (e) {
+        // Plain markdown string already
         markdownContent = report.content;
       }
     } else if (typeof report.content === 'object') {
@@ -154,12 +160,18 @@ function formatReportContentToMarkdown(content) {
   // If content has sections property (from LLM generation)
   if (content.sections) {
     Object.entries(content.sections).forEach(([sectionName, sectionContent]) => {
-      // Format section name as title
       const title = sectionName
         .replace(/_/g, ' ')
         .replace(/\b\w/g, c => c.toUpperCase());
-      
-      markdown += `# ${title}\n\n${sectionContent}\n\n`;
+      let body;
+      if (typeof sectionContent === 'string') {
+        body = sectionContent;
+      } else if (typeof sectionContent === 'object' && sectionContent !== null) {
+        body = sectionContent.content || sectionContent.text || sectionContent.markdown || JSON.stringify(sectionContent, null, 2);
+      } else {
+        body = String(sectionContent);
+      }
+      markdown += `# ${title}\n\n${body}\n\n`;
     });
     return markdown;
   }
@@ -172,6 +184,17 @@ function formatReportContentToMarkdown(content) {
         .replace(/\b\w/g, c => c.toUpperCase());
       
       markdown += `# ${title}\n\n${value}\n\n`;
+    } else if (typeof value === 'object' && value !== null) {
+      // Attempt to extract content from known keys
+      let nestedContent = value.content || value.text || value.markdown || value;
+      if (typeof nestedContent !== 'string') {
+        nestedContent = JSON.stringify(nestedContent, null, 2);
+      }
+      const title = key
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, c => c.toUpperCase());
+      
+      markdown += `# ${title}\n\n${nestedContent}\n\n`;
     }
   }
   
