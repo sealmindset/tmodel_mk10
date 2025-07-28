@@ -97,10 +97,14 @@
               <i class="bi bi-diagram-3"></i>
             </a>
           </li>
-          <li class="nav-item">
-            <a class="nav-link <%= typeof active !== 'undefined' && active === 'prompts' ? 'active' : '' %>" href="/prompts" title="Prompts">
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle <%= typeof active !== 'undefined' && ['prompts','reportTemplates'].includes(active) ? 'active' : '' %>" href="#" id="promptDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false" title="Prompts">
               <i class="bi bi-chat-left-text"></i>
             </a>
+            <ul class="dropdown-menu" aria-labelledby="promptDropdown">
+              <li><a class="dropdown-item" href="/prompts">Prompt Templates</a></li>
+              <li><a class="dropdown-item" href="/report-templates">Report Templates</a></li>
+            </ul>
           </li>
           <li class="nav-item custom-settings-menu">
             <a class="nav-link <%= typeof active !== 'undefined' && active === 'settings' ? 'active' : '' %>" href="#" id="customSettingsMenuToggle" title="Settings" tabindex="0">

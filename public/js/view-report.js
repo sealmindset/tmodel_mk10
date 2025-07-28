@@ -149,6 +149,34 @@ function setupReportView(report) {
  * @param {Object} content - The report content object
  * @returns {string} Formatted markdown
  */
+function extractFirstString(obj) {
+  if (!obj) return null;
+  if (typeof obj === 'string') return obj;
+  // Handle OpenAI chat completion-like structure
+  if (obj.choices && Array.isArray(obj.choices)) {
+    for (const ch of obj.choices) {
+      const content = ch?.message?.content;
+      if (typeof content === 'string' && content.trim()) return content;
+    }
+  }
+  if (typeof obj.content === 'string') return obj.content;
+  if (typeof obj.text === 'string') return obj.text;
+  if (typeof obj.markdown === 'string') return obj.markdown;
+  if (Array.isArray(obj)) {
+    for (const item of obj) {
+      const s = extractFirstString(item);
+      if (s) return s;
+    }
+  } else if (typeof obj === 'object') {
+  } else if (typeof obj === 'object' && obj !== null) {
+    for (const value of Object.values(obj)) {
+      const s = extractFirstString(value);
+      if (s) return s;
+    }
+  }
+  return null;
+}
+
 function formatReportContentToMarkdown(content) {
   let markdown = '';
   
@@ -167,7 +195,11 @@ function formatReportContentToMarkdown(content) {
       if (typeof sectionContent === 'string') {
         body = sectionContent;
       } else if (typeof sectionContent === 'object' && sectionContent !== null) {
-        body = sectionContent.content || sectionContent.text || sectionContent.markdown || JSON.stringify(sectionContent, null, 2);
+        if (typeof sectionContent.content === 'string') {
+          body = sectionContent.content;
+        } else {
+          body = extractFirstString(sectionContent) || sectionContent;
+        }
       } else {
         body = String(sectionContent);
       }
@@ -190,6 +222,11 @@ function formatReportContentToMarkdown(content) {
       if (typeof nestedContent !== 'string') {
         nestedContent = JSON.stringify(nestedContent, null, 2);
       }
+      // Wrap JSON in code block for markdown readability if it looks like JSON
+      try {
+        JSON.parse(nestedContent);
+        nestedContent = `\n\n\`\`\`json\n${nestedContent}\n\`\`\``;
+      } catch (_) { /* not valid JSON, leave as-is */ }
       const title = key
         .replace(/_/g, ' ')
         .replace(/\b\w/g, c => c.toUpperCase());

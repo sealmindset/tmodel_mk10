@@ -1,0 +1,59 @@
+<%- include('partials/header') %>
+<div class="container py-4">
+  <h1>Report Template Admin</h1>
+  <div class="mb-3">
+    <label for="apiBase" class="form-label">Template API Base URL</label>
+    <input id="apiBase" class="form-control" type="text" value="http://localhost:3002" />
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-header">Create New Template</div>
+    <div class="card-body">
+      <div class="row g-2">
+        <div class="col-md-4">
+          <input id="newName" class="form-control" placeholder="Template name" />
+        </div>
+        <div class="col-md-6">
+          <input id="newDesc" class="form-control" placeholder="Description" />
+        </div>
+        <div class="col-md-2 d-grid">
+          <button id="btnCreate" class="btn btn-primary">Create</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Templates</h2>
+  <table class="table table-bordered" id="templatesTbl">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Description</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<!-- Modal for editing version content -->
+<div class="modal fade" id="versionModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="versionModalLabel">Edit Template Content</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <textarea id="versionContent" class="form-control" rows="15"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary" id="btnSaveVersion">Save as New Version</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="/js/templates-admin.js"></script>
+<%- include('partials/footer') %>

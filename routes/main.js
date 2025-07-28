@@ -195,6 +195,13 @@ async function getRecentActivity(limit = 5) {
   return activities.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, limit);
 }
 
+router.get('/report-templates', (req, res) => {
+  res.render('report-templates', {
+    user: req.session.username,
+    active: 'reportTemplates'
+  });
+});
+
 router.get('/prompts', async (req, res) => {
   console.log('[ROUTE] GET /prompts called');
   try {

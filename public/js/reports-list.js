@@ -8,6 +8,10 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function initProjectsTable() {
+  // Avoid DataTables reinitialisation error
+  if ($.fn.DataTable.isDataTable('#projects-table')) {
+    $('#projects-table').DataTable().clear().destroy();
+  }
   const table = $('#projects-table').DataTable({
     columns: [
       { data: 'name' },
