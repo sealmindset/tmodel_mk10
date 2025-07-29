@@ -2989,7 +2989,7 @@ COPY public.activity_logs (id, type, description, user_id, "timestamp") FROM std
 --
 
 COPY public.api_keys (id, provider, api_key, created_at, updated_at, is_active) FROM stdin;
-1	openai	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	2025-05-12 13:48:34.948582-05	2025-05-12 13:48:34.948582-05	t
+1	openai	sk-12345678909PKcTTs9xPT3BlbkFJi4ihH3geAOZHLLkcZ0gL	2025-05-12 13:48:34.948582-05	2025-05-12 13:48:34.948582-05	t
 2	rapid7	c8428ef0-6786-4a6e-aaa8-ac4841d87894	2025-05-12 13:48:34.948582-05	2025-05-12 13:48:34.948582-05	t
 \.
 
