@@ -9,14 +9,44 @@
   <form id="llm-provider-form" action="/settings" method="POST">
     <input type="radio" name="llmProvider" value="openai" checked> OpenAI<br>
     <input type="radio" name="llmProvider" value="ollama"> Ollama<br>
+    <input type="hidden" name="settingsType" value="llm">
     <button type="submit">Save LLM Provider</button>
   </form>
+
+  <hr>
+  <h2>RAG Settings</h2>
+  <form id="rag-settings-form" action="/settings" method="POST">
+    <input type="hidden" name="settingsType" value="rag">
+    <label for="rag-cutoff">Retrieval Distance Cutoff:</label>
+    <input id="rag-cutoff" name="ragRetrievalCutoff" type="number" step="0.01" min="0.01" max="2" value="<%= typeof ragRetrievalCutoff !== 'undefined' ? ragRetrievalCutoff : 0.45 %>">
+    <button type="submit">Save RAG Cutoff</button>
+  </form>
+
+  <div style="margin-top:10px;">
+    <button id="btn-rag-selftest" type="button">Run RAG Self-Test</button>
+    <pre id="rag-selftest-output" style="background:#f4f4f4; padding:8px; max-height:240px; overflow:auto;"></pre>
+  </div>
   <script>
     document.addEventListener("DOMContentLoaded", function() {
       const form = document.getElementById('llm-provider-form');
       if (form) {
         form.addEventListener('submit', function(event) {
           alert("DEBUG: LLM Provider form submit triggered!");
+        });
+      }
+
+      const btnSelftest = document.getElementById('btn-rag-selftest');
+      const out = document.getElementById('rag-selftest-output');
+      if (btnSelftest && out) {
+        btnSelftest.addEventListener('click', async function() {
+          out.textContent = 'Running self-test...';
+          try {
+            const resp = await fetch('/api/rag/selftest', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+            const data = await resp.json();
+            out.textContent = JSON.stringify(data, null, 2);
+          } catch (e) {
+            out.textContent = 'Self-test error: ' + e.message;
+          }
         });
       }
     });

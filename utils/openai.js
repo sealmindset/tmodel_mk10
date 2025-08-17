@@ -15,34 +15,49 @@ const logger = require('./logger').forModule('openai');
 // Flag to ensure we only log the API key message once per server startup
 let apiKeyMessageLogged = false;
 
-// Function to get API key from PostgreSQL exclusively (no .env fallback)
+// Function to get API key from settings first (threat_model.settings),
+// then fall back to legacy public.api_keys. No .env fallback here.
 const getApiKey = async () => {
   try {
-    // Import the database pool
+    // 1) Try threat_model.settings via settingsService (bypass cache to avoid stale key)
+    const settingsService = require('../services/settingsService');
+    // Force cache clear to ensure we see keys inserted outside the app flow
+    if (typeof settingsService.clearSettingsCache === 'function') {
+      settingsService.clearSettingsCache();
+    }
+    // Read directly by key to avoid full-cache reliance
+    const keyFromSettings = await settingsService.getSettingByKey('openai.api_key');
+    if (keyFromSettings && String(keyFromSettings).trim() !== '') {
+      if (!apiKeyMessageLogged) {
+        logger.info('Loaded OpenAI API key from threat_model.settings (openai.api_key)');
+        apiKeyMessageLogged = true;
+      }
+      return String(keyFromSettings).trim();
+    }
+
+    // 2) Fall back to legacy table public.api_keys
     const pool = require('../db/db');
-    
-    // Query the database directly
-    logger.debug('Retrieving OpenAI API key from PostgreSQL');
+    logger.debug('Falling back to legacy public.api_keys table for OpenAI API key');
     const result = await pool.query(
       'SELECT api_key FROM api_keys WHERE provider = $1 AND is_active = true ORDER BY updated_at DESC LIMIT 1',
       ['openai']
     );
-
     if (result.rows.length > 0) {
       const apiKey = result.rows[0].api_key;
       if (apiKey && apiKey.trim() !== '') {
         if (!apiKeyMessageLogged) {
-          logger.info('Successfully loaded OpenAI API key from PostgreSQL database');
+          logger.info('Loaded OpenAI API key from public.api_keys');
           apiKeyMessageLogged = true;
         }
         return apiKey;
       } else {
-        logger.warn('Retrieved empty OpenAI API key from PostgreSQL');
+        logger.warn('Retrieved empty OpenAI API key from public.api_keys');
       }
     } else {
-      logger.warn('No OpenAI API key found in PostgreSQL');
+      logger.warn('No OpenAI API key found in public.api_keys');
     }
 
+    logger.warn('No OpenAI API key found in PostgreSQL settings or legacy table');
     return null;
   } catch (error) {
     logger.error('Error getting OpenAI API key', null, error);
@@ -85,6 +100,8 @@ const refreshClient = async () => {
 
     // Create a new OpenAI API client (v4.x+)
     openai = new OpenAI({ apiKey });
+    // Also update the exported reference so external consumers get the fresh client
+    module.exports.openai = openai;
     logger.info('OpenAI client refreshed with new key');
     return true;
   } catch (error) {
@@ -214,7 +231,17 @@ const getCompletion = async (prompt, model = 'gpt-4', maxTokens = 100, options =
     let task_type = options.task_type || null;
     let session_id = options.session_id || null;
     let meta = options.meta || null;
-    if (model.includes('gpt-3.5') || model.includes('gpt-4')) {
+    // Decide API: default to chat.completions for modern models
+    // Use legacy completions only for classic instruct/text models
+    const modelId = String(model || '').toLowerCase();
+    const isLegacyCompletionModel = (
+      modelId.startsWith('text-') ||
+      modelId.includes('instruct') ||
+      modelId === 'davinci-002' ||
+      modelId === 'babbage-002'
+    );
+    if (!isLegacyCompletionModel) {
+      logger.info(`[openai.getCompletion] Using chat.completions for model=${model}`);
       logApiEvent('request', {
         model,
         prompt,
@@ -231,6 +258,7 @@ const getCompletion = async (prompt, model = 'gpt-4', maxTokens = 100, options =
       usage = response.usage || {};
       completionText = response.choices && response.choices[0] ? response.choices[0].message.content : '';
     } else {
+      logger.info(`[openai.getCompletion] Using legacy completions for model=${model}`);
       logApiEvent('request', {
         model,
         prompt,
@@ -269,11 +297,20 @@ const getCompletion = async (prompt, model = 'gpt-4', maxTokens = 100, options =
     }
     return response;
   } catch (error) {
+    const status = error?.response?.status;
+    const data = error?.response?.data;
     logApiEvent('error', {
       message: error.message,
-      code: error.response?.status,
-      details: error.response?.data
+      code: status,
+      details: data
     });
+    try {
+      logger.error('[openai.getCompletion] OpenAI request failed', {
+        model,
+        status,
+        error: data || error.message
+      });
+    } catch (_) {}
     console.error('Error fetching from OpenAI API:', error.message);
     throw error;
   }
@@ -282,16 +319,18 @@ const getCompletion = async (prompt, model = 'gpt-4', maxTokens = 100, options =
 
 /**
  * Fetch available models from OpenAI API
- * Returns array of model ids (e.g., gpt-3.5-turbo, gpt-4, etc.)
+ * Returns array of model ids (e.g., gpt-4o, gpt-4o-mini, gpt-4-turbo, etc.)
  */
 const fetchAvailableModels = async () => {
   try {
     await refreshClient();
-    const response = await openai.models.list();
-    // Filter for models that are chat/completion capable
-    const models = response.data.data
-      .map(m => m.id)
-      .filter(id => id.startsWith('gpt-'));
+    const list = await openai.models.list();
+    const data = (list && Array.isArray(list.data)) ? list.data : [];
+    // Return all model ids to include new families (e.g., o3, o4, omni)
+    const models = data
+      .map(m => m && m.id)
+      .filter(Boolean);
+    logger.info(`[openai] Retrieved ${models.length} OpenAI models: ` + models.slice(0, 10).join(', ') + (models.length > 10 ? '...' : ''));
     return models;
   } catch (error) {
     console.error('Error fetching OpenAI models:', error.message);
@@ -309,7 +348,8 @@ const getPreferredOpenAIConfig = async () => {
   const provider = await settingsService.getSetting('settings:llm:provider', 'openai');
   if (provider !== 'openai') return null;
   const apiKey = await getApiKey();
-  const model = await settingsService.getSetting('settings:api:openai:model', 'gpt-3.5-turbo');
+  // Prefer model set by settings/openai route: threat_model.settings key 'openai.model'
+  const model = await settingsService.getSetting('openai.model', 'gpt-3.5-turbo');
   return { provider, apiKey, model };
 };
 

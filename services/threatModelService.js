@@ -305,21 +305,34 @@ function parseThreatsFromResponse(responseText) {
   if (!responseText) return [];
   
   const threats = [];
-  // This regex pattern looks for threat sections in the formatted response
-  const threatPattern = /### Threat: ([\s\S]*?)(?=### Threat:|$)/g;
-  let match;
 
-  while ((match = threatPattern.exec(responseText)) !== null) {
-    const threatText = match[1].trim();
-    const titleMatch = threatText.match(/\*\*Title:\*\*\s?(.+?)(?:\n|$)/);
-    const descriptionMatch = threatText.match(/\*\*Description:\*\*\s?(.+?)(?:\n|$)/);
-    
-    if (titleMatch) {
-      threats.push({
-        title: titleMatch[1].trim(),
-        description: descriptionMatch ? descriptionMatch[1].trim() : '',
-        content: match[0] // The full matching threat section
-      });
+  // Primary parser: headings like '## Threat: <title>' or '### Threat: <title>'
+  // Capture the title from the heading line and include the full block until the next Threat heading
+  const headerBlockRe = /^(?:#{2,3})\s*Threat:\s*(.+?)\s*#*\s*$\n?([\s\S]*?)(?=^(?:#{2,3})\s*Threat:|\Z)/gmi;
+  let m;
+  while ((m = headerBlockRe.exec(responseText)) !== null) {
+    const title = (m[1] || '').trim();
+    const body = (m[2] || '').trim();
+    if (!title) continue;
+    const fullContent = `## Threat: ${title}\n\n${body}`.trim();
+    threats.push({ title, description: '', content: fullContent });
+  }
+
+  // Backward compatibility: legacy blocks where title was inside '**Title:**'
+  if (threats.length === 0) {
+    const legacyRe = /### Threat: ([\s\S]*?)(?=### Threat:|$)/g;
+    let match;
+    while ((match = legacyRe.exec(responseText)) !== null) {
+      const threatText = match[1].trim();
+      const titleMatch = threatText.match(/\*\*Title:\*\*\s?(.+?)(?:\n|$)/);
+      const descriptionMatch = threatText.match(/\*\*Description:\*\*\s?(.+?)(?:\n|$)/);
+      if (titleMatch) {
+        threats.push({
+          title: titleMatch[1].trim(),
+          description: descriptionMatch ? descriptionMatch[1].trim() : '',
+          content: match[0]
+        });
+      }
     }
   }
 
@@ -387,5 +400,7 @@ module.exports = {
   listThreatModels,
   updateThreatModel,
   getSubjectText,
-  mergeSelectedThreats
+  mergeSelectedThreats,
+  // Exported to support RAG ingestion without duplicating parsing logic
+  parseThreatsFromResponse
 };

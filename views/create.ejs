@@ -77,12 +77,7 @@
           </div>
         </div>
         <script>
-          // Available models for each provider from EJS
-          const openaiModels = [
-            { name: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
-            { name: 'gpt-4', label: 'GPT-4' },
-            { name: 'gpt-4-turbo', label: 'GPT-4 Turbo' }
-          ];
+          // Model defaults from server-rendered settings
           const llmProviderDefault = <%- JSON.stringify(llmProvider) %>;
           const openaiModelDefault = <%- JSON.stringify(openaiModel) %>;
           const ollamaModelDefault = <%- JSON.stringify(ollamaModel) %>;
@@ -109,9 +104,20 @@
               defaultModel = ollamaModelDefault;
               providerInfo.innerHTML = 'Using local Ollama models. <a href="/settings">Change provider in settings</a>.';
             } else {
-              models = openaiModels;
-              defaultModel = openaiModelDefault;
-              providerInfo.innerHTML = 'Using OpenAI API. <a href="/settings">Change provider in settings</a>.';
+              // Dynamically fetch OpenAI models
+              try {
+                const res = await fetch('/api/openai-models');
+                const data = await res.json();
+                if (data.success && Array.isArray(data.models) && data.models.length) {
+                  models = data.models.map(id => ({ name: id }));
+                } else {
+                  models = [{ name: openaiModelDefault || 'gpt-4' }];
+                }
+              } catch (err) {
+                models = [{ name: openaiModelDefault || 'gpt-4' }];
+              }
+              defaultModel = openaiModelDefault || (models[0] && models[0].name) || 'gpt-4';
+              providerInfo.innerHTML = 'Using OpenAI API. <a href="/settings/openai">Manage OpenAI settings</a>.';
             }
             models.forEach(model => {
               const opt = document.createElement('option');

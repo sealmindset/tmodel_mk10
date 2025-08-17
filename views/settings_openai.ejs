@@ -20,9 +20,15 @@
       <div class="mb-3">
         <label class="form-label">Model</label>
         <select name="openai_model" class="form-select">
-          <option value="gpt-4" <%= settings['openai.model'] === 'gpt-4' ? 'selected' : '' %>>GPT-4</option>
-          <option value="gpt-4-turbo" <%= settings['openai.model'] === 'gpt-4-turbo' ? 'selected' : '' %>>GPT-4 Turbo</option>
-          <option value="gpt-3.5-turbo" <%= settings['openai.model'] === 'gpt-3.5-turbo' ? 'selected' : '' %>>GPT-3.5 Turbo</option>
+          <% if (Array.isArray(models) && models.length) { %>
+            <% models.forEach(function(m) { %>
+              <option value="<%= m %>" <%= settings['openai.model'] === m ? 'selected' : '' %>><%= m %></option>
+            <% }) %>
+          <% } else { %>
+            <option value="gpt-4" <%= settings['openai.model'] === 'gpt-4' ? 'selected' : '' %>>gpt-4</option>
+            <option value="gpt-4-turbo" <%= settings['openai.model'] === 'gpt-4-turbo' ? 'selected' : '' %>>gpt-4-turbo</option>
+            <option value="gpt-3.5-turbo" <%= settings['openai.model'] === 'gpt-3.5-turbo' ? 'selected' : '' %>>gpt-3.5-turbo</option>
+          <% } %>
         </select>
       </div>
       <button type="submit" class="btn btn-primary">Save</button>

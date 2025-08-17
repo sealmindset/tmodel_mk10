@@ -12,7 +12,9 @@
     "db:init": "node scripts/initDb.js",
     "db:verify": "node scripts/verifyDbSchema.js",
     "db:migrate": "node scripts/migrateDb.js",
-    "build:merge-ui": "vite build"
+    "build:merge-ui": "vite build",
+    "rag:check": "node scripts/check-rag.js",
+    "rag:ingest": "node scripts/ingest-rag.js --limit 200"
   },
   "keywords": [],
   "author": "",

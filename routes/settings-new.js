@@ -53,6 +53,9 @@ router.get('/', ensureAuthenticated, async (req, res) => {
       }
     }
 
+    // rag retrieval settings
+    const ragRetrievalCutoff = await settingsService.getSetting('rag.retrieval_distance_cutoff', 0.45);
+
     // render view
     res.render('settings', {
       llmProvider,
@@ -69,6 +72,7 @@ router.get('/', ensureAuthenticated, async (req, res) => {
       rapid7ApiUrl,
       rapid7Status,
       postgresStatus,
+      ragRetrievalCutoff,
       message: req.session.message || null
     });
     delete req.session.message;
@@ -91,6 +95,7 @@ router.get('/', ensureAuthenticated, async (req, res) => {
       rapid7ApiUrl: '',
       rapid7Status: false,
       postgresStatus: false,
+      ragRetrievalCutoff: 0.45,
       message: { type: 'danger', text: 'Error loading settings: ' + err.message }
     });
   }
@@ -174,6 +179,18 @@ router.post('/', ensureAuthenticated, upload.none(), async (req, res) => {
       }
       await rapid7Service.refreshClient();
       req.session.message = { type: 'success', text: 'Rapid7 settings saved.' };
+    } else if (settingsType === 'rag') {
+      const { ragRetrievalCutoff } = req.body;
+      const cutoffNum = Number(ragRetrievalCutoff);
+      if (!isFinite(cutoffNum) || cutoffNum <= 0 || cutoffNum > 2) {
+        throw new Error('Invalid RAG retrieval cutoff');
+      }
+      await settingsService.storeSetting(
+        'rag.retrieval_distance_cutoff',
+        cutoffNum,
+        'RAG retrieval distance cutoff for pgvector distance filtering'
+      );
+      req.session.message = { type: 'success', text: 'RAG retrieval cutoff saved.' };
     }
     // end of settingsType cases
     res.redirect('/settings');

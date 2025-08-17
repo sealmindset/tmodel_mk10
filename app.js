@@ -20,6 +20,8 @@ const dbSettingsService   = require('./services/dbSettingsService');
 const openaiUtil          = require('./utils/openai');
 const ollamaUtil          = require('./utils/ollama');
 const scheduler           = require('./utils/scheduler');
+const { ingestThreatModel } = require('./services/ragIngestService');
+const db                  = require('./database');
 
 const assistantRoutes = require('./assistant/assistantRoutes');
 
@@ -172,19 +174,84 @@ app.post('/ask', ensureAuthenticated, async (req, res) => {
 
     // 2. Replace SUBJECT placeholder with submitted subject
     const composedPrompt = promptTemplate.replace(/\{\{\s*SUBJECT\s*\}\}|SUBJECT/g, subject);
-    console.log('Composed prompt for LLM:', composedPrompt);
+    console.log('Composed prompt (pre-RAG) for LLM:', composedPrompt);
+
+    // 2b. RAG retrieval: fetch top-K relevant chunks for subject and prepend as CONTEXT
+    let finalPrompt = composedPrompt;
+    try {
+      const embeddingModel = await settingsService.getSetting('rag.embedding_model', 'text-embedding-3-small');
+      const topK = Math.max(1, Math.min(Number(await settingsService.getSetting('rag.top_k', 8)), 50));
+      const cutoff = Number(await settingsService.getSetting('rag.retrieval_distance_cutoff', 0.35));
+
+      await openaiUtil.refreshClient();
+      const embStart = Date.now();
+      const embResp = await openaiUtil.openai.embeddings.create({ model: embeddingModel, input: subject || composedPrompt });
+      const queryEmbedding = embResp.data?.[0]?.embedding;
+      if (Array.isArray(queryEmbedding) && queryEmbedding.length > 0) {
+        console.log('[RAG] Computed subject embedding', { ms: Date.now() - embStart, dim: queryEmbedding.length });
+        const sqlVector = '[' + queryEmbedding.join(',') + ']';
+        const sql = `
+          WITH q AS (SELECT $1::vector AS query_embedding)
+          SELECT id, record_id, threat_title, content, metadata,
+                 (embedding <=> (SELECT query_embedding FROM q)) AS distance
+            FROM threat_model.rag_chunks
+           WHERE section = 'threat'
+           ORDER BY embedding <=> (SELECT query_embedding FROM q)
+           LIMIT $2;
+        `;
+        const qStart = Date.now();
+        const rows = await db.query(sql, [sqlVector, topK * 4]); // overfetch for post-filter
+        console.log('[RAG] Vector search done', { ms: Date.now() - qStart, rows: rows.rows.length, cutoff, topK });
+
+        const filtered = rows.rows
+          .map(r => ({
+            id: r.id,
+            title: r.threat_title || 'Untitled',
+            content: r.content || '',
+            metadata: r.metadata || {},
+            distance: Number(r.distance)
+          }))
+          .filter(r => isFinite(r.distance) && r.distance <= cutoff)
+          .sort((a, b) => a.distance - b.distance)
+          .slice(0, topK);
+
+        if (filtered.length > 0) {
+          const clamp = (s, n) => (s && s.length > n ? s.slice(0, n) + '…' : (s || ''));
+          const ctxLines = filtered.map((m, idx) => {
+            const excerpt = clamp(m.content.replace(/\s+/g, ' ').trim(), 800);
+            return `[${idx + 1}] Title: ${clamp(m.title, 120)}\n${excerpt}`;
+          });
+          const contextBlock = [
+            'SYSTEM:',
+            'Use the following context snippets to ground your analysis. Cite with [#] when applicable. Do not fabricate context.',
+            '',
+            'CONTEXT (RAG excerpts):',
+            ...ctxLines,
+            '',
+          ].join('\n');
+          finalPrompt = contextBlock + '\n' + composedPrompt + '\n\nAdd citations like [1], [2] to indicate which context items informed each threat.';
+        } else {
+          console.log('[RAG] No matches under cutoff; proceeding without CONTEXT');
+        }
+      } else {
+        console.warn('[RAG] Empty embedding for subject; skipping retrieval');
+      }
+    } catch (ragErr) {
+      console.error('[RAG] Retrieval error; proceeding without CONTEXT:', ragErr.message);
+    }
+    console.log('Final prompt (post-RAG injection) for LLM:', (finalPrompt || composedPrompt));
 
     // 3. Call the correct LLM provider
     let llmResponseText = '';
     try {
       if (llmProvider === 'ollama') {
         const ollamaUtil = require('./utils/ollama');
-        const ollamaResp = await ollamaUtil.getCompletion(composedPrompt, model, 400);
+        const ollamaResp = await ollamaUtil.getCompletion(finalPrompt, model, 400);
         llmResponseText = ollamaResp || '';
         console.log('Ollama LLM response:', llmResponseText.slice(0, 200));
       } else {
         const openaiUtil = require('./utils/openai');
-        const openaiResp = await openaiUtil.getCompletion(composedPrompt, model, 400);
+        const openaiResp = await openaiUtil.getCompletion(finalPrompt, model, 400);
         llmResponseText = openaiResp?.choices?.[0]?.message?.content || openaiResp?.choices?.[0]?.text || '';
         console.log('OpenAI LLM response:', llmResponseText.slice(0, 200));
       }
@@ -207,6 +274,20 @@ app.post('/ask', ensureAuthenticated, async (req, res) => {
     // 5. Save to DB
     const created = await threatModelService.createThreatModel(threatModelData);
     console.log('Threat model created:', created.id);
+    // Non-blocking: enqueue RAG ingestion for this model (cleanup old chunks)
+    try {
+      setImmediate(async () => {
+        try {
+          console.log('[RAG] Starting per-model ingestion for', created.id);
+          const resIngest = await ingestThreatModel(created.id, { cleanup: true });
+          console.log('[RAG] Ingestion complete', resIngest);
+        } catch (e) {
+          console.error('[RAG] Ingestion error for', created.id, e);
+        }
+      });
+    } catch (e) {
+      console.error('[RAG] Failed to schedule ingestion task', e);
+    }
     return res.json({ id: created.id });
   } catch (err) {
     console.error('Error generating threat model:', err);

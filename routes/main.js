@@ -40,6 +40,17 @@ router.get('/', async (req, res) => {
   }
 });
 
+// API: return available OpenAI models
+router.get('/api/openai-models', async (req, res) => {
+  try {
+    const models = await openaiUtil.fetchAvailableModels();
+    return res.json({ success: true, models });
+  } catch (err) {
+    console.error('Error fetching OpenAI models:', err);
+    return res.status(500).json({ success: false, error: 'Failed to fetch OpenAI models' });
+  }
+});
+
 // Create new threat model page
 const { getOllamaModels } = require('../utils/ollamaModelList');
 router.get('/create', async (req, res) => {
@@ -54,7 +65,7 @@ router.post('/create', async (req, res) => {
         error: 'System to Analyze (subject) is required.',
         success: null,
         llmProvider,
-        openaiModel: await settingsService.getSettingByKey('openai.api_model'),
+        openaiModel: await settingsService.getSettingByKey('openai.model'),
         ollamaModel: await settingsService.getSettingByKey('ollama.model'),
         availableOllamaModels: []
       });
@@ -69,7 +80,7 @@ router.post('/create', async (req, res) => {
       completion = await ollamaUtil.getCompletion(subject, usedModel);
     } else {
       // Use OpenAI or other provider logic
-      usedModel = usedModel || await settingsService.getSettingByKey('openai.api_model') || 'gpt-3.5-turbo';
+      usedModel = usedModel || await settingsService.getSettingByKey('openai.model') || 'gpt-3.5-turbo';
       completion = await openaiUtil.getCompletion(subject, usedModel);
     }
     // Save the threat model (ensure single creation)
@@ -89,7 +100,7 @@ router.post('/create', async (req, res) => {
       error: 'Failed to create threat model. ' + (error.message || ''),
       success: null,
       llmProvider: await settingsService.getSettingByKey('llm.provider'),
-      openaiModel: await settingsService.getSettingByKey('openai.api_model'),
+      openaiModel: await settingsService.getSettingByKey('openai.model'),
       ollamaModel: await settingsService.getSettingByKey('ollama.model'),
       availableOllamaModels: []
     });
@@ -98,7 +109,7 @@ router.post('/create', async (req, res) => {
   try {
     // Get LLM provider settings from PostgreSQL
     const llmProvider = await settingsService.getSettingByKey('llm.provider');
-    const openaiModel = await settingsService.getSettingByKey('openai.api_model');
+    const openaiModel = await settingsService.getSettingByKey('openai.model');
     const ollamaModel = await settingsService.getSettingByKey('ollama.model');
 
     console.log('LLM Provider from DB:', llmProvider);

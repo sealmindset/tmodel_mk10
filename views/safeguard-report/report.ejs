@@ -202,6 +202,36 @@
       </div>
     </div>
     
+    <!-- Minimal RAG Search Panel -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">RAG Search</h5>
+            <small class="text-muted">Search ingested threat chunks</small>
+          </div>
+          <div class="card-body">
+            <div class="row g-2 align-items-end">
+              <div class="col-md-8">
+                <label for="ragQuery" class="form-label">Query</label>
+                <input type="text" id="ragQuery" class="form-control" placeholder="e.g., OAuth token theft">
+              </div>
+              <div class="col-md-2">
+                <label for="ragTopK" class="form-label">Top K</label>
+                <input type="number" id="ragTopK" class="form-control" min="1" max="20" value="5">
+              </div>
+              <div class="col-md-2 d-grid">
+                <button class="btn btn-outline-primary" id="ragSearchBtn" onclick="runRagSearch()">Search RAG</button>
+              </div>
+            </div>
+            <div class="mt-3">
+              <pre id="ragResults" class="bg-light p-3" style="max-height: 260px; overflow:auto;"><!-- Results appear here --></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
     <div class="row">
       <div class="col-12 mb-4">
         <div class="card">
@@ -571,6 +601,57 @@
         cacheStatus.innerHTML = `<span class="cache-indicator">Using cached data from ${timestamp}</span>`;
       } else {
         cacheStatus.innerHTML = '';
+      }
+    }
+    
+    // --- Minimal RAG Search (uses existing /api/rag/search) ---
+    function log(msg, data) {
+      try { console.log('[RAG-UI]', msg, data || ''); } catch (_) {}
+    }
+    
+    async function runRagSearch() {
+      const btn = document.getElementById('ragSearchBtn');
+      const qEl = document.getElementById('ragQuery');
+      const kEl = document.getElementById('ragTopK');
+      const out = document.getElementById('ragResults');
+      const query = (qEl.value || '').trim();
+      const topK = parseInt(kEl.value, 10) || 5;
+      
+      if (!query) {
+        out.textContent = 'Enter a query to search.';
+        return;
+      }
+      
+      btn.disabled = true;
+      out.textContent = 'Searching...';
+      log('Submitting RAG search', { query, topK });
+      try {
+        const resp = await fetch('/api/rag/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query, topK })
+        });
+        const data = await resp.json();
+        if (!resp.ok || !data.success) {
+          const err = data.error || `HTTP ${resp.status}`;
+          log('RAG search failed', err);
+          out.textContent = `Error: ${err}`;
+          return;
+        }
+        // Render compact results: title, distance, snippet
+        const lines = (data.results || []).map((r, idx) => {
+          const title = r.threat_title || r.section || 'Result';
+          const dist = (typeof r.distance === 'number') ? r.distance.toFixed(4) : 'n/a';
+          const snippet = (r.content || '').slice(0, 220).replace(/\n/g, ' ');
+          return `${idx + 1}. [${dist}] ${title}\n    ${snippet}`;
+        });
+        out.textContent = lines.length ? lines.join('\n\n') : 'No results.';
+        log('RAG search succeeded', { count: lines.length });
+      } catch (e) {
+        log('RAG search exception', e);
+        out.textContent = `Error: ${e.message}`;
+      } finally {
+        btn.disabled = false;
       }
     }
   </script>

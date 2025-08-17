@@ -21,6 +21,7 @@ router.use('/components',         require('./components'));
 router.use('/report-generator',   require('./reportGenerator'));
 router.use('/project-mapper',     require('./projectMapper'));
 router.use('/',                   require('./projectAssignments'));
+router.use('/rag',                require('./rag'));
 
 // Health
 // Explicit OPTIONS preflight handler for /api/status
