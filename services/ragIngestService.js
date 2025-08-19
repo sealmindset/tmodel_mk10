@@ -63,6 +63,20 @@ async function insertChunk(row) {
  * @param {string} modelId UUID of the threat model in threat_model.threat_models
  * @param {{cleanup?: boolean}} options
  */
+async function getDbVectorDim() {
+  const sql = `
+    SELECT regexp_replace(format_type(a.atttypid, a.atttypmod), '^.*\\((\\d+)\\)$', '\\1')::int AS dim
+      FROM pg_attribute a
+      JOIN pg_class c ON c.oid = a.attrelid
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE n.nspname = 'threat_model'
+       AND c.relname = 'rag_chunks'
+       AND a.attname = 'embedding'
+  `;
+  const { rows } = await db.query(sql);
+  return rows && rows[0] ? Number(rows[0].dim) : null;
+}
+
 async function ingestThreatModel(modelId, options = {}) {
   const { cleanup = false } = options;
   const started = Date.now();
@@ -94,6 +108,16 @@ async function ingestThreatModel(modelId, options = {}) {
   // 3) Ensure OpenAI client and embedding model
   await openaiUtil.refreshClient();
   const embeddingModel = await settingsService.getSetting('rag.embedding_model', 'text-embedding-3-small');
+  // Determine DB vector dimension once per run
+  let dbDim = null;
+  try {
+    dbDim = await getDbVectorDim();
+    if (!dbDim) throw new Error('DB vector dimension not found');
+    logger.info('DB vector dimension resolved', { dbDim, embeddingModel });
+  } catch (e) {
+    logger.error('Failed to resolve DB vector dimension', { error: e.message });
+    throw e;
+  }
 
   let totalInserted = 0;
 
@@ -110,6 +134,10 @@ async function ingestThreatModel(modelId, options = {}) {
       const vec = resp.data?.[0]?.embedding;
       if (!Array.isArray(vec) || vec.length === 0) {
         logger.warn('Empty embedding', { modelId, threatTitle });
+        continue;
+      }
+      if (vec.length !== dbDim) {
+        logger.error('Embedding dimension mismatch; skipping chunk', { modelId, threatTitle, got: vec.length, expected: dbDim });
         continue;
       }
       embedding = '[' + vec.join(',') + ']';

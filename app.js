@@ -244,16 +244,49 @@ app.post('/ask', ensureAuthenticated, async (req, res) => {
     // 3. Call the correct LLM provider
     let llmResponseText = '';
     try {
+      // Resolve max tokens from settings with sensible defaults and support 'auto' (omit max_tokens)
+      let maxTokens = 2000;
+      let maxTokensMode = 'numeric';
+      try {
+        if (llmProvider === 'ollama') {
+          const raw = await settingsService.getSetting('settings:api:ollama:max_tokens_create', '2000', true);
+          const valStr = (raw ?? '').toString().trim().toLowerCase();
+          if (valStr === 'auto') {
+            maxTokens = Number.NaN; // signal to omit downstream
+            maxTokensMode = 'auto';
+          } else {
+            const n = Number(raw);
+            maxTokens = Math.max(256, Math.min(Number.isFinite(n) ? n : 2000, 4096));
+          }
+        } else {
+          const raw = await settingsService.getSetting('settings:api:openai:max_tokens_create', '2000', true);
+          const valStr = (raw ?? '').toString().trim().toLowerCase();
+          if (valStr === 'auto') {
+            maxTokens = Number.NaN; // signal to omit downstream
+            maxTokensMode = 'auto';
+          } else {
+            const n = Number(raw);
+            maxTokens = Math.max(256, Math.min(Number.isFinite(n) ? n : 2000, 4096));
+          }
+        }
+      } catch (e) {
+        console.warn('[ASK] Failed to load max_tokens setting, using default 2000:', e.message);
+        maxTokens = 2000;
+      }
+      console.log(`[ASK] max_tokens mode=${maxTokensMode}${maxTokensMode==='numeric' ? ` value=${maxTokens}` : ' (omitted)'} provider=${llmProvider} model=${model}`);
+
       if (llmProvider === 'ollama') {
         const ollamaUtil = require('./utils/ollama');
-        const ollamaResp = await ollamaUtil.getCompletion(finalPrompt, model, 400);
+        const ollamaResp = await ollamaUtil.getCompletion(finalPrompt, model, maxTokens);
         llmResponseText = ollamaResp || '';
-        console.log('Ollama LLM response:', llmResponseText.slice(0, 200));
+        console.log('[ASK] Ollama response length:', llmResponseText.length);
+        console.log('Ollama LLM response (preview):', llmResponseText.slice(0, 200));
       } else {
         const openaiUtil = require('./utils/openai');
-        const openaiResp = await openaiUtil.getCompletion(finalPrompt, model, 400);
+        const openaiResp = await openaiUtil.getCompletion(finalPrompt, model, maxTokens);
         llmResponseText = openaiResp?.choices?.[0]?.message?.content || openaiResp?.choices?.[0]?.text || '';
-        console.log('OpenAI LLM response:', llmResponseText.slice(0, 200));
+        console.log('[ASK] OpenAI response length:', llmResponseText.length);
+        console.log('OpenAI LLM response (preview):', llmResponseText.slice(0, 200));
       }
     } catch (llmErr) {
       console.error('Error calling LLM provider:', llmErr);
@@ -385,6 +418,38 @@ if (process.env.NODE_ENV !== 'production') {
       console.log('[APP] OpenAI client initialized successfully');
     } catch (error) {
       console.error('[APP] Failed to initialize OpenAI client:', error);
+      process.exit(1);
+    }
+
+    // 4b) Validate pgvector dimension parity at startup (fail fast on mismatch)
+    try {
+      const embeddingModel = await settingsService.getSetting('rag.embedding_model', 'text-embedding-3-small');
+      const probeText = 'dim-check';
+      const embResp = await openaiUtil.openai.embeddings.create({ model: embeddingModel, input: probeText });
+      const appDim = embResp?.data?.[0]?.embedding?.length || null;
+      if (!appDim) throw new Error('Could not determine embedding dimension from provider');
+
+      const dimSql = `
+        SELECT regexp_replace(format_type(a.atttypid, a.atttypmod), '^.*\\((\\d+)\\)$', '\\1')::int AS dim
+          FROM pg_attribute a
+          JOIN pg_class c ON c.oid = a.attrelid
+          JOIN pg_namespace n ON n.oid = c.relnamespace
+         WHERE n.nspname = 'threat_model'
+           AND c.relname = 'rag_chunks'
+           AND a.attname = 'embedding'
+      `;
+      const { rows: dimRows } = await app.locals.dbPool.query(dimSql);
+      const dbDim = dimRows?.[0]?.dim || null;
+      if (!dbDim) throw new Error('Could not read DB vector dimension for threat_model.rag_chunks.embedding');
+
+      console.log(`[INIT] Vector dimension check: app=${appDim} db=${dbDim} model=${embeddingModel}`);
+      if (appDim !== dbDim) {
+        console.error('[INIT][FATAL] Embedding dimension mismatch between app and DB', { appDim, dbDim, embeddingModel });
+        console.error('Please update DB schema and settings to match. Exiting.');
+        process.exit(1);
+      }
+    } catch (e) {
+      console.error('[INIT] Error performing vector dimension parity check:', e);
       process.exit(1);
     }
 

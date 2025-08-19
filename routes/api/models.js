@@ -6,6 +6,7 @@ const router = express.Router();
 const { ensureAuthenticated } = require('../../middleware/auth');
 const db = require('../../db/db');
 const { v4: uuidv4 } = require('uuid');
+const { ingestThreatModel } = require('../../services/ragIngestService');
 
 /**
  * @route   GET /api/models
@@ -81,6 +82,20 @@ router.put('/:id', ensureAuthenticated, async (req, res) => {
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Model not found' });
+    }
+    // Schedule ingestion to refresh RAG for manual edits
+    try {
+      setImmediate(async () => {
+        try {
+          console.log('[RAG] Scheduling ingestion (manual PUT) for', id);
+          const resp = await ingestThreatModel(id, { cleanup: true });
+          console.log('[RAG] Ingestion complete (manual PUT)', resp);
+        } catch (e) {
+          console.error('[RAG] Ingestion error (manual PUT) for', id, e);
+        }
+      });
+    } catch (e) {
+      console.error('[RAG] Failed to schedule ingestion (manual PUT)', e);
     }
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {

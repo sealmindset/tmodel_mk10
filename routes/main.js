@@ -40,21 +40,6 @@ router.get('/', async (req, res) => {
   }
 });
 
-// API: return available OpenAI models
-router.get('/api/openai-models', async (req, res) => {
-  try {
-    const models = await openaiUtil.fetchAvailableModels();
-    return res.json({ success: true, models });
-  } catch (err) {
-    console.error('Error fetching OpenAI models:', err);
-    return res.status(500).json({ success: false, error: 'Failed to fetch OpenAI models' });
-  }
-});
-
-// Create new threat model page
-const { getOllamaModels } = require('../utils/ollamaModelList');
-router.get('/create', async (req, res) => {
-
 // Handle threat model creation (POST)
 router.post('/create', async (req, res) => {
   try {
@@ -72,25 +57,41 @@ router.post('/create', async (req, res) => {
     }
     // Determine provider
     const provider = llmProvider || await settingsService.getSettingByKey('llm.provider');
-    let completion = '';
     let usedModel = model;
+    let completionText = '';
+
     if (provider === 'ollama') {
       // Use selected Ollama model or fallback
       usedModel = usedModel || await settingsService.getSettingByKey('ollama.model') || 'llama3.3:latest';
-      completion = await ollamaUtil.getCompletion(subject, usedModel);
+      const completion = await ollamaUtil.getCompletion(subject, usedModel);
+      // ollamaUtil returns raw text
+      completionText = typeof completion === 'string' ? completion : (completion && completion.response) || '';
+      console.log('[CREATE] Ollama completion length:', completionText.length);
     } else {
-      // Use OpenAI or other provider logic
+      // Use OpenAI logic – increase max tokens to avoid truncation
       usedModel = usedModel || await settingsService.getSettingByKey('openai.model') || 'gpt-3.5-turbo';
-      completion = await openaiUtil.getCompletion(subject, usedModel);
+      const response = await openaiUtil.getCompletion(subject, usedModel, 2000);
+      // openaiUtil.getCompletion returns the full API response; extract text
+      try {
+        if (response && response.choices && response.choices[0]) {
+          completionText = response.choices[0].message?.content || response.choices[0].text || '';
+        }
+      } catch (e) {
+        console.warn('[CREATE] Failed to parse OpenAI completion text:', e.message);
+        completionText = '';
+      }
+      console.log('[CREATE] OpenAI completion length:', completionText.length);
     }
-    // Save the threat model (ensure single creation)
+
+    // Save the threat model with correct field names expected by service
     const newModel = await threatModelService.createThreatModel({
       title: subject,
       description: subject,
+      subjectText: subject,
+      response: completionText,
       model: usedModel,
-      responseText: completion,
-      createdBy: req.session.username || 'unknown',
-      createdAt: new Date().toISOString()
+      llmProvider: provider,
+      username: req.session.username || 'unknown'
     });
     return res.redirect(`/results?subjectid=${newModel.id}`);
   } catch (error) {
@@ -106,6 +107,21 @@ router.post('/create', async (req, res) => {
     });
   }
 });
+
+// API: return available OpenAI models
+router.get('/api/openai-models', async (req, res) => {
+  try {
+    const models = await openaiUtil.fetchAvailableModels();
+    return res.json({ success: true, models });
+  } catch (err) {
+    console.error('Error fetching OpenAI models:', err);
+    return res.status(500).json({ success: false, error: 'Failed to fetch OpenAI models' });
+  }
+});
+
+// Create new threat model page
+const { getOllamaModels } = require('../utils/ollamaModelList');
+router.get('/create', async (req, res) => {
   try {
     // Get LLM provider settings from PostgreSQL
     const llmProvider = await settingsService.getSettingByKey('llm.provider');
@@ -231,6 +247,41 @@ router.get('/prompts', async (req, res) => {
       error: 'Failed to load prompts',
       success: null
     });
+  }
+});
+
+// Full-page: New Prompt
+router.get('/prompts/new', async (req, res) => {
+  try {
+    return res.render('prompt-new', {
+      user: req.session.username,
+      error: null,
+      success: null
+    });
+  } catch (error) {
+    console.error('[ROUTE] Error loading new prompt page:', error);
+    return res.status(500).send('Error loading new prompt page.');
+  }
+});
+
+// Full-page: Prompt Editor by ID
+router.get('/prompts/:id', async (req, res) => {
+  const { id } = req.params;
+  console.log('[ROUTE] GET /prompts/:id editor called with id:', id);
+  try {
+    const prompt = await promptService.getPromptById(id);
+    if (!prompt) {
+      return res.status(404).send('Prompt not found');
+    }
+    return res.render('prompt-editor', {
+      user: req.session.username,
+      prompt,
+      error: null,
+      success: null
+    });
+  } catch (error) {
+    console.error('[ROUTE] Error loading prompt editor page:', error);
+    return res.status(500).send('Error loading prompt editor page.');
   }
 });
 

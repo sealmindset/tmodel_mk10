@@ -3,6 +3,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db/pool-wrapper'); // Adjust if you use a different DB wrapper
+const { ingestThreatModel } = require('../services/ragIngestService');
 
 /**
  * POST /api/threat-models/merge-batch
@@ -79,6 +80,20 @@ router.post('/api/threat-models/merge-batch', async (req, res) => {
       [JSON.stringify(mergedThreats), mergedThreats.length, primaryId]
     );
     await client.query('COMMIT');
+    // Schedule RAG ingestion for primary model after successful merge
+    try {
+      setImmediate(async () => {
+        try {
+          console.log('[RAG] Scheduling ingestion (merge-batch legacy) for', primaryId);
+          const resp = await ingestThreatModel(primaryId, { cleanup: true });
+          console.log('[RAG] Ingestion complete (merge-batch legacy)', resp);
+        } catch (e) {
+          console.error('[RAG] Ingestion error (merge-batch legacy) for', primaryId, e);
+        }
+      });
+    } catch (e) {
+      console.error('[RAG] Failed to schedule ingestion (merge-batch legacy)', e);
+    }
     res.json({ success: true, mergedThreatCount: mergedThreats.length });
   } catch (e) {
     await client.query('ROLLBACK');

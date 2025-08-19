@@ -249,11 +249,14 @@ const getCompletion = async (prompt, model = 'gpt-4', maxTokens = 100, options =
         type: 'chat.completion',
         timestamp: new Date().toISOString()
       });
-      response = await openai.chat.completions.create({
-        model,
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: maxTokens
-      });
+      {
+        const req = {
+          model,
+          messages: [{ role: 'user', content: prompt }]
+        };
+        if (Number.isFinite(maxTokens)) req.max_tokens = maxTokens;
+        response = await openai.chat.completions.create(req);
+      }
       logger.info('Raw OpenAI API response:', response);
       usage = response.usage || {};
       completionText = response.choices && response.choices[0] ? response.choices[0].message.content : '';
@@ -266,11 +269,11 @@ const getCompletion = async (prompt, model = 'gpt-4', maxTokens = 100, options =
         type: 'completion',
         timestamp: new Date().toISOString()
       });
-      response = await openai.completions.create({
-        model,
-        prompt,
-        max_tokens: maxTokens
-      });
+      {
+        const req = { model, prompt };
+        if (Number.isFinite(maxTokens)) req.max_tokens = maxTokens;
+        response = await openai.completions.create(req);
+      }
       logger.info('Raw OpenAI API response:', response);
       usage = response.usage || {};
       completionText = response.choices && response.choices[0] ? response.choices[0].text : '';

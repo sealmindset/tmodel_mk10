@@ -145,7 +145,7 @@
           <div class="input-group">
             <input type="hidden" id="promptId" name="selectedPromptId">
             <input type="text" class="form-control" id="promptTitle" name="promptTitle" placeholder="Select a prompt template" readonly>
-            <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#promptsModal">
+            <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#promptsSelectModal">
               <i class="bi bi-list"></i> Select
             </button>
           </div>
@@ -250,4 +250,7 @@
 
 
 
-<%- include('partials/footer', { extraJs: ['/js/app.js', '/js/prompts-manager.js'] }) %>
+<!-- New table-based prompts selection modal -->
+<%- include('partials/prompts-select-table') %>
+
+<%- include('partials/footer', { extraJs: ['/js/app.js', '/js/prompts-select.js'] }) %>

@@ -1,0 +1,101 @@
+<%- include('partials/header', { pageTitle: 'Edit Prompt - Threat Model Generator', active: 'prompts', extraCss: [] }) %>
+
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="mb-0">Edit Prompt</h1>
+    <div class="btn-group">
+      <a class="btn btn-outline-secondary" href="/prompts">
+        <i class="bi bi-arrow-left me-1"></i>Back to List
+      </a>
+    </div>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <form id="promptEditForm">
+        <input type="hidden" id="promptId" value="<%= prompt.id %>">
+        <div class="mb-3">
+          <label for="promptTitle" class="form-label">Title</label>
+          <input type="text" id="promptTitle" class="form-control" value="<%- prompt.title %>" required>
+        </div>
+        <div class="mb-3">
+          <label for="promptText" class="form-label">Prompt Text</label>
+          <textarea id="promptText" rows="14" class="form-control" required><%- prompt.prompt_text || '' %></textarea>
+        </div>
+        <div class="d-flex justify-content-between">
+          <button type="button" id="deleteBtn" class="btn btn-outline-danger">
+            <i class="bi bi-trash me-1"></i>Delete
+          </button>
+          <div>
+            <button type="button" id="saveBtn" class="btn btn-primary">
+              <i class="bi bi-save me-1"></i>Save
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toasts -->
+  <div id="toastContainer" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
+</div>
+
+<script>
+(function() {
+  const toast = (title, msg, type='info') => {
+    const c = document.getElementById('toastContainer');
+    const id = 't-' + Date.now();
+    c.insertAdjacentHTML('beforeend', `
+      <div id="${id}" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header bg-${type} text-white">
+          <strong class="me-auto">${title}</strong>
+          <small>Now</small>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+        </div>
+        <div class="toast-body">${msg}</div>
+      </div>`);
+    const el = document.getElementById(id);
+    const t = new bootstrap.Toast(el, { delay: 4000 });
+    t.show();
+    el.addEventListener('hidden.bs.toast', () => el.remove());
+  };
+
+  const id = document.getElementById('promptId').value;
+  const saveBtn = document.getElementById('saveBtn');
+  const delBtn = document.getElementById('deleteBtn');
+
+  saveBtn.addEventListener('click', async () => {
+    const title = document.getElementById('promptTitle').value.trim();
+    const text = document.getElementById('promptText').value.trim();
+    if (!title || !text) { toast('Validation', 'Title and Prompt Text are required', 'warning'); return; }
+    try {
+      const res = await fetch(`/api/prompts/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, text })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Failed to save');
+      toast('Saved', 'Prompt updated successfully', 'success');
+    } catch (e) {
+      console.error(e);
+      toast('Error', e.message || 'Failed to save prompt', 'danger');
+    }
+  });
+
+  delBtn.addEventListener('click', async () => {
+    if (!confirm('Delete this prompt? This action cannot be undone.')) return;
+    try {
+      const res = await fetch(`/api/prompts/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Failed to delete');
+      window.location.href = '/prompts';
+    } catch (e) {
+      console.error(e);
+      toast('Error', e.message || 'Failed to delete prompt', 'danger');
+    }
+  });
+})();
+</script>
+
+<%- include('partials/footer', { extraJs: [] }) %>

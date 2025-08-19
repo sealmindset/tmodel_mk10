@@ -5,6 +5,7 @@ const ensureAuthenticated = require('./middleware/ensureAuthenticated');
 const axios = require('axios');
 const openaiUtil = require('./utils/openai');
 const ollamaUtil = require('./utils/ollama');
+const { ingestThreatModel } = require('./services/ragIngestService');
 
 // Debug logging to confirm Ollama utility is loaded
 console.log('Exporting genmore router:', typeof router);
@@ -359,6 +360,21 @@ ${existingResponse}`;
     console.log(`Saving updated response (${updatedResponse.length} chars) to PostgreSQL...`);
     await threatModelService.updateThreatModel(subjectid, { response_text: updatedResponse });
     debugData.success = true;
+
+    // Schedule RAG ingestion to embed new threats appended to the model
+    try {
+      setImmediate(async () => {
+        try {
+          console.log('[RAG] Scheduling per-model ingestion (generate-more) for', subjectid);
+          const resIngest = await ingestThreatModel(subjectid, { cleanup: true });
+          console.log('[RAG] Ingestion complete (generate-more)', resIngest);
+        } catch (e) {
+          console.error('[RAG] Ingestion error (generate-more) for', subjectid, e);
+        }
+      });
+    } catch (e) {
+      console.error('[RAG] Failed to schedule ingestion task (generate-more)', e);
+    }
     
     
     // Instead of redirecting, respond with JSON for debugging

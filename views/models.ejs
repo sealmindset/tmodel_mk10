@@ -215,7 +215,7 @@
             </thead>
             <tbody>
               <% subjects.forEach(subject => { %>
-                <tr data-id="<%= subject.subjectid %>" data-source="<%= subject.source || 'redis' %>">
+                <tr data-id="<%= subject.isUuid ? subject.id : subject.subjectid %>" data-source="<%= subject.isUuid ? 'postgres' : (subject.source || 'redis') %>">
                   <td>
                     <div class="form-check">
                       <% if (subject.isUuid) { %>
@@ -244,9 +244,15 @@
                         <i class="bi bi-eye"></i>
                       </a>
 
-                      <button class="btn btn-sm btn-outline-danger delete-model-btn" data-model-id="<%= subject.subjectid %>" data-model-type="redis" title="Delete">
-                        <i class="bi bi-trash"></i>
-                      </button>
+                      <% if (subject.isUuid) { %>
+                        <button class="btn btn-sm btn-outline-danger delete-model-btn" data-model-id="<%= subject.id %>" data-model-type="postgres" title="Delete">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      <% } else { %>
+                        <button class="btn btn-sm btn-outline-danger" title="Legacy model – deletion not supported here" disabled>
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      <% } %>
                     </div>
                   </td>
                 </tr>
@@ -608,30 +614,38 @@
     
     // Handle single model delete buttons (delegated)
     jq('#threat-models-table').on('click', '.delete-model-btn', function() {
-  var btn = jq(this);
-  var subjectId = btn.data('model-id');
-  var row = btn.closest('tr');
-  var title = row.find('td:nth-child(2) a').text().trim();
-  // Show confirmation modal
-  var modal = new bootstrap.Modal(document.getElementById('confirmModal'));
-  jq('#confirmModalBody').text('Are you sure you want to delete "' + title + '"? This action cannot be undone.');
-  jq('#confirmDeleteBtn').off('click').on('click', function() {
-    window.modelsCrud.deleteModel(subjectId)
-      .then(function() {
-        modal.hide();
-        threatModelsTable.row(row).remove().draw();
-        showToast('Success', 'Threat model deleted successfully', 'success');
-        if (threatModelsTable.rows().count() === 0) {
-          jq('.table-responsive').html('<div class="alert alert-info m-3"><i class="bi bi-info-circle me-2"></i>No threat models found. <a href="/create" class="alert-link">Create your first threat model</a>.</div>');
-        }
-      })
-      .catch(function(error) {
-        modal.hide();
-        showToast('Error', 'Failed to delete threat model', 'danger');
+      var btn = jq(this);
+      var subjectId = btn.data('model-id'); // UUID for Postgres items
+      var modelType = (btn.data('model-type') || '').toString();
+      var row = btn.closest('tr');
+      var title = row.find('td:nth-child(2) a').text().trim();
+
+      // Block deletion for legacy items (non-UUID)
+      if (modelType !== 'postgres') {
+        showToast('Not Supported', 'Deletion for legacy models is not supported here.', 'warning');
+        return;
+      }
+
+      // Show confirmation modal
+      var modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+      jq('#confirmModalBody').text('Are you sure you want to delete "' + title + '"? This action cannot be undone.');
+      jq('#confirmDeleteBtn').off('click').on('click', function() {
+        window.modelsCrud.deleteModel(subjectId)
+          .then(function() {
+            modal.hide();
+            threatModelsTable.row(row).remove().draw();
+            showToast('Success', 'Threat model deleted successfully', 'success');
+            if (threatModelsTable.rows().count() === 0) {
+              jq('.table-responsive').html('<div class="alert alert-info m-3"><i class="bi bi-info-circle me-2"></i>No threat models found. <a href="/create" class="alert-link">Create your first threat model</a>.</div>');
+            }
+          })
+          .catch(function(error) {
+            modal.hide();
+            showToast('Error', 'Failed to delete threat model', 'danger');
+          });
       });
-  });
-  modal.show();
-});
+      modal.show();
+    });
 
     // Handle bulk delete
     jq('#deleteSelectedBtn').on('click', function() {

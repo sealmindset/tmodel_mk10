@@ -5,6 +5,7 @@ const threatModelService = require('../../services/threatModelService');
 const ollamaUtil = require('../../utils/ollama');
 const { ensureAuthenticated } = require('../../middleware/auth');
 const resultsService = require('../../services/resultsService');
+const { ingestThreatModel } = require('../../services/ragIngestService');
 
 // Generate more content for a threat model
 router.post('/:id/generate-more', ensureAuthenticated, async (req, res) => {
@@ -179,6 +180,20 @@ router.post('/merge-selected', ensureAuthenticated, async (req, res) => {
         sourceThreats
       );
       
+      // Schedule ingestion for PostgreSQL target model after merge-selected
+      try {
+        setImmediate(async () => {
+          try {
+            console.log('[RAG] Scheduling ingestion (merge-selected) for', targetId);
+            const resp = await ingestThreatModel(targetId, { cleanup: true });
+            console.log('[RAG] Ingestion complete (merge-selected)', resp);
+          } catch (e) {
+            console.error('[RAG] Ingestion error (merge-selected) for', targetId, e);
+          }
+        });
+      } catch (e) {
+        console.error('[RAG] Failed to schedule ingestion (merge-selected)', e);
+      }
       // Return success response
       return res.json({
         success: true,
@@ -271,6 +286,20 @@ router.post('/merge-batch', ensureAuthenticated, async (req, res) => {
     const mergedBy = req.user && req.user.username ? req.user.username : 'unknown';
     // Call the V2 merge service
     const result = await mergeThreatModelsV2(primaryId, sourceIds, mergedBy, mergedContent, selectedThreatTitles);
+    // Schedule ingestion for primary model after V2 merge-batch
+    try {
+      setImmediate(async () => {
+        try {
+          console.log('[RAG] Scheduling ingestion (merge-batch v2) for', primaryId);
+          const resp = await ingestThreatModel(primaryId, { cleanup: true });
+          console.log('[RAG] Ingestion complete (merge-batch v2)', resp);
+        } catch (e) {
+          console.error('[RAG] Ingestion error (merge-batch v2) for', primaryId, e);
+        }
+      });
+    } catch (e) {
+      console.error('[RAG] Failed to schedule ingestion (merge-batch v2)', e);
+    }
     res.json({ success: true, ...result });
   } catch (error) {
     console.error(`[${requestId}] Error in merge-batch endpoint:`, error);

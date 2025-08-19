@@ -4,9 +4,9 @@
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h1 class="mb-0">Prompt Templates</h1>
     <div class="btn-group">
-      <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newPromptModal">
+      <a class="btn btn-primary" href="/prompts/new" title="Create a new prompt">
         <i class="bi bi-plus-circle me-1"></i>Create New Prompt
-      </button>
+      </a>
       <button type="button" class="btn btn-outline-secondary" id="refreshPrompts">
         <i class="bi bi-arrow-repeat me-1"></i>Refresh
       </button>
@@ -74,12 +74,9 @@
                   <td><%= new Date(prompt.createdAt).toLocaleDateString() %></td>
                   <td>
                     <div class="btn-group" role="group">
-                      <button type="button" class="btn btn-sm btn-outline-primary view-prompt-btn" data-prompt-id="<%= prompt.id %>" title="View">
-                        <i class="bi bi-eye"></i>
-                      </button>
-                      <button type="button" class="btn btn-sm btn-outline-secondary edit-prompt-btn" data-prompt-id="<%= prompt.id %>" title="Edit">
+                      <a class="btn btn-sm btn-outline-secondary" href="/prompts/<%= prompt.id %>" title="Edit">
                         <i class="bi bi-pencil"></i>
-                      </button>
+                      </a>
                       <button type="button" class="btn btn-sm btn-outline-danger delete-prompt-btn" data-prompt-id="<%= prompt.id %>" data-prompt-title="<%= prompt.title %>" title="Delete">
                         <i class="bi bi-trash"></i>
                       </button>
@@ -118,8 +115,7 @@
   </div>
 </div>
 
-<!-- Include the prompts modal from partials -->
-<%- include('partials/prompts-modal') %>
+<!-- Prompts selection modal removed on list page in favor of full-page create/edit -->
 
 <!-- JavaScript for the prompts page -->
 <script>
@@ -259,26 +255,7 @@
     });
     // Export functionality implemented above
 
-    // View/Edit prompt buttons
-    document.querySelectorAll('.view-prompt-btn, .edit-prompt-btn').forEach(button => {
-      button.addEventListener('click', function() {
-        const promptId = this.getAttribute('data-prompt-id');
-        const isEdit = this.classList.contains('edit-prompt-btn');
-        
-        // Open the prompts modal
-        const promptsModal = new bootstrap.Modal(document.getElementById('promptsModal'));
-        promptsModal.show();
-        
-        // Set data attribute to indicate which prompt to view/edit
-        document.getElementById('promptsModal').setAttribute('data-view-prompt-id', promptId);
-        
-        // The fetchPrompts function in prompts-manager.js will handle loading the prompt details
-        // and switch to edit mode if needed
-        if (isEdit) {
-          document.getElementById('promptsModal').setAttribute('data-edit-mode', 'true');
-        }
-      });
-    });
+    // Modal-based view/edit removed; row now links directly to /prompts/:id
 
     // Delete prompt button
     document.querySelectorAll('.delete-prompt-btn').forEach(button => {
