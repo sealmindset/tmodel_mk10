@@ -10,6 +10,20 @@ const openaiUtil = require('../../utils/openai');
 const ollamaUtil = require('../../utils/ollama');
 console.log('[DEBUG] ollamaUtil keys (llm.js):', Object.keys(ollamaUtil));
 
+// Enforce provider-specific timeouts to avoid indefinite hangs
+const OPENAI_TIMEOUT_MS = 45000; // 45s client-facing timeout for OpenAI
+const OLLAMA_TIMEOUT_MS = 15000; // 15s timeout for Ollama CLI
+
+function withTimeout(promise, ms, label = 'timeout') {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(label)), ms);
+    Promise.resolve(promise).then(
+      (val) => { clearTimeout(timer); resolve(val); },
+      (err) => { clearTimeout(timer); reject(err); }
+    );
+  });
+}
+
 /**
  * @route GET /api/llm/events
  * @desc Get recent LLM API events for monitoring (OpenAI or Ollama)
@@ -75,37 +89,81 @@ router.post('/generate', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Prompt is required' });
     }
     
+    // Provider-aware timeout
+    const isOllama = (provider === 'ollama');
+    const providerTimeout = isOllama ? OLLAMA_TIMEOUT_MS : OPENAI_TIMEOUT_MS;
+    // Apply a response timeout slightly larger than the internal promise timeout
+    try { res.setTimeout(providerTimeout + 5000); } catch (_) {}
     let response;
     const maxTokens = req.body.max_tokens || 2500;
+    const modelToUse = model || (provider === 'ollama' ? 'llama3' : 'gpt-4');
     
-    if (provider === 'ollama') {
-      // For Ollama, getCompletion is more appropriate but fall back to the existing method if needed
-      response = ollamaUtil.getCompletion ? 
-                await ollamaUtil.getCompletion(prompt, model || 'llama3', maxTokens) : 
-                await ollamaUtil.generateText(prompt, model || 'llama3');
-    } else {
-      // Default to OpenAI - use getCompletion which exists in the utility
-      response = await openaiUtil.getCompletion(prompt, model || 'gpt-4', maxTokens);
+    // Create an AbortController for Ollama so we can terminate the CLI process on timeout or client abort
+    const controller = isOllama ? new AbortController() : null;
+    const signal = controller ? controller.signal : undefined;
+
+    // Build the provider call
+    const callPromise = isOllama
+      ? (ollamaUtil.getCompletion
+          ? ollamaUtil.getCompletion(prompt, modelToUse, maxTokens, { timeoutMs: providerTimeout, signal })
+          : ollamaUtil.generateText(prompt, modelToUse))
+      : openaiUtil.getCompletion(prompt, modelToUse, maxTokens);
+
+    // Abort the provider call if the client disconnects
+    const onClientAbort = () => {
+      try { if (controller) controller.abort(); } catch (_) {}
+    };
+    res.on('close', onClientAbort);
+    res.on('finish', onClientAbort);
+    req.on('aborted', onClientAbort);
+
+    try {
+      response = await withTimeout(callPromise, providerTimeout, 'request_timeout');
+    } catch (err) {
+      // Ensure we abort the Ollama CLI if we timed out at the route level
+      if (controller) {
+        try { controller.abort(); } catch (_) {}
+      }
+      throw err;
+    } finally {
+      // Cleanup listeners
+      res.off('close', onClientAbort);
+      res.off('finish', onClientAbort);
+      req.off('aborted', onClientAbort);
     }
     
     // Record the prompt and completion in the API events
-    if (provider === 'ollama') {
+    if (isOllama) {
       ollamaUtil.logApiEvent('completion', {
         prompt,
-        model: model || 'llama3',
+        model: modelToUse || 'llama3',
         completion: response,
         timestamp: new Date()
       });
     } else {
       openaiUtil.logApiEvent('completion', {
         prompt,
-        model: model || 'gpt-4',
+        model: modelToUse || 'gpt-4',
         completion: response,
         timestamp: new Date()
       });
     }
-    
-    res.json({ success: true, text: response });
+    // Normalize output to plain text for UI consumption
+    let textOut = '';
+    if (provider === 'ollama') {
+      textOut = typeof response === 'string' ? response : (response && response.response) || '';
+    } else {
+      try {
+        if (response && Array.isArray(response.choices) && response.choices[0]) {
+          textOut = response.choices[0].message?.content || response.choices[0].text || '';
+        }
+      } catch (e) {
+        console.warn('[LLM] Failed to extract OpenAI text:', e);
+        textOut = '';
+      }
+    }
+
+    res.json({ success: true, text: textOut });
   } catch (error) {
     console.error(`Error generating LLM content:`, error);
     res.status(500).json({ 

@@ -4,8 +4,7 @@
  */
 
 let projectData = null;
-let selectedTemplateId = null;
-let reportTemplates = [];
+const DEFAULT_SECTIONS = ['overview','threats','vulnerabilities','mitigations','recommendations'];
 
 /**
  * Initialize the report generator page
@@ -27,9 +26,6 @@ function initReportGenerator(projectId) {
       showError(`Failed to load project: ${error.message}`);
     });
   
-  // Load report templates
-  loadReportTemplates();
-  
   // Setup form submission
   setupFormHandling();
   
@@ -49,40 +45,36 @@ function initReportGenerator(projectId) {
  */
 async function fetchProject(projectId) {
   try {
-    // Use PostgREST to avoid auth issues. Returns an array (0 or 1 rows)
-    // Use explicit PostgREST port (3010). Adjust BASE_PGRST if proxy present.
-    const response = await fetch(`http://localhost:3010/projects?id=eq.${projectId}`, { headers: { Accept: 'application/json' }});
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch project via PostgREST: ${response.status}`);
-    }
-
-    /**
-     * PostgREST returns an array. Extract first item.
-     * If no project is found, treat as error so UI shows message.
-     */
-    // Attempt to parse JSON; if this fails (e.g., HTML login page), fallback to authenticated API route
-    let projects;
-    try {
-      projects = await response.json();
-    } catch (parseErr) {
-      console.warn('PostgREST returned non-JSON, falling back to /api/projects', parseErr);
-      const fallbackResp = await fetch(`/api/projects/${projectId}`);
-      if (!fallbackResp.ok) {
-        throw new Error(`Fallback fetch failed: ${fallbackResp.status}`);
+    // Prefer our authenticated API first
+    const apiResp = await fetch(`/api/projects/${projectId}`);
+    if (apiResp.ok) {
+      const apiJson = await apiResp.json();
+      if (apiJson && apiJson.success && apiJson.data) {
+        console.log('[REPORT-GEN] Loaded project via /api/projects:', apiJson.data);
+        return apiJson.data;
       }
-      projects = [await fallbackResp.json()];
-    }
-    const project = Array.isArray(projects) && projects.length > 0 ? projects[0] : null;
-
-    if (!project) {
-      throw new Error('Project not found');
+      console.warn('[REPORT-GEN] /api/projects returned unexpected payload:', apiJson);
+    } else {
+      console.warn(`[REPORT-GEN] /api/projects/${projectId} failed with status`, apiResp.status);
     }
 
-    console.log('Project data (PostgREST):', project);
-    return project;
+    // Fallback to PostgREST if available
+    try {
+      const pgrstResp = await fetch(`http://localhost:3010/projects?id=eq.${projectId}`, { headers: { Accept: 'application/json' } });
+      if (!pgrstResp.ok) {
+        throw new Error(`Failed to fetch project via PostgREST: ${pgrstResp.status}`);
+      }
+      const rows = await pgrstResp.json();
+      const project = Array.isArray(rows) ? rows[0] : null;
+      if (!project) throw new Error('Project not found');
+      console.log('[REPORT-GEN] Loaded project via PostgREST:', project);
+      return project;
+    } catch (pgErr) {
+      console.error('[REPORT-GEN] PostgREST fallback failed:', pgErr);
+      throw pgErr;
+    }
   } catch (error) {
-    console.error('Error fetching project:', error);
+    console.error('[REPORT-GEN] Error fetching project:', error);
     throw error;
   }
 }
@@ -101,109 +93,21 @@ function setupProjectInfo(project) {
   
   // Set default report title based on project name
   document.getElementById('report-title').value = `Security Assessment: ${project.name}`;
-}
 
-/**
- * Load and display report templates
- */
-function loadReportTemplates() {
-  // Get templates from hidden JSON
+  // Populate read-only title display and hidden UUID field
   try {
-    const templatesData = document.getElementById('report-templates-data').textContent;
-    reportTemplates = JSON.parse(templatesData);
-    renderTemplates(reportTemplates);
-  } catch (error) {
-    console.error('Error loading templates:', error);
-    showError('Failed to load report templates');
+    const titleDisplay = document.getElementById('project-title-display');
+    const uuidInput = document.getElementById('project-uuid');
+    if (titleDisplay) titleDisplay.value = project.name || '';
+    const pid = project.uuid || project.id;
+    if (uuidInput) uuidInput.value = pid;
+    console.log('[REPORT-GEN] Project identifiers set', { name: titleDisplay?.value, projectId: pid });
+  } catch (e) {
+    console.warn('[REPORT-GEN] Failed setting project identifier fields', e);
   }
 }
 
-/**
- * Render templates in the templates container
- * @param {Array} templates - Array of template objects
- */
-function renderTemplates(templates) {
-  const templatesContainer = document.getElementById('templates-container');
-  templatesContainer.innerHTML = '';
-  
-  templates.forEach(template => {
-    const templateCard = document.createElement('div');
-    templateCard.className = 'col-md-4 mb-3';
-    templateCard.innerHTML = `
-      <div class="card template-card" data-template-id="${template.id}">
-        <div class="card-body text-center">
-          <div class="template-icon">
-            <i class="fas ${template.icon}"></i>
-          </div>
-          <h5 class="card-title">${template.name}</h5>
-          <p class="card-text">${template.description}</p>
-        </div>
-      </div>
-    `;
-    
-    templatesContainer.appendChild(templateCard);
-    
-    // Add click handler for template selection
-    templateCard.querySelector('.template-card').addEventListener('click', () => {
-      selectTemplate(template);
-    });
-  });
-  
-  // Select first template by default
-  if (templates.length > 0) {
-    selectTemplate(templates[0]);
-  }
-}
-
-/**
- * Select a template and update UI
- * @param {Object} template - Template object
- */
-function selectTemplate(template) {
-  // Store selected template ID
-  selectedTemplateId = template.id;
-  
-  // Update UI for selected template
-  document.querySelectorAll('.template-card').forEach(card => {
-    card.classList.remove('selected');
-  });
-  
-  const selectedCard = document.querySelector(`.template-card[data-template-id="${template.id}"]`);
-  if (selectedCard) {
-    selectedCard.classList.add('selected');
-  }
-  
-  // Render section checkboxes for the selected template
-  renderSectionCheckboxes(template);
-}
-
-/**
- * Render section checkboxes for the selected template
- * @param {Object} template - Template object
- */
-function renderSectionCheckboxes(template) {
-  const sectionsContainer = document.getElementById('report-sections');
-  sectionsContainer.innerHTML = '';
-  
-  if (!template.sections || template.sections.length === 0) {
-    sectionsContainer.innerHTML = '<div class="alert alert-warning">No sections defined for this template</div>';
-    return;
-  }
-  
-  template.sections.forEach(section => {
-    const sectionCheck = document.createElement('div');
-    sectionCheck.className = 'form-check';
-    sectionCheck.innerHTML = `
-      <input class="form-check-input" type="checkbox" id="section-${section.id}" 
-             name="sections[]" value="${section.id}" ${section.default ? 'checked' : ''}>
-      <label class="form-check-label" for="section-${section.id}">
-        ${section.name}
-      </label>
-    `;
-    
-    sectionsContainer.appendChild(sectionCheck);
-  });
-}
+// Template selection now handled via modal that assigns #reportTemplateId and #reportTemplateName
 
 /**
  * Setup LLM provider toggle behavior
@@ -284,8 +188,9 @@ function validateForm() {
     return false;
   }
   
-  // Check if template is selected
-  if (!selectedTemplateId) {
+  // Check if template is selected via hidden input
+  const chosenTemplateId = document.getElementById('reportTemplateId')?.value;
+  if (!chosenTemplateId) {
     showError('Please select a report template');
     return false;
   }
@@ -294,13 +199,6 @@ function validateForm() {
   const reportTitle = document.getElementById('report-title').value.trim();
   if (!reportTitle) {
     showError('Please enter a report title');
-    return false;
-  }
-  
-  // Check if at least one section is selected
-  const selectedSections = document.querySelectorAll('input[name="sections[]"]:checked');
-  if (selectedSections.length === 0) {
-    showError('Please select at least one report section');
     return false;
   }
   
@@ -322,24 +220,22 @@ function getFormData() {
     model = document.getElementById('ollama-model').value;
   }
   
-  // Get selected sections
-  const sectionElements = document.querySelectorAll('input[name="sections[]"]:checked');
-  const sections = Array.from(sectionElements).map(el => el.value);
-  
   // Get report title
   const reportTitle = document.getElementById('report-title').value.trim();
-  
-  // Find the selected template object
-  const selectedTemplate = reportTemplates.find(t => t.id === selectedTemplateId);
-  
+
+  // Selected template from inputs
+  const templateId = document.getElementById('reportTemplateId')?.value;
+  const templateName = document.getElementById('reportTemplateName')?.value || '';
+
   return {
-    projectId: projectData.uuid || projectData.id,
+    // Use hidden field as single source of truth for UUID to avoid exposing in UI
+    projectId: document.getElementById('project-uuid')?.value || projectData.uuid || projectData.id,
     title: reportTitle,
-    templateId: selectedTemplateId,
-    templateName: selectedTemplate ? selectedTemplate.name : 'Custom Template',
+    templateId,
+    templateName,
     provider,
     model,
-    sections
+    sections: DEFAULT_SECTIONS
   };
 }
 

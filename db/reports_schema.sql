@@ -5,9 +5,9 @@
 CREATE SCHEMA IF NOT EXISTS reports;
 
 -- Create reports table
-CREATE TABLE reports.report (
+CREATE TABLE IF NOT EXISTS reports.report (
   id SERIAL PRIMARY KEY,
-  project_id INTEGER NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  project_uuid UUID NOT NULL REFERENCES threat_model.projects(id) ON DELETE CASCADE,
   template_id INTEGER NOT NULL,
   title TEXT NOT NULL,
   content JSONB NOT NULL, -- Store report content as JSON
@@ -15,8 +15,7 @@ CREATE TABLE reports.report (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create report revisions table for history
-CREATE TABLE reports.report_revision (
+CREATE TABLE IF NOT EXISTS reports.report_revision (
   id SERIAL PRIMARY KEY,
   report_id INTEGER REFERENCES reports.report(id) ON DELETE CASCADE,
   content JSONB NOT NULL,
@@ -24,8 +23,7 @@ CREATE TABLE reports.report_revision (
   created_by TEXT
 );
 
--- Create report templates table
-CREATE TABLE reports.template (
+CREATE TABLE IF NOT EXISTS reports.template (
   id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   description TEXT,
@@ -34,8 +32,7 @@ CREATE TABLE reports.template (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create table for LLM-generated content sections
-CREATE TABLE reports.content_section (
+CREATE TABLE IF NOT EXISTS reports.content_section (
   id SERIAL PRIMARY KEY,
   report_id INTEGER REFERENCES reports.report(id) ON DELETE CASCADE,
   section_name TEXT NOT NULL,
@@ -153,10 +150,24 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Create triggers for updating timestamps
-CREATE TRIGGER update_report_timestamp
-BEFORE UPDATE ON reports.report
-FOR EACH ROW EXECUTE FUNCTION reports.update_timestamp();
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger WHERE tgname = 'update_report_timestamp'
+  ) THEN
+    CREATE TRIGGER update_report_timestamp
+    BEFORE UPDATE ON reports.report
+    FOR EACH ROW EXECUTE FUNCTION reports.update_timestamp();
+  END IF;
+END $$;
 
-CREATE TRIGGER update_template_timestamp
-BEFORE UPDATE ON reports.template
-FOR EACH ROW EXECUTE FUNCTION reports.update_timestamp();
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger WHERE tgname = 'update_template_timestamp'
+  ) THEN
+    CREATE TRIGGER update_template_timestamp
+    BEFORE UPDATE ON reports.template
+    FOR EACH ROW EXECUTE FUNCTION reports.update_timestamp();
+  END IF;
+END $$;

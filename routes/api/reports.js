@@ -7,22 +7,22 @@ const router = express.Router();
 
 // POST /api/reports/generate - Generate a report
 router.post('/generate', async (req, res) => {
-    const { reportType, promptId, filters } = req.body;
+    const { reportType, templateId, filters } = req.body;
 
-    if (!reportType || !promptId) {
-        return res.status(400).json({ error: 'Missing required fields: reportType and promptId.' });
+    if (!reportType || templateId == null) {
+        return res.status(400).json({ error: 'Missing required fields: reportType and templateId.' });
     }
 
     try {
-        console.log(`[API] Received request to generate report: ${reportType}, Prompt: ${promptId}`);
-        const generatedContent = await ReportRunner.generateReport(reportType, promptId, filters || {});
+        console.log(`[API] Received request to generate report: ${reportType}, Template: ${templateId}`);
+        const generatedContent = await ReportRunner.generateReport(reportType, templateId, (filters || {}));
         res.json({ 
             reportType: reportType,
-            promptId: promptId,
+            templateId: templateId,
             generatedReport: generatedContent 
         });
     } catch (error) {
-        console.error(`[API] Error generating report ${reportType} with prompt ${promptId}:`, error);
+        console.error(`[API] Error generating report ${reportType} with template ${templateId}:`, error);
         res.status(500).json({ error: 'Failed to generate report', details: error.message });
     }
 });

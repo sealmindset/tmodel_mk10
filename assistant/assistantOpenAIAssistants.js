@@ -2,6 +2,8 @@
 // Handles OpenAI Assistants API integration
 const axios = require('axios');
 const assistantDB = require('./assistantDB');
+// Use centralized OpenAI utilities (DB-backed settings)
+const openaiUtil = require('../utils/openai');
 
 // Cache for API keys and assistant IDs
 let apiKeyCache = null;
@@ -19,7 +21,7 @@ async function getCachedApiKey() {
   }
   
   // Fetch a new API key and update the cache
-  const apiKey = await assistantDB.getApiKey('openai');
+  const apiKey = await openaiUtil.getApiKey();
   if (apiKey) {
     apiKeyCache = apiKey;
     apiKeyCacheTime = now;
@@ -376,12 +378,36 @@ async function waitForRunCompletion(threadId, runId, maxRetries = 30, delay = 10
 }
 
 exports.getAvailableModels = async () => {
-  // We'll offer a specific set of models known to work with Assistants API
-  return [
-    { name: 'gpt-4-turbo-preview', label: 'GPT-4 Turbo' },
-    { name: 'gpt-4', label: 'GPT-4' },
-    { name: 'gpt-3.5-turbo-1106', label: 'GPT-3.5 Turbo' }
-  ];
+  try {
+    // Get models via centralized util (respects DB settings for API key)
+    const ids = await openaiUtil.fetchAvailableModels();
+    const unique = Array.from(new Set(ids));
+    // Assistants API v2 known-compatible families (curated)
+    const preferred = [
+      'gpt-4o',
+      'gpt-4o-mini',
+      'gpt-4.1',
+      'gpt-4.1-mini',
+      'gpt-4-turbo',
+      'gpt-4-turbo-preview',
+      'gpt-4'
+    ];
+    // Keep those present in account and matching preferred prefixes or exact ids
+    const filtered = unique.filter(id => {
+      return preferred.some(p => id === p || id.startsWith(p));
+    });
+    const finalList = (filtered.length > 0 ? filtered : preferred.filter(p => unique.includes(p)));
+    // Map to dropdown entries
+    return finalList.map(id => ({ name: id, label: id }));
+  } catch (e) {
+    console.error('Failed to fetch OpenAI models for assistants:', e.message);
+    // Safe fallback list
+    return [
+      { name: 'gpt-4o', label: 'gpt-4o' },
+      { name: 'gpt-4o-mini', label: 'gpt-4o-mini' },
+      { name: 'gpt-4-turbo', label: 'gpt-4-turbo' }
+    ];
+  }
 };
 
 exports.getChatResponse = async ({ model, message, session_id, context_enabled, deep_research = false }) => {

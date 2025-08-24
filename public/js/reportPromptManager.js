@@ -53,7 +53,7 @@ $(document).ready(function() {
                         <div class="card-body">
                             <h5 class="card-title">${escapeHtml(prompt.name)} ${prompt.is_default ? '<span class="badge badge-secondary">Default</span>' : ''}</h5>
                             <h6 class="card-subtitle mb-2 text-muted">Provider: ${escapeHtml(prompt.llm_provider)} - Model: ${escapeHtml(prompt.llm_model)}</h6>
-                            <p class="card-text">${escapeHtml(prompt.prompt_text.substring(0, 100))}${prompt.prompt_text.length > 100 ? '...' : ''}</p>
+                            <p class="card-text">${escapeHtml((prompt.report_prompt_text || '').substring(0, 100))}${(prompt.report_prompt_text || '').length > 100 ? '...' : ''}</p>
                             <div class="actions">
                                 <a href="#" class="btn btn-sm btn-info view-prompt" data-id="${prompt.id}">View/Edit</a>
                                 ${!prompt.is_default ? `<a href="#" class="btn btn-sm btn-danger delete-prompt" data-id="${prompt.id}">Delete</a>` : ''}
@@ -154,14 +154,14 @@ $(document).ready(function() {
         const formData = {
             report_type: reportType,
             name: $('#promptName').val(),
-            prompt_text: $('#promptText').val(),
+            report_prompt_text: $('#promptText').val(),
             llm_provider: $('#llmProvider').val(),
             llm_model: $('#llmModel').val(),
             // is_default is not user-settable through this form for safety
         };
 
-        if (!formData.name || !formData.prompt_text || !formData.llm_model) {
-            alert('Please fill in all required fields: Name, Prompt Text, and LLM Model.');
+        if (!formData.name || !formData.report_prompt_text || !formData.llm_model) {
+            alert('Please fill in all required fields: Name, Report Prompt Text, and LLM Model.');
             return;
         }
 
@@ -196,7 +196,7 @@ $(document).ready(function() {
         $('#promptId').val(prompt.id);
         $('#formReportType').val(prompt.report_type);
         $('#promptName').val(prompt.name);
-        $('#promptText').val(prompt.prompt_text);
+        $('#promptText').val(prompt.report_prompt_text);
         $('#llmProvider').val(prompt.llm_provider);
         $('#llmModel').val(prompt.llm_model);
         $('#isDefault').prop('checked', prompt.is_default).prop('disabled', true);

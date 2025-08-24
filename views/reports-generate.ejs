@@ -1,0 +1,72 @@
+<%- include('partials/header', { pageTitle: 'Generate Report', active: 'reports', extraCss: [] }) %>
+
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="mb-0">Generate a Report</h1>
+    <div>
+      <a href="/reports" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back to Reports
+      </a>
+    </div>
+  </div>
+
+  <div id="genAlert" class="alert alert-danger" style="display:none;"></div>
+  <div id="genInfo" class="alert alert-info" style="display:none;"></div>
+
+  <div class="card">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label for="projectId" class="form-label">Project UUID (required)</label>
+          <input type="text" class="form-control" id="projectId" placeholder="00000000-0000-0000-0000-000000000000" value="<%= typeof projectId !== 'undefined' ? projectId : '' %>">
+          <div class="form-text">Project: <%= typeof projectTitle !== 'undefined' ? projectTitle : '' %></div>
+        </div>
+        <div class="col-md-4">
+          <label for="reportType" class="form-label">Report Type</label>
+          <select class="form-select" id="reportType">
+            <option value="project_portfolio">Project Portfolio</option>
+            <option value="component_inventory">Component Inventory</option>
+            <option value="safeguard_status">Safeguard Status</option>
+            <option value="threat_model_summary">Threat Model Summary</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row g-3 mt-2">
+        <div class="col-md-8">
+          <label for="templateId" class="form-label">Report Template (PostgREST)</label>
+          <select class="form-select" id="templateId">
+            <option value="">Loading templates...</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label for="reportName" class="form-label">Report Name</label>
+          <input type="text" class="form-control" id="reportName" placeholder="Quarterly Security Portfolio">
+        </div>
+      </div>
+
+      <div class="d-flex align-items-center mt-4">
+        <button id="btnGenerate" class="btn btn-primary me-2">
+          <i class="bi bi-lightning me-1"></i>Generate
+        </button>
+        <button id="btnCancel" class="btn btn-outline-secondary me-2" disabled>Cancel</button>
+        <button id="btnSave" class="btn btn-success" disabled>
+          <i class="bi bi-save me-1"></i>Save
+        </button>
+        <div class="ms-3" id="statusArea" style="display:none;">
+          <span class="spinner-border spinner-border-sm text-primary"></span>
+          <span class="ms-2">Generating...</span>
+        </div>
+      </div>
+
+      <div class="mt-4">
+        <label for="resultMd" class="form-label">Generated Markdown (editable)</label>
+        <textarea id="resultMd" class="form-control" rows="18" placeholder="Generated report will appear here..." style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;"></textarea>
+      </div>
+
+      <input type="hidden" id="postgrestBase" value="http://localhost:3010">
+    </div>
+  </div>
+</div>
+
+<%- include('partials/footer', { extraJs: ['/js/reports-generate.js'] }) %>

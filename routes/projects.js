@@ -133,6 +133,45 @@ router.get('/archived', async (req, res) => {
   }
 });
 
+// Helper: Validate UUID v4
+function isValidUUID(uuid) {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
+}
+
+// GET /projects/:id/reports/new - Render report creation UI for a project
+router.get('/:id/reports/new', ensureAuthenticated, async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    if (!isValidUUID(projectId)) {
+      return res.status(404).render('error', {
+        errorCode: 404,
+        errorMessage: 'Invalid project ID. Please check the URL or contact support.'
+      });
+    }
+    // Verify project exists and fetch its name for pre-filling the form
+    const { rows } = await db.query('SELECT id, name FROM threat_model.projects WHERE id = $1', [projectId]);
+    if (rows.length === 0) {
+      return res.status(404).render('error', { errorCode: 404, errorMessage: 'Project not found' });
+    }
+    const projectTitle = rows[0]?.name || '';
+    // Render the dedicated reports generation page (uses Report Templates, not Prompt Templates)
+    return res.render('reports-generate', {
+      title: 'Generate Report',
+      user: req.session?.user || { username: 'Anonymous' },
+      projectId,
+      projectTitle
+    });
+  } catch (error) {
+    console.error('[PROJECTS] Error rendering report create page:', error);
+    return res.status(500).render('error', {
+      errorCode: 500,
+      errorMessage: 'Error loading report creation form',
+      errorDetails: error.message
+    });
+  }
+});
+
 // GET /projects - Show projects list
 router.get('/', async (req, res) => {
   try {

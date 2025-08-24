@@ -27,9 +27,9 @@ exports.handleChat = async (req, res) => {
 
     const { 
       provider = 'openai', 
-      model = 'gpt-4-turbo-preview', 
+      model = 'gpt-4o', 
       ollamaModel = 'llama4:latest',  
-      openaiModel = 'gpt-4-turbo-preview',  
+      openaiModel = 'gpt-4o',  
       message = '', 
       mirrorMode = false, 
       context_enabled = true,
@@ -82,6 +82,18 @@ exports.handleChat = async (req, res) => {
         responses.ollama = `⚠️ Ollama Error: ${ollamaErr.message}`;
       }
     } else if (provider === 'openai') {
+      // Validate model is available to reduce OpenAI 400s due to unsupported model IDs
+      try {
+        const available = await assistantOpenAIAssistants.getAvailableModels();
+        const availableIds = new Set((available || []).map(m => m.name));
+        if (!availableIds.has(model)) {
+          const fallback = available[0]?.name || 'gpt-4o';
+          console.warn(`[assistant] Requested OpenAI model "${model}" not in available list; falling back to "${fallback}"`);
+          model = fallback;
+        }
+      } catch (e) {
+        console.warn('[assistant] Failed to validate OpenAI model list; proceeding with requested model:', e.message);
+      }
       try {
         // Log if deep research is enabled
         if (deep_research) {

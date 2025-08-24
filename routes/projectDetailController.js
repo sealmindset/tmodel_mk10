@@ -233,6 +233,8 @@ router.get('/projects/:id', ensureAuthenticated, async (req, res) => {
   }
 });
 
+// Route for new report form moved to routes/projects.js to keep all /projects/* under the /projects router
+
 /**
  * Create new component for a project
  */

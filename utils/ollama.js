@@ -185,7 +185,7 @@ class OllamaUtil {
    * @param {string} prompt
    * @param {string} model
    * @param {number} maxTokens
-   * @param {object} options - { session_id, task_type, meta }
+   * @param {object} options - { session_id, task_type, meta, timeoutMs, signal }
    * @returns {Promise<Object>} The API response
    */
   async getCompletion(prompt, model = 'llama4', maxTokens = 100, options = {}) {
@@ -196,30 +196,74 @@ class OllamaUtil {
       let task_type = options.task_type || null;
       let meta = options.meta || null;
       return await new Promise((resolve, reject) => {
+        const timeoutMs = typeof options.timeoutMs === 'number' ? options.timeoutMs : 15000;
+        const externalSignal = options.signal;
         let output = '';
         let errorOutput = '';
+        let timer = null;
+
         logger.info(`[OLLAMA][DEBUG] About to run: ollama run '${model}' <prompt>`);
         logger.info(`[OLLAMA][DEBUG] Prompt: ${prompt}`);
         logger.info(`[OLLAMA][DEBUG] process.env.PATH: ${process.env.PATH}`);
         logger.info(`[OLLAMA][DEBUG] process.cwd(): ${process.cwd()}`);
-        const proc = spawn('ollama', ['run', model]);
+
+        // Create an internal AbortController to support aborts/timeouts (guard for older Node)
+        const controller = (typeof AbortController !== 'undefined')
+          ? new AbortController()
+          : { abort: () => logger.warn('[OLLAMA][WARN] AbortController not available; falling back to kill() only'), signal: undefined };
+
+        // Spawn the CLI process with an abortable signal (Node >= 16)
+        const proc = spawn('ollama', ['run', model], { signal: controller.signal });
+
+        // If an external signal is provided, hook it to our controller and process
+        if (externalSignal) {
+          if (externalSignal.aborted) {
+            logger.warn('[OLLAMA][WARN] External signal already aborted before spawn. Aborting process.');
+            try { controller.abort(); } catch (_) {}
+            try { proc.kill('SIGKILL'); } catch (_) {}
+            return reject(new Error('Ollama CLI aborted before start'));
+          }
+          externalSignal.addEventListener('abort', () => {
+            logger.warn('[OLLAMA][WARN] External abort signal received. Killing Ollama CLI process.');
+            try { controller.abort(); } catch (_) {}
+            try { if (!proc.killed) proc.kill('SIGKILL'); } catch (_) {}
+          }, { once: true });
+        }
+
         // Write the prompt to stdin and close it
-        proc.stdin.write(prompt);
-        proc.stdin.end();
-        // Add a 15s timeout to kill hanging processes
-        const timeout = setTimeout(() => {
-          logger.error('[OLLAMA][ERROR] Ollama CLI timed out after 15s, killing process.');
-          proc.kill('SIGKILL');
+        try {
+          proc.stdin.write(prompt);
+          proc.stdin.end();
+        } catch (e) {
+          logger.error('[OLLAMA][ERROR] Failed to write prompt to stdin:', e);
+        }
+
+        // Enforce timeout
+        timer = setTimeout(() => {
+          logger.error(`[OLLAMA][ERROR] Ollama CLI timed out after ${timeoutMs}ms, killing process.`);
+          try { controller.abort(); } catch (_) {}
+          try { if (!proc.killed) proc.kill('SIGKILL'); } catch (_) {}
           if (output.trim()) {
             logger.warn('[OLLAMA][WARN] Process timed out but output was received. Returning output anyway.');
             return resolve(output.trim());
           }
-          return reject(new Error('Ollama CLI timed out after 15 seconds and produced no output.'));
-        }, 15000);
+          return reject(new Error(`Ollama CLI timed out after ${timeoutMs}ms and produced no output.`));
+        }, timeoutMs);
+
         proc.stdout.on('data', (data) => { output += data.toString(); });
         proc.stderr.on('data', (data) => { errorOutput += data.toString(); });
+        proc.on('error', (err) => {
+          if (timer) clearTimeout(timer);
+          if (err && err.name === 'AbortError') {
+            logger.warn('[OLLAMA][WARN] Ollama CLI aborted by signal.');
+            if (output.trim()) return resolve(output.trim());
+            return reject(new Error('Ollama CLI aborted'));
+          }
+          logger.error('[OLLAMA][ERROR] Spawn error:', err);
+          return reject(err);
+        });
         proc.on('close', async (code) => {
-          clearTimeout(timeout);
+          if (timer) clearTimeout(timer);
           logger.info(`[OLLAMA][DEBUG] CLI exited with code ${code}`);
           logger.info(`[OLLAMA][DEBUG] STDOUT: ${output}`);
           logger.info(`[OLLAMA][DEBUG] STDERR: ${errorOutput}`);
@@ -250,7 +294,7 @@ class OllamaUtil {
           } catch (logErr) {
             logger.error('[OLLAMA][ERROR] Failed to log Ollama LLM usage', logErr);
           }
-          resolve(output.trim());
+          return resolve(output.trim());
         });
       });
     } catch (error) {

@@ -5,10 +5,11 @@
  * processing it with a selected LLM prompt, and returning the result.
  */
 
-const ReportPromptModel = require('../database/models/reportPromptModel');
+const db = require('../database');
 const ProjectModel = require('../database/models/project'); // Assuming this model exists and fetches project data
 const ComponentModel = require('./componentModel');
 const LLMClient = require('./llmClient');
+const settingsService = require('../services/settingsService');
 const DEFAULT_OLLAMA_MAX_TOKENS = 512;
 const OLLAMA_TIMEOUT_MS = 60000; // 60 seconds
 
@@ -17,21 +18,28 @@ const ReportRunner = {
      * Generate a report based on type and prompt.
      * 
      * @param {string} reportType The type of report (e.g., 'project_portfolio').
-     * @param {string} promptId The ID of the prompt template to use.
+     * @param {number} templateId The ID of the report template to use.
      * @param {object} filters Optional filters for data fetching.
      * @returns {Promise<string>} The generated report content (raw text from LLM).
      * @throws {Error} If prompt not found, data fetching fails, or LLM call fails.
      */
-    generateReport: async function(reportType, promptId, filters = {}) {
-        console.log(`[ReportRunner] Generating report. Type: ${reportType}, Prompt ID: ${promptId}`);
+    generateReport: async function(reportType, templateId, filters = {}) {
+        console.log(`[ReportRunner] Generating report. Type: ${reportType}, Template ID: ${templateId}`);
 
-        // 1. Fetch the prompt template
-        const promptTemplate = await ReportPromptModel.getById(promptId);
-        if (!promptTemplate) {
-            throw new Error(`Prompt template with ID ${promptId} not found.`);
+        // 1. Fetch the report template from reports.template
+        let templateRow;
+        try {
+            const { rows } = await db.query(
+                'SELECT id, name, description, template_content FROM reports.template WHERE id = $1',
+                [templateId]
+            );
+            templateRow = rows[0];
+        } catch (e) {
+            console.error('[ReportRunner] Error querying reports.template:', e);
+            throw new Error('Failed to load report template');
         }
-        if (promptTemplate.report_type !== reportType) {
-            throw new Error(`Prompt ${promptId} is for report type ${promptTemplate.report_type}, but ${reportType} was requested.`);
+        if (!templateRow) {
+            throw new Error(`Report template with ID ${templateId} not found.`);
         }
 
         // 2. Fetch data based on reportType
@@ -69,7 +77,7 @@ const ReportRunner = {
         }
         // 3. Prepare data and inject into prompt (simple example)
         // More sophisticated templating (like Handlebars) could be used here.
-        let finalPromptText = promptTemplate.prompt_text;
+        let finalPromptText = templateRow.template_content || '';
         // Limit number of items injected for testing to avoid LLM timeouts
         const MAX_ITEMS_FOR_PROMPT = 10;
         if (reportType === 'project_portfolio') {
@@ -196,21 +204,21 @@ const ReportRunner = {
         console.log(`[ReportRunner] Prompt preview:\n${finalPromptText.slice(0, 500)}${promptLength > 500 ? '\n...[truncated]' : ''}`);
         // 4. Call LLM with the final prompt
         try {
-            const llmProvider = promptTemplate.llm_provider;
-            const llmModel = promptTemplate.llm_model;
+            // Resolve provider/model from settings to avoid undefined usage
+            const providerRaw = await settingsService.getSetting('settings:llm:provider', 'openai', true);
+            const llmProvider = (providerRaw ?? 'openai').toString().toLowerCase();
+            let llmModel;
+            if (llmProvider === 'ollama') {
+                llmModel = await settingsService.getSetting('settings:api:ollama:model', 'llama3.1:latest', true);
+            } else {
+                // Default to OpenAI
+                llmModel = await settingsService.getSetting('openai.model', 'gpt-4o-mini', true);
+            }
+
             const startTime = Date.now();
             console.log(`[ReportRunner] Calling LLM provider: ${llmProvider}, model: ${llmModel}`);
-            let llmResponse;
-            if (llmProvider && llmProvider.toLowerCase() === 'ollama') {
-                // Apply lower maxTokens and timeout for Ollama
-                llmResponse = await Promise.race([
-                    LLMClient.getCompletion(finalPromptText, llmProvider, llmModel, DEFAULT_OLLAMA_MAX_TOKENS),
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('Ollama LLM call timed out after 60s')), OLLAMA_TIMEOUT_MS))
-                ]);
-            } else {
-                // Use default behavior for other providers
-                llmResponse = await LLMClient.getCompletion(finalPromptText, llmProvider, llmModel);
-            }
+            // Note: LLMClient.getCompletion signature: (promptText, provider, model)
+            const llmResponse = await LLMClient.getCompletion(finalPromptText, llmProvider, llmModel);
             const elapsed = Date.now() - startTime;
             console.log(`[ReportRunner] LLM response received for ${reportType} in ${elapsed}ms.`);
             return llmResponse;

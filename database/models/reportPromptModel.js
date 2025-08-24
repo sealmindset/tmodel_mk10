@@ -15,7 +15,7 @@ class ReportPrompt {
     const {
       report_type,
       name,
-      prompt_text,
+      report_prompt_text,
       llm_provider = 'openai',
       llm_model = 'gpt-3.5-turbo',
       is_default = false,
@@ -24,11 +24,11 @@ class ReportPrompt {
 
     const query = `
       INSERT INTO threat_model.report_prompts
-        (report_type, name, prompt_text, llm_provider, llm_model, is_default, created_by, updated_by)
+        (report_type, name, report_prompt_text, llm_provider, llm_model, is_default, created_by, updated_by)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $7) 
       RETURNING *;
     `;
-    const values = [report_type, name, prompt_text, llm_provider, llm_model, is_default, created_by];
+    const values = [report_type, name, report_prompt_text, llm_provider, llm_model, is_default, created_by];
     
     try {
       const result = await pool.query(query, values);
@@ -115,7 +115,7 @@ class ReportPrompt {
     const {
       report_type,
       name,
-      prompt_text,
+      report_prompt_text,
       llm_provider,
       llm_model,
       is_default,
@@ -136,7 +136,7 @@ class ReportPrompt {
 
     if (report_type !== undefined) { setClauses.push(`report_type = $${paramCount++}`); values.push(report_type); }
     if (name !== undefined) { setClauses.push(`name = $${paramCount++}`); values.push(name); }
-    if (prompt_text !== undefined) { setClauses.push(`prompt_text = $${paramCount++}`); values.push(prompt_text); }
+    if (report_prompt_text !== undefined) { setClauses.push(`report_prompt_text = $${paramCount++}`); values.push(report_prompt_text); }
     if (llm_provider !== undefined) { setClauses.push(`llm_provider = $${paramCount++}`); values.push(llm_provider); }
     if (llm_model !== undefined) { setClauses.push(`llm_model = $${paramCount++}`); values.push(llm_model); }
     if (is_default !== undefined && !existingPrompt.is_default) { 

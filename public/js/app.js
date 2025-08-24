@@ -6,6 +6,8 @@
 document.addEventListener('DOMContentLoaded', function() {
   // Initialize tooltips
   initTooltips();
+  // Initialize dropdowns (Prompts menu and others)
+  initDropdowns();
   
   // Initialize form validation
   initFormValidation();
@@ -20,6 +22,11 @@ document.addEventListener('DOMContentLoaded', function() {
   initConfirmActions();
 });
 
+// Fallback: ensure dropdowns are initialized after all scripts loaded
+window.addEventListener('load', function() {
+  initDropdowns();
+});
+
 /**
  * Initialize Bootstrap tooltips
  */
@@ -27,6 +34,21 @@ function initTooltips() {
   const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
   tooltipTriggerList.map(function(tooltipTriggerEl) {
     return new bootstrap.Tooltip(tooltipTriggerEl);
+  });
+}
+
+/**
+ * Initialize Bootstrap dropdowns
+ */
+function initDropdowns() {
+  if (typeof bootstrap === 'undefined' || !bootstrap.Dropdown) return;
+  const dropdownTriggerList = [].slice.call(document.querySelectorAll('.dropdown-toggle'));
+  dropdownTriggerList.forEach(function(dropdownToggleEl) {
+    // If already has a Dropdown instance, skip
+    const existing = bootstrap.Dropdown.getInstance(dropdownToggleEl);
+    if (!existing) {
+      new bootstrap.Dropdown(dropdownToggleEl);
+    }
   });
 }
 

@@ -229,6 +229,15 @@ router.get('/report-templates', (req, res) => {
   });
 });
 
+// Report Prompts Manager (UI that manages threat_model.report_prompts)
+router.get('/report-prompts', (req, res) => {
+  console.log('[ROUTE] GET /report-prompts (manager UI)');
+  return res.render('reportPromptManager', {
+    user: req.session.username,
+    active: 'reportTemplates'
+  });
+});
+
 router.get('/prompts', async (req, res) => {
   console.log('[ROUTE] GET /prompts called');
   try {
