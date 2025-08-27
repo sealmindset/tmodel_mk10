@@ -254,7 +254,8 @@ const getCompletion = async (prompt, model = 'gpt-4', maxTokens = 100, options =
           model,
           messages: [{ role: 'user', content: prompt }]
         };
-        if (Number.isFinite(maxTokens)) req.max_tokens = maxTokens;
+        // Newer models (e.g., gpt-5 family) require max_completion_tokens, not max_tokens
+        if (Number.isFinite(maxTokens)) req.max_completion_tokens = maxTokens;
         response = await openai.chat.completions.create(req);
       }
       logger.info('Raw OpenAI API response:', response);

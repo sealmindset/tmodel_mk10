@@ -43,12 +43,32 @@ FOR EACH ROW EXECUTE FUNCTION report_templates.set_latest_version();
 ALTER TABLE report_templates.template ENABLE ROW LEVEL SECURITY;
 ALTER TABLE report_templates.template_version ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY read_templates ON report_templates.template
-  FOR SELECT USING (true);
-CREATE POLICY read_template_version ON report_templates.template_version
-  FOR SELECT USING (true);
+-- Guard against duplicate policy creation when re-running this file
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = 'report_templates' AND tablename = 'template' AND policyname = 'read_templates'
+  ) THEN
+    EXECUTE 'CREATE POLICY read_templates ON report_templates.template FOR SELECT USING (true)';
+  END IF;
 
-CREATE POLICY write_templates ON report_templates.template
-  FOR INSERT, UPDATE, DELETE TO template_editor USING (true) WITH CHECK (true);
-CREATE POLICY write_template_version ON report_templates.template_version
-  FOR INSERT, UPDATE, DELETE TO template_editor USING (true) WITH CHECK (true);
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = 'report_templates' AND tablename = 'template_version' AND policyname = 'read_template_version'
+  ) THEN
+    EXECUTE 'CREATE POLICY read_template_version ON report_templates.template_version FOR SELECT USING (true)';
+  END IF;
+
+  -- Write policies: use FOR ALL (covers INSERT/UPDATE/DELETE) for compatibility across PG versions
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = 'report_templates' AND tablename = 'template' AND policyname = 'write_templates'
+  ) THEN
+    EXECUTE 'CREATE POLICY write_templates ON report_templates.template FOR ALL TO template_editor USING (true) WITH CHECK (true)';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = 'report_templates' AND tablename = 'template_version' AND policyname = 'write_template_version'
+  ) THEN
+    EXECUTE 'CREATE POLICY write_template_version ON report_templates.template_version FOR ALL TO template_editor USING (true) WITH CHECK (true)';
+  END IF;
+END
+$$;

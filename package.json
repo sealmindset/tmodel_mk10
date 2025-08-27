@@ -4,7 +4,7 @@
   "description": "Enhanced Threat Modeling Platform with PostgreSQL and Rapid7 Integration",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Skipping tests\" && exit 0",
+    "test": "jest --runInBand tests/api/create.*.test.js",
     "start": "node app.js",
     "dev": "nodemon app.js",
     "setup": "node scripts/completeSetup.js",

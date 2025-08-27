@@ -120,7 +120,7 @@ $(document).ready(function() {
     // Handle 'Generate Report' button click
     promptsContainer.on('click', '.generate-report', async function(e) {
         e.preventDefault();
-        const promptId = $(this).data('prompt-id');
+        const templateId = $(this).data('prompt-id');
         const reportType = $(this).data('report-type');
         const btn = $(this);
         btn.text('Generating...').prop('disabled', true);
@@ -129,7 +129,7 @@ $(document).ready(function() {
             const response = await fetch('/api/reports/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ reportType, promptId })
+                body: JSON.stringify({ reportType, templateId })
             });
             if (!response.ok) {
                 const errorData = await response.json();

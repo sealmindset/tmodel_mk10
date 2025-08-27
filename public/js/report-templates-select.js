@@ -7,7 +7,7 @@
   const ID_INPUT_ID = 'reportTemplateId';
   const NAME_INPUT_ID = 'reportTemplateName';
 
-  const DEFAULT_API_BASE = 'http://localhost:3002';
+  const DEFAULT_API_BASE = 'http://localhost:3010';
 
   function apiBase(){
     const el = document.getElementById('reportTemplatesApiBase');
@@ -43,11 +43,29 @@
   }
 
   async function fetchTemplates(){
-    const url = `${apiBase()}/template?order=name.asc`;
-    const res = await fetch(url, { headers: { Accept: 'application/json' } });
-    if(!res.ok) throw new Error(`HTTP ${res.status}`);
-    const rows = await res.json();
-    return Array.isArray(rows) ? rows : [];
+    const root = apiBase().replace(/\/$/, '');
+    const urls = [
+      `${root}/template?order=name.asc`,
+      `${root}/reports.template?order=name.asc`,
+      `${root}/report_templates.template?order=name.asc`
+    ];
+    let lastErr = null;
+    for (const u of urls) {
+      try {
+        console.log('[report-templates-select] fetching', u);
+        const res = await fetch(u, { headers: { Accept: 'application/json' } });
+        if(!res.ok) throw new Error(`HTTP ${res.status}`);
+        const rows = await res.json();
+        if (Array.isArray(rows)) {
+          console.log('[report-templates-select] loaded', rows.length, 'templates via', u);
+          return rows;
+        }
+      } catch (e) {
+        lastErr = e;
+        console.warn('[report-templates-select] fetch failed via', u, e);
+      }
+    }
+    throw lastErr || new Error('No template endpoint available');
   }
 
   function renderRows(tbody, empty, items){

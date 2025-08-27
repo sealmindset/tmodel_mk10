@@ -18,7 +18,7 @@ const ReportRunner = {
      * Generate a report based on type and prompt.
      * 
      * @param {string} reportType The type of report (e.g., 'project_portfolio').
-     * @param {number} templateId The ID of the report template to use.
+     * @param {string|number} templateId The ID of the report template to use. Accepts UUID (report_templates) or numeric (reports).
      * @param {object} filters Optional filters for data fetching.
      * @returns {Promise<string>} The generated report content (raw text from LLM).
      * @throws {Error} If prompt not found, data fetching fails, or LLM call fails.
@@ -26,23 +26,192 @@ const ReportRunner = {
     generateReport: async function(reportType, templateId, filters = {}) {
         console.log(`[ReportRunner] Generating report. Type: ${reportType}, Template ID: ${templateId}`);
 
-        // 1. Fetch the report template from reports.template
+        // 1. Fetch the report template from appropriate source
+        const tidStr = (templateId != null) ? String(templateId).trim() : '';
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(tidStr);
         let templateRow;
         try {
-            const { rows } = await db.query(
-                'SELECT id, name, description, template_content FROM reports.template WHERE id = $1',
-                [templateId]
-            );
-            templateRow = rows[0];
+            if (isUuid) {
+                console.log('[ReportRunner] Loading template by UUID from report_templates.*');
+                const { rows } = await db.query(
+                    `SELECT 
+                       t.id AS uuid_id,
+                       t.name,
+                       t.description,
+                       COALESCE(
+                         tv.content->>'template_content',
+                         tv.content->>'content',
+                         tv.content::text
+                       ) AS template_content
+                     FROM report_templates.template t
+                     LEFT JOIN report_templates.template_version tv ON tv.id = t.latest_version_id
+                     WHERE t.id = $1`,
+                    [tidStr]
+                );
+                templateRow = rows && rows[0];
+                // Fallback: if no content via latest_version_id, get most recent version by version desc
+                if (!templateRow || !templateRow.template_content) {
+                    const { rows: vrows } = await db.query(
+                        `SELECT 
+                           t.id AS uuid_id,
+                           t.name,
+                           t.description,
+                           COALESCE(
+                             tv.content->>'template_content',
+                             tv.content->>'content',
+                             tv.content::text
+                           ) AS template_content
+                         FROM report_templates.template t
+                         JOIN report_templates.template_version tv ON tv.template_id = t.id
+                         WHERE t.id = $1
+                         ORDER BY tv.version DESC NULLS LAST, tv.created_at DESC
+                         LIMIT 1`,
+                        [tidStr]
+                    );
+                    templateRow = vrows && vrows[0];
+                }
+            } else {
+                const numericId = Number(tidStr);
+                if (Number.isNaN(numericId)) {
+                    throw new Error(`Invalid templateId format: ${tidStr}`);
+                }
+                console.log('[ReportRunner] Loading template by numeric id from reports.template');
+                const { rows } = await db.query(
+                    'SELECT id, name, description, template_content FROM reports.template WHERE id = $1',
+                    [numericId]
+                );
+                templateRow = rows && rows[0];
+            }
         } catch (e) {
-            console.error('[ReportRunner] Error querying reports.template:', e);
+            console.error('[ReportRunner] Error querying template source:', e);
             throw new Error('Failed to load report template');
         }
-        if (!templateRow) {
-            throw new Error(`Report template with ID ${templateId} not found.`);
+        if (!templateRow || !templateRow.template_content) {
+            throw new Error(`Report template with ID ${templateId} not found or missing content.`);
+        }
+        // Diagnostics: confirm which template content is used
+        try {
+            const tname = templateRow.name || '';
+            const preview = String(templateRow.template_content).slice(0, 160);
+            console.log('[ReportRunner] Using template:', { id: templateId, name: tname, contentPreview: preview });
+        } catch(_) {}
+
+        // 2.a Build generic context for token injection (best-effort)
+        const nowIso = new Date().toISOString();
+        const author = (filters && filters.author) || 'system';
+        const env = process.env.NODE_ENV || 'development';
+        const ciExample = (filters && filters.ci_example) || 'GitHub Actions';
+        // Helpers for safe model loads
+        const safeGetAll = async (fn, def) => { try { return await fn(filters || {}); } catch (_) { return def; } };
+        // Projects/components reused for both token JSON and legacy injections
+        const projectsAll = await safeGetAll(ProjectModel.getAll.bind(ProjectModel), []);
+        const componentsAll = await safeGetAll(ComponentModel.getAll.bind(ComponentModel), []);
+        // Optional datasets
+        let threatsAll = [];
+        let vulnerabilitiesAll = [];
+        let safeguardsMap = [];
+        try {
+            const ThreatModel = require('../database/models/threatModel');
+            threatsAll = await safeGetAll(ThreatModel.getAll.bind(ThreatModel), []);
+        } catch(_) {}
+        try {
+            const VulnerabilityModel = require('../database/models/vulnerability');
+            vulnerabilitiesAll = await safeGetAll(VulnerabilityModel.getAll.bind(VulnerabilityModel), []);
+        } catch(_) {}
+        try {
+            const SafeguardModel = require('../database/models/safeguard');
+            safeguardsMap = await safeGetAll(SafeguardModel.getThreatSafeguards?.bind(SafeguardModel) || (async()=>[]), []);
+        } catch(_) {}
+
+        const statistics = (()=>{
+            const vulnCounts = { Critical:0, High:0, Medium:0, Low:0 };
+            (Array.isArray(vulnerabilitiesAll)?vulnerabilitiesAll:[]).forEach(v=>{ const s=(v.severity||'').toString(); if (vulnCounts[s] != null) vulnCounts[s]++; });
+            return {
+                components: Array.isArray(componentsAll)?componentsAll.length:0,
+                threat_models: Array.isArray(threatsAll)?threatsAll.length:0,
+                vulnerabilities: vulnCounts,
+                incidents: { High:0, Medium:0, Low:0 }
+            };
+        })();
+
+        // Build replacements only for tokens present
+        const tokenReplacements = new Map([
+            ['{{GENERATED_AT}}', nowIso],
+            ['{{AUTHOR}}', author],
+            ['{{ENV}}', env],
+            ['{{CI_EXAMPLE}}', ciExample],
+            ['<ISO-timestamp>', nowIso],
+            ['<username>', author],
+            ['{{PROJECTS_JSON}}', JSON.stringify(projectsAll)],
+            ['{{PROJECTS_COUNT}}', String(Array.isArray(projectsAll)?projectsAll.length:0)],
+            ['{{PROJECT_NAMES_CSV}}', (Array.isArray(projectsAll)?projectsAll.map(p=>p.name).filter(Boolean).join(', '):'')],
+            ['{{COMPONENTS_JSON}}', JSON.stringify(componentsAll)],
+            ['{{COMPONENTS_COUNT}}', String(Array.isArray(componentsAll)?componentsAll.length:0)],
+            ['{{THREATS_JSON}}', JSON.stringify(threatsAll)],
+            ['{{VULNERABILITIES_JSON}}', JSON.stringify(vulnerabilitiesAll)],
+            ['{{THREAT_SAFEGUARDS_JSON}}', JSON.stringify(safeguardsMap)],
+            ['{{STATISTICS_JSON}}', JSON.stringify(statistics)],
+            ['{{PIPELINE_STEPS_JSON}}', JSON.stringify((filters && filters.pipeline_steps) || [])],
+            ['{{TERRAFORM_TAGS_JSON}}', JSON.stringify((filters && filters.tags) || {})],
+            ['{{AWS_ACCOUNTS_JSON}}', JSON.stringify((filters && filters.aws_accounts) || [])]
+        ]);
+
+        let finalPromptText = templateRow.template_content || '';
+        try {
+            // Normalize common brace variants and HTML entities first
+            const beforeNormLen = finalPromptText.length;
+            finalPromptText = finalPromptText
+                .replace(/&#123;/g, '{')
+                .replace(/&#125;/g, '}')
+                .replace(/&lbrace;/g, '{')
+                .replace(/&rbrace;/g, '}')
+                .replace(/\uFF5B|［/g, '{') // fullwidth or CJK bracket variants
+                .replace(/\uFF5D|］/g, '}');
+            if (finalPromptText.length !== beforeNormLen) {
+                console.log('[ReportRunner] Normalization: replaced HTML/fullwidth braces to ASCII');
+            }
+
+            // Diagnostics: detect tokens present before replacement
+            const tokenKeys = Array.from(tokenReplacements.keys());
+            const presentBefore = tokenKeys.filter(k => finalPromptText.includes(k));
+            console.log('[ReportRunner] Tokens present before replacement:', presentBefore.slice(0, 20), presentBefore.length > 20 ? `(+${presentBefore.length-20} more)` : '');
+
+            // Replace only tokens that occur to keep cost low
+            let replacedCount = 0;
+            const whitespaceVariant = (t) => {
+                // Convert '{{FOO}}' -> /\{\{\s*FOO\s*\}\}/g
+                const inner = t.replace(/^\{\{/, '').replace(/\}\}$/, '');
+                return new RegExp(`\\{\\{\\s*${inner.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\s*\\}\\}`, 'g');
+            };
+            for (const [tok, val] of tokenReplacements.entries()) {
+                // Exact match
+                if (finalPromptText.includes(tok)) {
+                    const parts = finalPromptText.split(tok);
+                    if (parts.length > 1) replacedCount += (parts.length - 1);
+                    finalPromptText = parts.join(val);
+                }
+                // Optional whitespace variant
+                const rx = whitespaceVariant(tok);
+                const before = finalPromptText;
+                finalPromptText = finalPromptText.replace(rx, () => { replacedCount++; return val; });
+                if (before !== finalPromptText) {
+                    // replaced via regex; count already incremented per match
+                }
+            }
+            console.log(`[ReportRunner] Token replacements applied: ${replacedCount}`);
+            // Severity badge macro helper: {{SEVERITY_BADGE:Critical}}
+            finalPromptText = finalPromptText.replace(/\{\{SEVERITY_BADGE:([^}]+)\}\}/g, (_m, sev) => `[\`${sev.trim()}\`]`);
+            // Simple Confluence macro passthroughs are left as-is by design
+
+            // Diagnostics: unreplaced {{...}} tokens (first 20)
+            const unreplaced = finalPromptText.match(/\{\{[^}]+\}\}/g) || [];
+            if (unreplaced.length) {
+                console.log('[ReportRunner] Unreplaced tokens after injection (first 20):', Array.from(new Set(unreplaced)).slice(0,20));
+            }
+        } catch (e) {
+            console.warn('[ReportRunner] Token replacement failed; sending template as-is', e);
         }
 
-        // 2. Fetch data based on reportType
         let rawData;
         try {
             switch (reportType) {
@@ -75,9 +244,7 @@ const ReportRunner = {
             console.error(`[ReportRunner] Error fetching data for ${reportType}:`, error);
             throw new Error(`Failed to fetch data for report type ${reportType}: ${error.message}`);
         }
-        // 3. Prepare data and inject into prompt (simple example)
-        // More sophisticated templating (like Handlebars) could be used here.
-        let finalPromptText = templateRow.template_content || '';
+        // 3. Prepare legacy data injections (optional, only if tokens exist)
         // Limit number of items injected for testing to avoid LLM timeouts
         const MAX_ITEMS_FOR_PROMPT = 10;
         if (reportType === 'project_portfolio') {
@@ -149,6 +316,19 @@ const ReportRunner = {
             });
             finalPromptText = finalPromptText.replace('{{SAFEGUARD_TABLE}}', safeguardTableMd);
         } else if (reportType === 'threat_model_summary') {
+            // Helper to format dates from string/Date/other into YYYY-MM-DD
+            const fmtDate = (v) => {
+                if (!v) return '';
+                if (typeof v === 'string') {
+                    const idx = v.indexOf('T');
+                    return idx > 0 ? v.slice(0, idx) : v;
+                }
+                try {
+                    const d = (v instanceof Date) ? v : new Date(v);
+                    if (Number.isNaN(d.getTime())) return '';
+                    return d.toISOString().split('T')[0];
+                } catch (_) { return ''; }
+            };
             // Prepare threat model data for prompt
             const threatModels = rawData.slice(0, MAX_ITEMS_FOR_PROMPT).map(tm => ({
                 id: tm.id,
@@ -176,7 +356,7 @@ const ReportRunner = {
             let threatModelTable = 'Project | Threat Model | Status | Created | Updated\n';
             threatModelTable += '------- | ------------ | ------ | ------- | -------\n';
             threatModels.forEach(tm => {
-                threatModelTable += `${tm.project_name || ''} | ${tm.name || ''} | ${tm.status || ''} | ${tm.created_at ? tm.created_at.split('T')[0] : ''} | ${tm.updated_at ? tm.updated_at.split('T')[0] : ''}\n`;
+                threatModelTable += `${tm.project_name || ''} | ${tm.name || ''} | ${tm.status || ''} | ${fmtDate(tm.created_at)} | ${fmtDate(tm.updated_at)}\n`;
             });
             finalPromptText = finalPromptText.replace('{{THREAT_MODEL_TABLE}}', threatModelTable);
 
@@ -190,7 +370,7 @@ const ReportRunner = {
             let recentActivityTable = 'Project | Threat Model | Status | Created | Updated\n';
             recentActivityTable += '------- | ------------ | ------ | ------- | -------\n';
             recentModels.forEach(tm => {
-                recentActivityTable += `${tm.project_name || ''} | ${tm.name || ''} | ${tm.status || ''} | ${tm.created_at ? tm.created_at.split('T')[0] : ''} | ${tm.updated_at ? tm.updated_at.split('T')[0] : ''}\n`;
+                recentActivityTable += `${tm.project_name || ''} | ${tm.name || ''} | ${tm.status || ''} | ${fmtDate(tm.created_at)} | ${fmtDate(tm.updated_at)}\n`;
             });
             finalPromptText = finalPromptText.replace('{{RECENT_ACTIVITY_TABLE}}', recentActivityTable);
         }
@@ -204,15 +384,23 @@ const ReportRunner = {
         console.log(`[ReportRunner] Prompt preview:\n${finalPromptText.slice(0, 500)}${promptLength > 500 ? '\n...[truncated]' : ''}`);
         // 4. Call LLM with the final prompt
         try {
-            // Resolve provider/model from settings to avoid undefined usage
-            const providerRaw = await settingsService.getSetting('settings:llm:provider', 'openai', true);
-            const llmProvider = (providerRaw ?? 'openai').toString().toLowerCase();
+            // Allow client override via filters.llmOverride
+            let llmProvider;
             let llmModel;
-            if (llmProvider === 'ollama') {
-                llmModel = await settingsService.getSetting('settings:api:ollama:model', 'llama3.1:latest', true);
+            const override = (filters && filters.llmOverride) ? filters.llmOverride : null;
+            if (override && (override.provider || override.model)) {
+                llmProvider = (override.provider || 'openai').toString().toLowerCase();
+                llmModel = override.model || (llmProvider === 'ollama' ? 'llama3.1:latest' : 'gpt-4o-mini');
             } else {
-                // Default to OpenAI
-                llmModel = await settingsService.getSetting('openai.model', 'gpt-4o-mini', true);
+                // Resolve provider/model from settings to avoid undefined usage
+                const providerRaw = await settingsService.getSetting('settings:llm:provider', 'openai', true);
+                llmProvider = (providerRaw ?? 'openai').toString().toLowerCase();
+                if (llmProvider === 'ollama') {
+                    llmModel = await settingsService.getSetting('settings:api:ollama:model', 'llama3.1:latest', true);
+                } else {
+                    // Default to OpenAI
+                    llmModel = await settingsService.getSetting('openai.model', 'gpt-4o-mini', true);
+                }
             }
 
             const startTime = Date.now();

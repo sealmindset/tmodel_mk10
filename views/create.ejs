@@ -18,7 +18,7 @@
 
   <div class="card">
     <div class="card-body">
-      <form id="threatModelForm" action="/ask" method="POST" onsubmit="console.log('Form submitting with subject:', document.getElementById('subject').value)">
+      <form id="threatModelForm" action="/create" method="POST" onsubmit="console.log('Form submitting to /create with subject:', document.getElementById('subject').value)">
         <!-- Form content from original index.ejs, but without the troublesome div -->
         <div class="mb-3">
           <label for="subject" class="form-label">System to Analyze</label>
@@ -235,7 +235,9 @@
             }
 
 
-            fetch('/ask', {
+            // Create Threat Model via server route
+            console.log('[CREATE] Posting to /create');
+            fetch('/create', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',

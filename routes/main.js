@@ -14,6 +14,20 @@ const threatModelService = require('../services/threatModelService');
 const db = require('../database');
 const settingsService = require('../services/settingsService');
 
+// Provider-aware timeout settings (align with /api/llm/generate)
+const OPENAI_TIMEOUT_MS = 45000;
+const OLLAMA_TIMEOUT_MS = 15000;
+
+function withTimeout(promise, ms, label = 'timeout') {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(label)), ms);
+    Promise.resolve(promise).then(
+      (val) => { clearTimeout(timer); resolve(val); },
+      (err) => { clearTimeout(timer); reject(err); }
+    );
+  });
+}
+
 // Dashboard (now the index route)
 router.get('/', async (req, res) => {
   try {
@@ -43,8 +57,13 @@ router.get('/', async (req, res) => {
 // Handle threat model creation (POST)
 router.post('/create', async (req, res) => {
   try {
-    const { subject, llmProvider, model } = req.body;
+    const { subject, llmProvider, model, selectedPromptId } = req.body;
     if (!subject) {
+      // If client expects JSON, return JSON error; otherwise render page
+      const wantsJson = req.xhr || req.is('application/json') || (req.headers.accept || '').includes('application/json');
+      if (wantsJson) {
+        return res.status(400).json({ success: false, error: 'System to Analyze (subject) is required.' });
+      }
       return res.status(400).render('create', {
         user: req.session.username,
         error: 'System to Analyze (subject) is required.',
@@ -55,6 +74,38 @@ router.post('/create', async (req, res) => {
         availableOllamaModels: []
       });
     }
+    // Build prompt from selected template (if provided), injecting subject
+    let promptToSend = subject;
+    try {
+      if (selectedPromptId) {
+        const tmpl = await promptService.getPromptById(selectedPromptId);
+        if (tmpl && (tmpl.prompt_text || tmpl.text)) {
+          const raw = tmpl.prompt_text || tmpl.text;
+          // Replace placeholders case-insensitively for multiple tokens and delimiter styles
+          const tokens = ['SUBJECT', 'SYSTEM', 'SYSTEM_TO_ANALYZE'];
+          const patterns = [];
+          for (const tok of tokens) {
+            // {{TOKEN}}
+            patterns.push(new RegExp(`\\{\\{\\s*${tok}\\s*\\}}`, 'gi'));
+            // [[TOKEN]]
+            patterns.push(new RegExp(`\\[\\[\\s*${tok}\\s*\\]]`, 'gi'));
+            // ${TOKEN}
+            patterns.push(new RegExp(`\\$\\{\\s*${tok}\\s*\\}`, 'gi'));
+          }
+          let composed = raw;
+          for (const rx of patterns) composed = composed.replace(rx, subject);
+          promptToSend = composed;
+          console.log('[CREATE] Using selected prompt template', { selectedPromptId, composedLength: composed.length });
+        } else {
+          console.warn('[CREATE] Selected promptId has no prompt_text, falling back to subject', { selectedPromptId });
+        }
+      } else {
+        console.log('[CREATE] No selectedPromptId provided, using subject directly');
+      }
+    } catch (tmplErr) {
+      console.warn('[CREATE] Failed to load/apply prompt template, using subject directly:', tmplErr.message);
+    }
+
     // Determine provider
     const provider = llmProvider || await settingsService.getSettingByKey('llm.provider');
     let usedModel = model;
@@ -63,14 +114,31 @@ router.post('/create', async (req, res) => {
     if (provider === 'ollama') {
       // Use selected Ollama model or fallback
       usedModel = usedModel || await settingsService.getSettingByKey('ollama.model') || 'llama3.3:latest';
-      const completion = await ollamaUtil.getCompletion(subject, usedModel);
-      // ollamaUtil returns raw text
-      completionText = typeof completion === 'string' ? completion : (completion && completion.response) || '';
+      const providerTimeout = OLLAMA_TIMEOUT_MS;
+      // Abort support for Ollama CLI
+      const controller = new AbortController();
+      const signal = controller.signal;
+      // Ensure we abort on client disconnect
+      const onClientAbort = () => { try { controller.abort(); } catch (_) {} };
+      res.on('close', onClientAbort);
+      res.on('finish', onClientAbort);
+      req.on('aborted', onClientAbort);
+      try {
+        const callPromise = ollamaUtil.getCompletion(promptToSend, usedModel, undefined, { timeoutMs: providerTimeout, signal });
+        const completion = await withTimeout(callPromise, providerTimeout + 1000, 'request_timeout');
+        // ollamaUtil returns raw text
+        completionText = typeof completion === 'string' ? completion : (completion && completion.response) || '';
+      } finally {
+        res.off('close', onClientAbort);
+        res.off('finish', onClientAbort);
+        req.off('aborted', onClientAbort);
+      }
       console.log('[CREATE] Ollama completion length:', completionText.length);
     } else {
       // Use OpenAI logic – increase max tokens to avoid truncation
       usedModel = usedModel || await settingsService.getSettingByKey('openai.model') || 'gpt-3.5-turbo';
-      const response = await openaiUtil.getCompletion(subject, usedModel, 2000);
+      const providerTimeout = OPENAI_TIMEOUT_MS;
+      const response = await withTimeout(openaiUtil.getCompletion(promptToSend, usedModel, 2000), providerTimeout, 'request_timeout');
       // openaiUtil.getCompletion returns the full API response; extract text
       try {
         if (response && response.choices && response.choices[0]) {
@@ -93,9 +161,18 @@ router.post('/create', async (req, res) => {
       llmProvider: provider,
       username: req.session.username || 'unknown'
     });
+    // Respond with JSON for AJAX callers; redirect for normal form
+    const wantsJson = req.xhr || req.is('application/json') || (req.headers.accept || '').includes('application/json');
+    if (wantsJson) {
+      return res.json({ success: true, id: newModel.id });
+    }
     return res.redirect(`/results?subjectid=${newModel.id}`);
   } catch (error) {
     console.error('Error creating threat model:', error);
+    const wantsJson = req.xhr || req.is('application/json') || (req.headers.accept || '').includes('application/json');
+    if (wantsJson) {
+      return res.status(500).json({ success: false, error: 'Failed to create threat model. ' + (error.message || '') });
+    }
     return res.status(500).render('create', {
       user: req.session.username,
       error: 'Failed to create threat model. ' + (error.message || ''),
