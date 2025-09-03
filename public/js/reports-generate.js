@@ -4,6 +4,69 @@
   // Simple helpers
   function $(id) { return document.getElementById(id); }
 
+  // Page-scoped alert helpers for this view
+  function showAlert(message, type = 'danger') {
+    const el = $('genAlert');
+    if (!el) { console.warn('[REPORTS-GEN] Missing #genAlert element'); return; }
+    el.className = `alert alert-${type}`;
+    el.innerHTML = message || '';
+    el.style.display = message ? 'block' : 'none';
+  }
+  function showInfo(message) {
+    const el = $('genInfo');
+    if (!el) { console.warn('[REPORTS-GEN] Missing #genInfo element'); return; }
+    el.className = 'alert alert-info';
+    el.innerHTML = message || '';
+    el.style.display = message ? 'block' : 'none';
+  }
+  function clearAlert() {
+    const a = $('genAlert'); const i = $('genInfo');
+    if (a) { a.style.display = 'none'; a.innerHTML = ''; }
+    if (i) { i.style.display = 'none'; i.innerHTML = ''; }
+  }
+  
+  // Diagnostics for #resultMd content flow
+  let _resultMdLast = null;
+  let _resultMdMonitor = null;
+  function setResultMd(text, source) {
+    const el = $('resultMd');
+    if (!el) { return; }
+    const t = (typeof text === 'string') ? text : (text == null ? '' : String(text));
+    // Log length and preview to help detect prompt/template leakage
+    try {
+      console.log('[REPORTS-GEN] Setting #resultMd from', source, {
+        length: t.length,
+        preview: t.slice(0, 200)
+      });
+    } catch(_) {}
+    el.value = t;
+    _resultMdLast = t;
+  }
+  function startResultMdMonitor(durationMs = 7000, intervalMs = 400) {
+    const el = $('resultMd');
+    if (!el) return;
+    if (_resultMdMonitor) { try { clearInterval(_resultMdMonitor); } catch(_) {} }
+    const start = Date.now();
+    let last = el.value;
+    _resultMdMonitor = setInterval(() => {
+      if ((Date.now() - start) > durationMs) {
+        try { clearInterval(_resultMdMonitor); } catch(_) {}
+        _resultMdMonitor = null;
+        return;
+      }
+      const cur = el.value;
+      if (cur !== last) {
+        console.warn('[REPORTS-GEN] #resultMd changed after completion', {
+          prevLen: (last || '').length,
+          newLen: (cur || '').length,
+          preview: String(cur || '').slice(0, 200)
+        });
+        last = cur;
+        _resultMdLast = cur;
+      }
+    }, intervalMs);
+  }
+
   // Lightweight UUIDv4 generator for browsers
   function uuidv4() {
     if (window.crypto && crypto.getRandomValues) {
@@ -63,6 +126,100 @@
     });
   }
 
+  // Streaming XHR helper for Server-Sent Events
+  function xhrStream(url, body, onMessage, onError, onComplete) {
+    return new Promise((resolve, reject) => {
+      try {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', url, true);
+        xhr.setRequestHeader('Accept', 'text/event-stream');
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.timeout = 120000; // 2 minutes for streaming
+
+        // Incremental SSE parsing state
+        let lastIndex = 0;
+        let buffer = '';
+
+        // Parse one SSE frame string and dispatch via onMessage
+        function parseAndDispatch(frame) {
+          if (!frame) return;
+          const lines = frame.split('\n');
+          let eventName = null;
+          const dataLines = [];
+          for (const line of lines) {
+            if (!line) continue;
+            if (line.startsWith('event:')) {
+              eventName = line.slice(6).trim();
+            } else if (line.startsWith('data:')) {
+              dataLines.push(line.slice(5).replace(/^\s/, ''));
+            }
+          }
+          if (dataLines.length) {
+            const dataStr = dataLines.join('\n');
+            try {
+              const obj = JSON.parse(dataStr);
+              if (eventName && obj.event == null) obj.event = eventName;
+              onMessage && onMessage(obj);
+            } catch (e) {
+              console.warn('[REPORTS-GEN] Failed to parse SSE data JSON:', dataStr, e);
+            }
+          }
+        }
+
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState === 3 || xhr.readyState === 4) {
+            // Append new chunk since last parse
+            const chunk = xhr.responseText.substring(lastIndex);
+            lastIndex = xhr.responseText.length;
+            if (chunk) buffer += chunk.replace(/\r\n/g, '\n');
+
+            // Parse complete SSE frames separated by blank line
+            let sep;
+            while ((sep = buffer.indexOf('\n\n')) !== -1) {
+              const frame = buffer.slice(0, sep);
+              buffer = buffer.slice(sep + 2);
+              parseAndDispatch(frame);
+            }
+
+            if (xhr.readyState === 4) {
+              // Process any final leftover (non-delimited) frame on close
+              const leftover = buffer.trim();
+              if (leftover.length > 0) {
+                parseAndDispatch(leftover);
+                buffer = '';
+              }
+              if (xhr.status >= 200 && xhr.status < 300) {
+                onComplete && onComplete();
+                resolve(xhr.responseText);
+              } else {
+                const error = new Error(`HTTP ${xhr.status}: ${xhr.statusText}`);
+                onError && onError(error);
+                reject(error);
+              }
+            }
+          }
+        };
+
+        xhr.ontimeout = () => {
+          const error = new Error('Request timeout');
+          onError && onError(error);
+          reject(error);
+        };
+
+        xhr.onerror = () => {
+          const error = new Error('Network error');
+          onError && onError(error);
+          reject(error);
+        };
+
+        xhr.send(body != null ? JSON.stringify(body) : null);
+      } catch (e) {
+        onError && onError(e);
+        reject(e);
+      }
+    });
+  }
+
   function setBusy(isBusy) {
     const status = $('statusArea');
     const btnGen = $('btnGenerate');
@@ -72,23 +229,42 @@
     if (btnCancel) btnCancel.disabled = !isBusy;
   }
 
-  function showAlert(msg) {
-    const el = $('genAlert');
-    if (!el) return;
-    el.textContent = msg || 'Unexpected error';
-    el.style.display = 'block';
+  function updateProgress(progressData) {
+    const progressEl = $('progressArea');
+    const progressBar = $('progressBar');
+    const progressText = $('progressText');
+
+    if (!progressEl || !progressBar || !progressText) return;
+
+    // Update progress bar
+    if (progressData.progress !== undefined) {
+      progressBar.style.width = Math.min(100, Math.max(0, progressData.progress)) + '%';
+    }
+
+    // Update progress text
+    if (progressData.message) {
+      progressText.textContent = progressData.message;
+    }
+
+    // Show progress area
+    progressEl.style.display = 'block';
+
+    console.log('[REPORTS-GEN] Progress update:', progressData);
   }
-  function clearAlert() {
-    const el = $('genAlert');
-    if (!el) return;
-    el.style.display = 'none';
-    el.textContent = '';
+
+  function showProgressArea() {
+    const progressEl = $('progressArea');
+    if (progressEl) {
+      progressEl.style.display = 'block';
+      updateProgress({ message: 'Initializing...', progress: 0 });
+    }
   }
-  function showInfo(msg) {
-    const el = $('genInfo');
-    if (!el) return;
-    el.textContent = msg || '';
-    el.style.display = msg ? 'block' : 'none';
+
+  function hideProgressArea() {
+    const progressEl = $('progressArea');
+    if (progressEl) {
+      progressEl.style.display = 'none';
+    }
   }
 
   async function loadModelsForProvider(provider) {
@@ -230,6 +406,7 @@
     const llmProviderValue = llmProviderField && llmProviderField.value ? llmProviderField.value : 'openai';
     const llmModelValue = llmModelField && llmModelField.value ? llmModelField.value : (llmProviderValue === 'ollama' ? 'llama3:latest' : 'gpt-4');
 
+    // Validate inputs
     if (!projectId || !isUuidV4(projectId)) {
       showAlert('Please enter a valid Project UUID.');
       return;
@@ -317,24 +494,58 @@
     }
 
     setBusy(true);
+    showProgressArea();
+    clearAlert();
+
     try {
-      // Call server generator
+      // Prepare request payload
       const payload = {
         reportType,
         templateId: tid,
         filters: { projectUuid: projectId, llmOverride: { provider: llmProviderValue, model: llmModelValue } }
       };
-      console.log('[REPORTS-GEN] POST /api/reports/generate payload=', payload);
-      const genResp = await xhrJson('POST', '/api/reports/generate', payload, 45000);
-      const content = genResp?.generatedReport || '';
-      $('resultMd').value = content;
-      $('btnSave').disabled = !content;
-      showInfo('Generation complete. You can edit and then save the report.');
+
+      console.log('[REPORTS-GEN] Starting report generation with streaming');
+
+      // Use streaming for real-time updates
+      await xhrStream(
+        '/api/reports/generate?stream=true',
+        payload,
+        // onMessage - handle progress updates
+        (data) => {
+          if (data.event === 'progress') {
+            updateProgress(data);
+          } else if (data.event === 'complete') {
+            updateProgress({ message: 'Report completed successfully!', progress: 100 });
+            setResultMd(data.generatedReport || '', 'sse_complete');
+            startResultMdMonitor();
+            $('btnSave').disabled = !data.generatedReport;
+            showInfo('Generation complete. You can edit and then save the report.');
+          } else if (data.event === 'error') {
+            showAlert(`Generation failed: ${data.details || data.message || 'Unknown error'}`);
+            updateProgress({ message: 'Generation failed', progress: 0 });
+          }
+        },
+        // onError - handle errors
+        (error) => {
+          console.error('[REPORTS-GEN] Streaming failed:', error);
+          showAlert(`Generation failed: ${error.message}`);
+          updateProgress({ message: 'Generation failed', progress: 0 });
+        },
+        // onComplete - cleanup
+        () => {
+          setBusy(false);
+          // Keep progress visible for a moment to show completion
+          setTimeout(() => hideProgressArea(), 3000);
+        }
+      );
+
     } catch (e) {
       console.error('[REPORTS-GEN] Generate failed:', e);
       showAlert('Generate failed: ' + e.message);
-    } finally {
+      updateProgress({ message: 'Generation failed', progress: 0 });
       setBusy(false);
+      hideProgressArea();
     }
   }
 
@@ -409,6 +620,18 @@
       // Initial populate
       const initialProv = provSel.value || 'openai';
       loadModelsForProvider(initialProv);
+    }
+
+    // Log user edits into the result textarea to differentiate from programmatic changes
+    const resMd = $('resultMd');
+    if (resMd) {
+      resMd.addEventListener('input', function() {
+        try {
+          const v = resMd.value || '';
+          console.log('[REPORTS-GEN] #resultMd user input', { length: v.length, preview: v.slice(0, 120) });
+          _resultMdLast = v;
+        } catch(_) {}
+      });
     }
 
     // Prompts modal: prompts-select.js should dispatch a custom event when a prompt is chosen

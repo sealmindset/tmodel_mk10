@@ -1,0 +1,86 @@
+<div>
+  <h5 class="mb-2">RTG Template How To: TOKENS and PROMPT</h5>
+  <ul class="mb-3">
+    <li><strong>TOKENS</strong>: Placeholders replaced at compile time with values or JSON (e.g., <code>{{PROJECT_JSON}}</code>).</li>
+    <li><strong>PROMPT</strong>: Instruction lines for the LLM. Each prompt line must start with <code>PROMPT </code> (note the space).</li>
+  </ul>
+
+  <p class="mb-2"><strong>Compilation order</strong></p>
+  <ol class="mb-3 small">
+    <li>Normalize braces (HTML entities/fullwidth) so <code>{{...}}</code> match.</li>
+    <li>Replace known tokens (whitespace tolerant, e.g., <code>{{ PROJECTS_JSON }}</code> works).</li>
+    <li>Apply macro <code>{{SEVERITY_BADGE:Level}}</code> → <code>[Level]</code>.</li>
+    <li>Collect unknown <code>{{...}}</code> and leave them as-is (warnings recorded).</li>
+    <li>Extract prompt text: lines beginning with <code>PROMPT </code> are joined and sent to the LLM.</li>
+  </ol>
+
+  <p class="mb-2"><strong>Known tokens</strong> (from <code>src/rtg/server/compileService.ts</code>)</p>
+  <ul class="small mb-3">
+    <li><code>{{GENERATED_AT}}</code> – ISO timestamp when compiled.</li>
+    <li><code>{{AUTHOR}}</code> – from <code>filters.author</code> or <code>"system"</code>.</li>
+    <li><code>{{ENV}}</code> – <code>NODE_ENV</code> or <code>development</code>.</li>
+    <li><code>{{CI_EXAMPLE}}</code> – from <code>filters.ci_example</code> or <code>"GitHub Actions"</code>.</li>
+    <li><code>&lt;ISO-timestamp&gt;</code> – ISO timestamp (angle-bracket variant).</li>
+    <li><code>&lt;username&gt;</code> – author (angle-bracket variant).</li>
+    <li><code>{{PROJECT_KEY}}</code> – project key or a slug of the project name.</li>
+    <li><code>{{RESILIENCY_TARGET}}</code> – project SLO target (defaults to <code>99.9</code>).</li>
+    <li><code>{{PROJECTS_JSON}}</code> – JSON of all projects in scope (budgeted).</li>
+    <li><code>{{PROJECT_JSON}}</code> – JSON of the selected project.</li>
+    <li><code>{{PROJECTS_COUNT}}</code> – number of projects.</li>
+    <li><code>{{PROJECT_NAMES_CSV}}</code> – comma-separated project names.</li>
+    <li><code>{{COMPONENTS_JSON}}</code> – JSON of components in scope (budgeted, sorted by name).</li>
+    <li><code>{{COMPONENTS_COUNT}}</code> – number of components.</li>
+    <li><code>{{THREATS_JSON}}</code> – JSON of threats (budgeted, severity-sorted).</li>
+    <li><code>{{VULNERABILITIES_JSON}}</code> – JSON of vulnerabilities (budgeted, severity/date-sorted).</li>
+    <li><code>{{THREAT_SAFEGUARDS_JSON}}</code> – JSON map of safeguards per threat (budgeted).</li>
+    <li><code>{{STATISTICS_JSON}}</code> – JSON with counts, truncation flags, lengths, and <code>vulnerabilities_by_severity</code>.</li>
+    <li><code>{{PIPELINE_STEPS_JSON}}</code> – from <code>filters.pipeline_steps</code> (array).</li>
+    <li><code>{{TERRAFORM_TAGS_JSON}}</code> – from <code>filters.tags</code> (object).</li>
+    <li><code>{{AWS_ACCOUNTS_JSON}}</code> – from <code>filters.aws_accounts</code> (array).</li>
+  </ul>
+
+  <p class="mb-2"><strong>JSON budgets & truncation</strong></p>
+  <p class="small mb-2">Large JSON tokens are size-budgeted. If exceeded, they are replaced with a summary object:</p>
+  <pre class="bg-light p-2 border rounded small mb-3" style="white-space: pre-wrap;"><code>{
+  "truncated": true,
+  "count": 123,
+  "note": "project exceeded budget (120000 &gt; 50000)"
+}</code></pre>
+
+  <p class="mb-2"><strong>Macro</strong></p>
+  <pre class="bg-light p-2 border rounded small mb-3" style="white-space: pre-wrap;"><code>{{SEVERITY_BADGE:High}} → [High]
+{{SEVERITY_BADGE: Critical }} → [Critical]</code></pre>
+
+  <p class="mb-1"><strong>Using TOKENS</strong></p>
+  <pre class="bg-light p-2 border rounded small mb-3" style="white-space: pre-wrap;"><code># Report generated at {{GENERATED_AT}}
+Author: {{AUTHOR}} (env: {{ENV}}, CI: {{CI_EXAMPLE}})
+Project key: {{PROJECT_KEY}} | Resiliency target: {{RESILIENCY_TARGET}}
+Projects ({{PROJECTS_COUNT}}): {{PROJECT_NAMES_CSV}}
+
+Components JSON: {{ COMPONENTS_JSON }}
+Threats JSON: {{THREATS_JSON}}
+Vulnerabilities JSON: {{VULNERABILITIES_JSON}}
+Statistics: {{STATISTICS_JSON}}
+</code></pre>
+  <p class="text-muted small">Token matching is whitespace tolerant: <code>{{ PROJECTS_JSON }}</code> is valid. Angle-bracket variants <code>&lt;ISO-timestamp&gt;</code> and <code>&lt;username&gt;</code> are also supported.</p>
+
+  <p class="mb-1"><strong>Using PROMPT</strong></p>
+  <pre class="bg-light p-2 border rounded small mb-3" style="white-space: pre-wrap;"><code>PROMPT Write a concise executive summary for the selected project.
+PROMPT Use {{PROJECT_JSON}} and {{STATISTICS_JSON}} to inform the summary.
+PROMPT Tone: professional and clear. Limit to 5 bullet points.
+</code></pre>
+  <p class="text-muted small">Only lines beginning with <code>PROMPT </code> are sent to the model. Token replacement happens before extraction.</p>
+
+  <p class="mb-1"><strong>Combine both</strong></p>
+  <pre class="bg-light p-2 border rounded small mb-0" style="white-space: pre-wrap;"><code># Threat Model Summary ({{GENERATED_AT}})
+
+PROMPT Summarize top risks using {{THREATS_JSON}} and {{VULNERABILITIES_JSON}}.
+PROMPT Include a section on safeguards from {{THREAT_SAFEGUARDS_JSON}}.
+PROMPT End with prioritized actions. Use badges like {{SEVERITY_BADGE:High}} where relevant.
+
+Context:
+- Project: {{PROJECT_KEY}}
+- Accounts: {{AWS_ACCOUNTS_JSON}}
+- Pipeline: {{PIPELINE_STEPS_JSON}}
+</code></pre>
+</div>

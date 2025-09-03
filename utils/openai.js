@@ -231,6 +231,25 @@ const getCompletion = async (prompt, model = 'gpt-4', maxTokens = 100, options =
     let task_type = options.task_type || null;
     let session_id = options.session_id || null;
     let meta = options.meta || null;
+    // Abort/timeout handling
+    const externalSignal = options.signal;
+    const timeoutMs = Number.isFinite(options.timeoutMs) ? options.timeoutMs : undefined;
+    const controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    let timeoutTimer = null;
+    // Bridge external abort to local controller
+    if (controller && externalSignal) {
+      if (externalSignal.aborted) {
+        controller.abort();
+      } else {
+        try { externalSignal.addEventListener('abort', () => controller.abort(), { once: true }); } catch(_) {}
+      }
+    }
+    // Enforce timeout via internal controller
+    if (controller && timeoutMs) {
+      timeoutTimer = setTimeout(() => {
+        try { controller.abort(); } catch(_) {}
+      }, timeoutMs);
+    }
     // Decide API: default to chat.completions for modern models
     // Use legacy completions only for classic instruct/text models
     const modelId = String(model || '').toLowerCase();
@@ -256,7 +275,11 @@ const getCompletion = async (prompt, model = 'gpt-4', maxTokens = 100, options =
         };
         // Newer models (e.g., gpt-5 family) require max_completion_tokens, not max_tokens
         if (Number.isFinite(maxTokens)) req.max_completion_tokens = maxTokens;
-        response = await openai.chat.completions.create(req);
+        const callOpts = {};
+        if (controller && controller.signal) callOpts.signal = controller.signal;
+        else if (externalSignal) callOpts.signal = externalSignal;
+        if (timeoutMs) callOpts.timeout = timeoutMs;
+        response = await openai.chat.completions.create(req, callOpts);
       }
       logger.info('Raw OpenAI API response:', response);
       usage = response.usage || {};
@@ -273,7 +296,11 @@ const getCompletion = async (prompt, model = 'gpt-4', maxTokens = 100, options =
       {
         const req = { model, prompt };
         if (Number.isFinite(maxTokens)) req.max_tokens = maxTokens;
-        response = await openai.completions.create(req);
+        const callOpts = {};
+        if (controller && controller.signal) callOpts.signal = controller.signal;
+        else if (externalSignal) callOpts.signal = externalSignal;
+        if (timeoutMs) callOpts.timeout = timeoutMs;
+        response = await openai.completions.create(req, callOpts);
       }
       logger.info('Raw OpenAI API response:', response);
       usage = response.usage || {};
@@ -317,6 +344,10 @@ const getCompletion = async (prompt, model = 'gpt-4', maxTokens = 100, options =
     } catch (_) {}
     console.error('Error fetching from OpenAI API:', error.message);
     throw error;
+  }
+  finally {
+    // Clear timeout timer if set
+    try { if (timeoutTimer) clearTimeout(timeoutTimer); } catch(_) {}
   }
 };
 

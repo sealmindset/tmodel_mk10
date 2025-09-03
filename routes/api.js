@@ -59,6 +59,15 @@ try {
 const settingsService = require('../services/settingsService');
 const componentsService = require('../services/componentsService');
 
+// Mount RTG API (protected)
+try {
+  const rtgRouter = require('./api/rtg');
+  router.use('/rtg', ensureAuthenticated, rtgRouter);
+  console.log('Mounted /api/rtg router');
+} catch (e) {
+  console.warn('RTG router not mounted (missing routes/api/rtg.js).');
+}
+
 // Get the LLM provider from settings (PostgreSQL or default to 'openai') - no auth required
 router.get('/settings/provider', async (req, res) => {
   try {

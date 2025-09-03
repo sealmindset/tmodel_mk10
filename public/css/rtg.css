@@ -1,0 +1,160 @@
+/* RTG minimal styles (public) */
+.rtg-app .rtg-previewer {
+  white-space: pre-wrap;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  padding: 10px;
+  border-radius: 4px;
+}
+
+/* Inner toolbar container */
+.rtg-editor-wrapper .g-md-toolbar {
+  background: var(--rtg-toolbar-bg) !important;
+  color: var(--rtg-toolbar-fg) !important;
+  padding: 0 !important;
+  gap: 2px !important;
+}
+
+/* Buttons inside inner toolbar container */
+.rtg-editor-wrapper .g-md-toolbar .g-button,
+.rtg-editor-wrapper .g-md-toolbar button {
+  height: 28px !important;
+  min-height: 28px !important;
+  min-width: 28px !important;
+  padding: 0 6px !important;
+  border-radius: 6px !important;
+  color: var(--rtg-toolbar-fg) !important;
+}
+
+.rtg-app .rtg-tokens .btn {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+/* Compact, modern styling for Gravity UI Markdown editor */
+.rtg-editor-wrapper {
+  --rtg-toolbar-bg: #2b2f36;
+  --rtg-toolbar-fg: #e8eaed;
+  --rtg-toolbar-sep: rgba(255,255,255,0.12);
+  --rtg-accent: #ffbf47;
+  /* Gravity UI Markdown Editor variables */
+  --g-md-toolbar-padding: 6px 8px; /* controls toolbar internal padding */
+  --g-md-editor-padding: 12px 14px; /* controls editor content padding */
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+/* Toolbar: apply background, color, sticky behavior */
+.rtg-editor-wrapper .g-md-wysiwyg-editor__toolbar,
+.rtg-editor-wrapper .g-md-markup-editor__toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--rtg-toolbar-bg);
+  color: var(--rtg-toolbar-fg);
+  border-bottom: 1px solid var(--rtg-toolbar-sep);
+  padding: 4px 6px !important; /* force compact toolbar padding */
+}
+
+/* Toolbar buttons */
+.rtg-editor-wrapper .g-md-wysiwyg-editor__toolbar .g-button,
+.rtg-editor-wrapper .g-md-markup-editor__toolbar .g-button,
+.rtg-editor-wrapper .g-md-wysiwyg-editor__toolbar button,
+.rtg-editor-wrapper .g-md-markup-editor__toolbar button {
+  height: 28px !important;
+  min-height: 28px !important;
+  min-width: 28px;
+  padding: 0 6px !important;
+  border-radius: 6px !important;
+  color: var(--rtg-toolbar-fg);
+}
+
+/* Active/selected toolbar buttons */
+.rtg-editor-wrapper .g-md-wysiwyg-editor__toolbar .g-button_selected,
+.rtg-editor-wrapper .g-md-wysiwyg-editor__toolbar .g-button_checked,
+.rtg-editor-wrapper .g-md-wysiwyg-editor__toolbar .g-button:active,
+.rtg-editor-wrapper .g-md-markup-editor__toolbar .g-button_selected,
+.rtg-editor-wrapper .g-md-markup-editor__toolbar .g-button_checked,
+.rtg-editor-wrapper .g-md-markup-editor__toolbar .g-button:active {
+  background: rgba(255,255,255,0.08);
+}
+
+/* Optional accent for important toggles (bold/mono) if class present */
+.rtg-editor-wrapper .g-md-wysiwyg-editor__toolbar .g-button_selected[data-role="bold"],
+.rtg-editor-wrapper .g-md-wysiwyg-editor__toolbar .g-button_selected[data-role="code"],
+.rtg-editor-wrapper .g-md-markup-editor__toolbar .g-button_selected[data-role="bold"],
+.rtg-editor-wrapper .g-md-markup-editor__toolbar .g-button_selected[data-role="code"] {
+  background: var(--rtg-accent);
+  color: #1b1f24;
+}
+
+/* Separator within toolbar groups */
+.rtg-editor-wrapper .g-md-toolbar__group-separator {
+  margin: 4px 6px !important;
+  border-left: 1px solid var(--rtg-toolbar-sep) !important;
+}
+
+/* Compact widths for toolbar items that define explicit widths */
+.rtg-editor-wrapper .g-md-toolbar-button-with-popup-menu { width: 34px !important; }
+.rtg-editor-wrapper .g-md-toolbar-list-button_arrow { width: 34px !important; }
+.rtg-editor-wrapper .g-md-flex-toolbar { height: 32px !important; }
+
+/* Hide mode switch or extra rows if present to keep toolbar compact */
+.rtg-editor-wrapper .g-md-editor__modes,
+.rtg-editor-wrapper .g-md-editor__secondary-toolbar {
+  display: none !important;
+}
+
+/* Ensure inputs inherit base font */
+.rtg-editor-wrapper .g-md-markup-editor__editor textarea,
+.rtg-editor-wrapper .g-md-wysiwyg-editor__editor [contenteditable="true"] {
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+/* Content padding - enforce compact spacing in editors */
+.rtg-editor-wrapper .g-md-markup-editor__editor,
+.rtg-editor-wrapper .g-md-wysiwyg-editor__editor {
+  padding: 12px 14px !important;
+}
+
+/* =========================
+   RTG Modal UX (How To)
+   - Fixed, centered panel using 65vh
+   - Internal scroll only with reserved scrollbar gutter
+   ========================= */
+#rtg-modal .modal__panel{
+  position:fixed;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,-50%);
+  width:min(960px,92vw);
+  height:65vh;
+  max-height:65vh;
+  display:flex;
+  flex-direction:column;
+  background:#fff;
+  border-radius:12px;
+  box-shadow:0 10px 30px rgba(0,0,0,.2);
+  overflow:hidden; /* keep rounded corners; body scrolls inside */
+}
+
+#rtg-modal .modal__body{
+  overflow:auto;
+  flex:1 1 auto;
+  padding:16px;
+  scrollbar-gutter:stable both-edges; /* reserved gutter for scrollbar */
+  padding-right:calc(16px + var(--sbw, 0px)); /* fallback gutter */
+  -webkit-overflow-scrolling:touch;
+}
+
+#rtg-modal .modal__header{
+  cursor:move;
+  user-select:none;
+  padding:12px 16px;
+  border-bottom:1px solid #eee;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+}

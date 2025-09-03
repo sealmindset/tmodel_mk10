@@ -45,6 +45,7 @@
   async function fetchTemplates(){
     const root = apiBase().replace(/\/$/, '');
     const urls = [
+      `${root}/reports.report_templates?order=name.asc`,
       `${root}/template?order=name.asc`,
       `${root}/reports.template?order=name.asc`,
       `${root}/report_templates.template?order=name.asc`

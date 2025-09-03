@@ -19,10 +19,13 @@ router.use('/settings',           require('./openaiKeyController'));
 router.use('/subjects',           require('./subjects'));
 router.use('/components',         require('./components'));
 router.use('/report-generator',   require('./reportGenerator'));
+router.use('/report-prompts',    require('./reportPrompts'));
 router.use('/reports',            require('./reports'));
 router.use('/project-mapper',     require('./projectMapper'));
 router.use('/',                   require('./projectAssignments'));
 router.use('/rag',                require('./rag'));
+// RTG (Report Template Generator) API routes
+router.use('/rtg',                require('./rtg'));
 
 // Health
 // Explicit OPTIONS preflight handler for /api/status

@@ -40,23 +40,16 @@
   }
 
   async function fetchTemplates() {
+    const base = apiBase().replace(/\/$/, '');
     try {
-      let url = `${apiBase()}/template?order=name.asc`;
-      let res = await fetch(url);
-      if (!res.ok) {
-        const body = await res.text().catch(()=> '');
-        throw new Error(`HTTP ${res.status} ${body}`);
-      }
-      if (!res.ok) {
-        const body2 = await res.text().catch(()=> '');
-        throw new Error(`HTTP ${res.status} ${body2}`);
-      }
+      const res = await fetch(`${base}/reports.report_templates?order=name.asc`, { headers: { Accept: 'application/json' } });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       templates = Array.isArray(data) ? data : [];
       renderRows(templates);
-    } catch (err) {
-      console.error('Failed to fetch report templates', err);
-      showToast('Error', `Failed to load report templates: ${err.message}`, 'danger');
+    } catch (lastErr) {
+      console.error('Failed to fetch report templates', lastErr);
+      showToast('Error', `Failed to load report templates: ${(lastErr && lastErr.message) || 'unknown error'}`, 'danger');
     }
   }
 
@@ -110,13 +103,13 @@
     if (!name) return;
     const description = prompt('Enter description (optional)') || '';
     try {
-      const res = await fetch(`${apiBase()}/template`, {
+      const res = await fetch(`${apiBase()}/reports.report_templates`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
-        body: JSON.stringify({ name, description })
+        body: JSON.stringify({ name, description, content_md: '' })
       });
       if (!res.ok) {
-        const body = await res.text().catch(()=>'');
+        const body = await res.text().catch(()=> '');
         throw new Error(`HTTP ${res.status} ${body}`);
       }
       showToast('Success', 'Template created', 'success');
@@ -130,35 +123,38 @@
   // Edit latest version via version modal
   async function openEditModal(id) {
     try {
-      const res = await fetch(`${apiBase()}/template_version?template_id=eq.${id}&order=version.desc&limit=1`);
+      const res = await fetch(`${apiBase()}/reports.report_template_versions?template_id=eq.${id}&order=version.desc&limit=1`);
       const versions = await res.json();
       const latest = versions[0];
       const textarea = document.getElementById('versionContent');
-      const raw = latest ? latest.content : '';
-      textarea.value = typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2);
+      const raw = latest ? latest.content_md : '';
+      textarea.value = typeof raw === 'string' ? raw : String(raw || '');
 
       const saveBtn = document.getElementById('btnSaveVersion');
       saveBtn.onclick = async () => {
-        let content = textarea.value;
-        // If user intentionally provided valid JSON, keep it as object/array; else store plain string
+        const content = textarea.value;
+        const expectedNewVersion = (latest?.version || 0) + 1;
         try {
-          const parsed = JSON.parse(content);
-          if (parsed && typeof parsed === 'object') {
-            content = parsed;
-          }
-        } catch (e) {
-          // keep as plain string
-        }
-        const newVersion = (latest?.version || 0) + 1;
-        try {
-          const res2 = await fetch(`${apiBase()}/template_version`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ template_id: id, version: newVersion, content })
+          // Update latest content on template; trigger will append a new version row automatically
+          const res2 = await fetch(`${apiBase()}/reports.report_templates?id=eq.${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+            body: JSON.stringify({ content_md: content })
           });
           if (!res2.ok) {
             const body = await res2.text().catch(()=> '');
             throw new Error(`HTTP ${res2.status} ${body}`);
+          }
+          // Re-fetch latest version to display accurate version number
+          let newVersion = expectedNewVersion;
+          try {
+            const vRes2 = await fetch(`${apiBase()}/reports.report_template_versions?template_id=eq.${id}&order=version.desc&limit=1`);
+            const vArr2 = await vRes2.json();
+            if (Array.isArray(vArr2) && vArr2[0] && typeof vArr2[0].version === 'number') {
+              newVersion = vArr2[0].version;
+            }
+          } catch (_) {
+            // ignore and use expectedNewVersion
           }
           bootstrap.Modal.getInstance(document.getElementById('versionModal')).hide();
           showToast('Success', `Saved version ${newVersion}`, 'success');
@@ -179,7 +175,7 @@
   // Delete
   async function deleteTemplates(ids) {
     try {
-      const results = await Promise.all(ids.map(id => fetch(`${apiBase()}/template?id=eq.${id}`, { method: 'DELETE' })));
+      const results = await Promise.all(ids.map(id => fetch(`${apiBase()}/reports.report_templates?id=eq.${id}`, { method: 'DELETE' })));
       const bad = results.find(r => !r.ok);
       if (bad) {
         const body = await bad.text().catch(()=> '');
@@ -201,8 +197,8 @@
       const results = [];
       for (const id of ids) {
         const [tRes, vRes] = await Promise.all([
-          fetch(`${apiBase()}/template?id=eq.${id}`),
-          fetch(`${apiBase()}/template_version?template_id=eq.${id}&order=version.desc&limit=1`)
+          fetch(`${apiBase()}/reports.report_templates?id=eq.${id}`),
+          fetch(`${apiBase()}/reports.report_template_versions?template_id=eq.${id}&order=version.desc&limit=1`)
         ]);
         const tArr = await tRes.json();
         const vArr = await vRes.json();

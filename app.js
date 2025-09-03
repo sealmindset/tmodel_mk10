@@ -379,6 +379,8 @@ app.use('/reporting', require('./routes/reporting'));
 app.use('/reports', require('./routes/reports'));
 
 // ROUTE DUMP: Print all registered routes at startup
+// RTG UI Route
+app.use('/', require('./routes/rtg'));
 if (process.env.NODE_ENV !== 'production') {
   console.log('=== REGISTERED EXPRESS ROUTES ===');
   app._router.stack

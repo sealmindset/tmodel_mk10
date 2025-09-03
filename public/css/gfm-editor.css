@@ -1,0 +1,35 @@
+/* Lightweight GFM Editor styles */
+.gfm-editor{border:1px solid var(--bs-border-color,#dee2e6);border-radius:.375rem;background:var(--bs-body-bg,#fff)}
+.gfm-toolbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:.375rem .5rem;border-bottom:1px solid var(--bs-border-color,#dee2e6);background:var(--bs-tertiary-bg,#f8f9fa)}
+.gfm-toolbar .btn{padding:.25rem .5rem;border:1px solid #ced4da;background:#fff;border-radius:.25rem;cursor:pointer;font:600 .85rem/1 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji"}
+.gfm-toolbar .btn[data-primary]{background:#0d6efd;border-color:#0d6efd;color:#fff}
+.gfm-toolbar select{padding:.2rem;border:1px solid #ced4da;border-radius:.25rem;background:#fff}
+.gfm-toolbar .sep{flex:1 1 auto}
+.gfm-surface{position:relative}
+.gfm-ghost,.gfm-textarea{font-family:var(--rtg-editor-font, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);font-size:.95rem;line-height:1.5;tab-size:2;-moz-tab-size:2;padding:.5rem .75rem}
+.gfm-ghost{position:absolute;inset:0;color:transparent;white-space:pre;pointer-events:none;overflow:hidden}
+.gfm-textarea{position:relative;z-index:1;background:transparent;border:none;outline:0;box-shadow:none;resize:none;width:100%;overflow:auto}
+/* Syntax hint colors */
+.gfm-ghost .md-heading{color:#7c3aed}
+.gfm-ghost .md-strong{color:#0d6efd}
+.gfm-ghost .md-code-marker{color:#198754}
+.gfm-ghost .md-list{color:#20c997}
+.gfm-ghost .md-quote{color:#6c757d}
+.gfm-ghost .md-hr{color:#adb5bd}
+.gfm-ghost .md-link{color:#0d6efd}
+.gfm-ghost .md-img{color:#fd7e14}
+.gfm-ghost .md-table{color:#6f42c1}
+.gfm-ghost .md-fence{color:#198754}
+/* Preview overlay */
+.gfm-preview{display:none;position:absolute;inset:0;background:var(--bs-body-bg,#fff);color:var(--bs-body-color,#212529);padding:.75rem;overflow:auto;z-index:2;border-radius:0 0 .375rem .375rem}
+.gfm-preview.show{display:block}
+/* SR-only live region */
+.gfm-aria{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+/* Rendered preview basic markdown styles */
+.gfm-preview p{margin:0 0 .5rem}
+.gfm-preview pre{background:#0b102126;color:#e2e8f0;padding:.5rem;border-radius:.25rem;overflow:auto}
+.gfm-preview code{background:#f8f9fa;padding:.05rem .25rem;border-radius:.2rem}
+.gfm-preview blockquote{padding:.25rem .5rem;border-left:3px solid #ced4da;background:#f8f9fa;margin:0 0 .5rem}
+.gfm-preview table{width:100%;border-collapse:collapse;margin:.5rem 0}
+.gfm-preview th,.gfm-preview td{border:1px solid #dee2e6;padding:.25rem .5rem}
+.gfm-preview img{max-width:100%;height:auto}

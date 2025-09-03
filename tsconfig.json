@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "rootDir": "src/rtg",
+    "outDir": "build/rtg",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "node",
+    "isolatedModules": false,
+    "sourceMap": true,
+    "declaration": false
+  },
+  "include": ["src/rtg/**/*"],
+  "exclude": ["node_modules", "build", "dist", "public"]
+}

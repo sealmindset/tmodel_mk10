@@ -1,0 +1,234 @@
+LLM PROMPT — Add “Report Template Generator (RTG)” Capability
+
+ROLE
+You are a senior full-stack engineer (Node.js/TypeScript/ESM) and product-minded UX builder. You will implement a new capability called Report Template Generator (RTG) inside an existing app that uses PostgreSQL (templates stored here), with project data accessible directly from PostgreSQL and, when applicable, via PostgREST.
+
+OUTCOME (What to deliver in your reply)
+Produce complete, ready-to-run implementation artifacts with minimal commentary and no placeholders:
+
+DB migration SQL (PostgreSQL) for RTG tables + seed rows.
+
+TypeScript types shared by server & client.
+
+Server code (ESM): routes/services/controllers for CRUD, compile/preview, and LLM submit.
+
+Client code (ESM + React): full RTG UI with Markdown editor (GitHub-compatible), token sidebar, insert-at-cursor, template list, preview/test flow, and save/version UI.
+
+Token resolver that expands tokens into JSON blocks and Markdown tables.
+
+LLM request builder that wraps a user-authored “PROMPT …” block with the selected project’s JSON context.
+
+Unit tests for token expansion and compile pipeline.
+
+README.md (concise): setup steps, env vars, run/test instructions.
+
+One sample template demonstrating all tokens and a PROMPT block.
+
+Keep explanations extremely brief; focus on complete code blocks.
+
+Capability Description (RTG)
+
+What RTG is
+A word-processor-like experience to create, edit, format, test, and save text-based report templates (Markdown). RTG exposes a token sidebar; clicking a token inserts it at the editor cursor. Users can pick a test project from PostgreSQL (via PostgREST where applicable), compile/preview the template with tokens resolved, and submit to the LLM to generate a report for quick validation. When satisfied, they save the template (named) into a managed list.
+
+Editor requirements
+
+Markdown editor that supports GitHub-Flavored Markdown (GFM) features: headings, bold/italic, lists, checklists, tables, links, code fences, inline code, blockquotes, task lists.
+
+Provide a menu/toolbar for common GFM actions (+ keyboard shortcuts).
+
+Insert-at-cursor behavior when clicking tokens.
+
+Live Markdown preview and side-by-side toggle.
+
+Auto-save draft (debounced) + explicit Save as Template with name + optional description.
+
+Versioning: each save creates a new version row; allow restore/compare (basic diff view).
+
+Validation: show unresolved tokens or JSON shape errors before allowing LLM submit.
+
+Token model (exact names & semantics)
+
+project_portfolio — provides project context.
+
+{{PROJECT_DATA_JSON}} — JSON blob of project details (e.g., id, name, description, owner, status…).
+
+{{PROJECT_TABLE}} — a Markdown table with columns: Name | Status | Business Unit | Criticality.
+
+component_inventory — provides architectural inventory.
+
+{{COMPONENT_DATA_JSON}} — JSON array of components (infra, protocols, apps, etc.).
+
+{{COMPONENT_TABLE}} — Markdown table listing components (columns you choose sensibly: Name, Type, Layer, Criticality, Status).
+
+safeguard_status — provides safeguards per component.
+
+{{SAFEGUARD_DATA_JSON}} — JSON array of safeguards with mappings to components.
+
+{{SAFEGUARD_TABLE}} — Markdown table with Name | Type | Status | Effectiveness | Components Applied.
+
+threat_model_summary — provides threat models and mitigations.
+
+{{THREAT_MODEL_DATA_JSON}} — JSON array of threat models (id, name, category, likelihood, impact, mitigations[], components[]).
+
+{{THREAT_MODEL_TABLE}} — Markdown table listing models (columns you choose sensibly: Model, Category, Likelihood, Impact, Key Mitigations, Components).
+
+PROMPT — any lines beginning with PROMPT define the user’s LLM instruction for generation.
+
+Example in a template:
+
+PROMPT Identify the common remediation mitigation shared across all threat models for the project.
+- {{THREAT_MODEL_DATA_JSON}}
+
+
+Token resolution rules
+
+Compilation resolves tokens to data read from PostgreSQL / PostgREST for the selected project.
+
+*_DATA_JSON tokens render as fenced code blocks with JSON (json … ).
+
+*_TABLE tokens render Markdown tables.
+
+If data is missing/empty, emit an inline warning blockquote in the compiled preview and list a validation warning (but allow save).
+
+Multiple occurrences of the same token are all resolved.
+
+Unknown tokens are surfaced as warnings with their literal text preserved.
+
+LLM submission rules
+
+Extract all PROMPT … lines (join with newlines) → this becomes the LLM user message.
+
+Build a system message: “You are a report generator. Use the provided JSON blocks and tables as ground truth. Do not invent data.”
+
+Build a context message that concatenates the resolved *_DATA_JSON blocks relevant to the PROMPT lines (always include PROJECT, COMPONENT, SAFEGUARD, THREAT_MODEL JSON if referenced anywhere).
+
+Send messages as {system, context, user}. Return the LLM’s output into a Preview pane.
+
+Provide a “Copy output” button and “Save as artifact” option (store generated output linked to template version + project id).
+
+Quality
+
+Log template compiles & LLM submits (audit trail).
+
+Unit tests for token expansion & edge cases (empty arrays, long text, special chars).
+
+Data & API
+
+PostgreSQL — add these tables (and seed one example template):
+
+report_templates (id UUID PK, name text unique, description text, content_md text, created_by, created_at, updated_at).
+
+report_template_versions (id UUID PK, template_id FK, version int, content_md text, changelog text, created_by, created_at).
+
+generated_reports (id UUID PK, template_id FK, template_version int, project_id, output_md text, created_by, created_at).
+
+(Assume existing tables hold projects, components, safeguards, and threat models, or create views that RTG will query by project_id.)
+
+PostgREST/DB access expectations
+
+Provide example SQL views or SELECTs required to populate: PROJECT_DATA_JSON, PROJECT_TABLE, COMPONENT_DATA_JSON, COMPONENT_TABLE, SAFEGUARD_DATA_JSON, SAFEGUARD_TABLE, THREAT_MODEL_DATA_JSON, THREAT_MODEL_TABLE.
+
+If PostgREST is enabled, show the GET endpoints used; else show server-side queries.
+
+Server (Node.js/TypeScript/ESM)
+
+Routes:
+
+GET /rtg/templates (list)
+
+POST /rtg/templates (create)
+
+GET /rtg/templates/:id (read)
+
+PUT /rtg/templates/:id (update name/desc)
+
+POST /rtg/templates/:id/version (save new version with content_md)
+
+POST /rtg/compile (body: { content_md, project_id } → returns compiled Markdown + validation warnings)
+
+POST /rtg/submit (body: { content_md, project_id } → compiles, builds LLM request, returns LLM output and persists generated_reports)
+
+GET /rtg/projects (list projects for picker)
+
+Services: tokenResolver, tableRender, jsonBlockRender, llmRequestBuilder, compileTemplate(content_md, project_id).
+
+Client (React/TypeScript/ESM)
+
+Pages/Components:
+
+ReportTemplateList (table with search, open, duplicate).
+
+ReportTemplateEditor (main):
+
+Left sidebar: token groups (project_portfolio, component_inventory, safeguard_status, threat_model_summary). Clicking inserts token at cursor.
+
+Top toolbar: GFM actions (bold, italic, H1–H3, lists, checklist, table, link, code block, inline code, quote, undo/redo).
+
+Editor: GitHub-compatible Markdown editor with side-by-side preview toggle.
+
+Right pane: test harness — project selector (search) + buttons: Compile, Submit to LLM, Save Version, Save as New Template.
+
+Validation panel: unresolved tokens, missing JSON, etc.
+
+GeneratedReportViewer (displays LLM output, copy/download).
+
+GitHub-compatible Markdown
+
+Use a Node.js markdown module that supports GFM; enable task lists & tables. Implement a menu editor/toolbar wired to editor commands and markdown transformations. Provide code.
+
+Token → Data Contracts (expected JSON shapes)
+
+You will define and document the exact JSON for each *_DATA_JSON, aligning with columns in the *_TABLE outputs. Minimum fields:
+
+PROJECT_DATA_JSON: { id, name, description, status, business_unit, criticality, owner, tags[], dates: { created, updated } }
+
+COMPONENT_DATA_JSON[]: [{ id, name, type, layer, tech, protocols[], status, criticality, owner }]
+
+SAFEGUARD_DATA_JSON[]: [{ id, name, type, status, effectiveness, components_applied: [component_id], notes }]
+
+THREAT_MODEL_DATA_JSON[]: [{ id, name, category, likelihood, impact, risk_rating, mitigations[], components: [component_id] }]
+
+Render tables from these shapes.
+
+Sample PROMPT Handling
+
+Extract PROMPT lines from the template, join with newlines → LLM user message.
+
+Include any referenced *_DATA_JSON blocks as fenced JSON in a context message.
+
+System message: “Be concise, rely only on supplied JSON. When uncertain, say so.”
+
+Acceptance Tests
+
+Insert-at-cursor: clicking {{PROJECT_DATA_JSON}} inserts it at the current caret position.
+
+Compile with a project that has no safeguards produces warning but still renders other sections.
+
+Tables render with correct headers and row counts.
+
+PROMPT lines detected and submitted; LLM output appears in preview pane; also saved in generated_reports.
+
+Versioning: multiple saves increment version; restoring prior version swaps editor content.
+
+Security: attempting to load/edit without auth is blocked (show 401/403).
+
+Unit tests cover: empty arrays, unknown tokens, duplicate tokens, long strings, special chars.
+
+Development Constraints
+
+TypeScript + ESM everywhere, no CommonJS.
+
+Clean, modular code; keep files < 300 LOC where possible.
+
+No external calls except DB/PostgREST and LLM provider.
+
+Provide .env.example with required vars for DB and LLM.
+
+Keep commentary light; ship full code.
+
+Now implement everything above:
+
+Start with DB migration SQL (incl. indices, FKs, unique constraints) + seed example template that uses all tokens and a PROMPT block.
+
+Then provide TypeScript shared types, server routes/services, client components (with a working GFM editor, toolbar, token sidebar, compile/submit flow), token resolver and LLM request builder, unit tests, and a short README with run commands.

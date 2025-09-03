@@ -119,6 +119,7 @@ $(document).ready(function() {
 
     // Handle 'Generate Report' button click
     promptsContainer.on('click', '.generate-report', async function(e) {
+        console.log('Generate Report button clicked for prompt ID:', $(this).data('prompt-id'));
         e.preventDefault();
         const templateId = $(this).data('prompt-id');
         const reportType = $(this).data('report-type');
@@ -141,7 +142,7 @@ $(document).ready(function() {
             $('#generatedReportDisplayArea').show();
         } catch (error) {
             console.error('Error generating report:', error);
-            alert(`Failed to generate report: ${error.message}`);
+            alert(`Failed to generate report: ${error.message}. Check console for details.`);
         } finally {
             btn.text('Generate Report').prop('disabled', false);
         }

@@ -7,6 +7,10 @@ const Project = require('../../database/models/project');
 const db = require('../../database');
 const { ensureAuthenticated } = require('../../middleware/auth');
 
+// Simple in-memory cache for list endpoint (guard against accidental hammering)
+let _projectsCache = { data: null, ts: 0, key: '' };
+const PROJECTS_CACHE_MS = 5000; // 5s
+
 /**
  * @route   GET /api/projects
  * @desc    Get all projects with optional filtering
@@ -14,14 +18,32 @@ const { ensureAuthenticated } = require('../../middleware/auth');
  */
 router.get('/', ensureAuthenticated, async (req, res) => {
   try {
+    // TEMP DEBUG: Identify which page is hammering this endpoint
+    try {
+      const ua = req.get('user-agent');
+      const ref = req.get('referer') || req.get('origin') || 'n/a';
+      console.log('[HIT] GET /api/projects', { ua, ref, at: new Date().toISOString() });
+    } catch (_) {}
+
     const { business_unit, criticality, status } = req.query;
     const filters = {};
     
     if (business_unit) filters.business_unit = business_unit;
     if (criticality) filters.criticality = criticality;
     if (status) filters.status = status;
+    const cacheKey = JSON.stringify(filters);
+
+    // Serve from cache if fresh
+    const now = Date.now();
+    if (_projectsCache.data && _projectsCache.key === cacheKey && (now - _projectsCache.ts) < PROJECTS_CACHE_MS) {
+      res.set('Cache-Control', `public, max-age=${Math.floor(PROJECTS_CACHE_MS/1000)}`);
+      return res.json({ success: true, data: _projectsCache.data, cached: true });
+    }
     
     const projects = await Project.getAll(filters);
+    // Update cache
+    _projectsCache = { data: projects, ts: now, key: cacheKey };
+    res.set('Cache-Control', `public, max-age=${Math.floor(PROJECTS_CACHE_MS/1000)}`);
     res.json({ success: true, data: projects });
   } catch (error) {
     console.error('Error fetching projects:', error);

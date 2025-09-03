@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= title %></title>
+  <link href="/public/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="/public/css/icon-menu.css" rel="stylesheet" />
+  <link href="/public/css/style.css" rel="stylesheet" />
+  <link href="/public/css/rtg.css?v=<%= Date.now() %>" rel="stylesheet" />
+  <link href="/public/css/gfm-editor.css?v=<%= Date.now() %>" rel="stylesheet" />
+</head>
+<body>
+  <div class="container-fluid py-3">
+    <h1 class="h3 mb-3">Report Template Generator (RTG)</h1>
+    <div id="rtg-root"></div>
+  </div>
+
+  <!-- RTG bundle built by Vite (vite.rtg.config.js). It mounts itself to #rtg-root. -->
+  <script>
+    // Use Gravity UI Markdown editor by default
+    window.__RTG_FLAGS__ = Object.assign({ richMarkdown: true }, window.__RTG_FLAGS__ || {});
+  </script>
+  <script src="/public/js/gfm-editor.js?v=<%= Date.now() %>"></script>
+  <script type="module" src="/public/js/rtg-ui.bundle.js?v=<%= Date.now() %>"></script>
+  <script src="/public/js/rtg-modal.js?v=<%= Date.now() %>"></script>
+</body>
+</html>
