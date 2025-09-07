@@ -12,6 +12,23 @@ export default function VersionHistory({ store }) {
     store.updateEditor({ content: v.content_md || '' });
   };
 
+  const total = versions.total || 0;
+  const start = versions.offset + 1;
+  const end = versions.offset + versions.items.length;
+  const canPrev = versions.offset > 0 && !versions.loading && selectedTemplate?.id;
+  const canNext = (versions.offset + versions.items.length) < total && !versions.loading && selectedTemplate?.id;
+
+  const prevPage = async () => {
+    if (!canPrev || !selectedTemplate?.id) return;
+    const newOffset = Math.max(0, (versions.offset || 0) - (versions.limit || 5));
+    await store.loadVersions(selectedTemplate.id, versions.limit || 5, newOffset);
+  };
+  const nextPage = async () => {
+    if (!canNext || !selectedTemplate?.id) return;
+    const newOffset = (versions.offset || 0) + (versions.limit || 5);
+    await store.loadVersions(selectedTemplate.id, versions.limit || 5, newOffset);
+  };
+
   return (
     <div className="card mb-3">
       <div className="card-header d-flex justify-content-between align-items-center">
@@ -33,6 +50,15 @@ export default function VersionHistory({ store }) {
             </li>
           ))}
         </ul>
+        {selectedTemplate && (
+          <div className="d-flex justify-content-between align-items-center mt-2">
+            <small className="text-muted">{total > 0 ? `${start}–${end} of ${total}` : '0 of 0'}</small>
+            <div className="btn-group">
+              <button className="btn btn-sm btn-outline-secondary" onClick={prevPage} disabled={!canPrev}>Prev</button>
+              <button className="btn btn-sm btn-outline-secondary" onClick={nextPage} disabled={!canNext}>Next</button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,28 +1,39 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title><%= title %></title>
-  <link href="/public/css/bootstrap.min.css" rel="stylesheet" />
-  <link href="/public/css/icon-menu.css" rel="stylesheet" />
-  <link href="/public/css/style.css" rel="stylesheet" />
-  <link href="/public/css/rtg.css?v=<%= Date.now() %>" rel="stylesheet" />
-  <link href="/public/css/gfm-editor.css?v=<%= Date.now() %>" rel="stylesheet" />
-</head>
-<body>
-  <div class="container-fluid py-3">
-    <h1 class="h3 mb-3">Report Template Generator (RTG)</h1>
-    <div id="rtg-root"></div>
+<%- include('../partials/header', {
+  pageTitle: 'Report Template Generator (RTG)',
+  active: 'reportTemplates',
+  extraCss: [
+    '/css/rtg.css?v=' + Date.now(),
+    '/css/gfm-editor.css?v=' + Date.now()
+  ]
+}) %>
+
+<div class="container py-3">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">Report Template Generator (RTG)</h1>
+    <div>
+      <a href="/projects" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back to Projects
+      </a>
+    </div>
   </div>
 
-  <!-- RTG bundle built by Vite (vite.rtg.config.js). It mounts itself to #rtg-root. -->
-  <script>
-    // Use Gravity UI Markdown editor by default
-    window.__RTG_FLAGS__ = Object.assign({ richMarkdown: true }, window.__RTG_FLAGS__ || {});
-  </script>
-  <script src="/public/js/gfm-editor.js?v=<%= Date.now() %>"></script>
-  <script type="module" src="/public/js/rtg-ui.bundle.js?v=<%= Date.now() %>"></script>
-  <script src="/public/js/rtg-modal.js?v=<%= Date.now() %>"></script>
-</body>
-</html>
+  <div id="rtg-root"></div>
+</div>
+
+<!-- RTG bundle mounts itself to #rtg-root. Provide flags before scripts load. -->
+<script>
+  window.__RTG_FLAGS__ = Object.assign({ richMarkdown: true }, window.__RTG_FLAGS__ || {});
+  // Expose PostgREST base if needed by RTG UI (keeps parity with reports-generate)
+  window.__POSTGREST_BASE__ = window.__POSTGREST_BASE__ || 'http://localhost:3010';
+  // Open CORS and XHR usage is handled globally per user rules.
+</script>
+
+<!-- RTG main bundle (ES module) -->
+<script type="module" src="/js/rtg-ui.bundle.js?v=<%= Date.now() %>"></script>
+
+<%- include('../partials/footer', {
+  extraJs: [
+    '/js/gfm-editor.js?v=' + Date.now(),
+    '/js/rtg-modal.js?v=' + Date.now()
+  ]
+}) %>

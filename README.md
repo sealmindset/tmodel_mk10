@@ -6,6 +6,8 @@
 ## Description
 This is an enhanced threat modeling platform that integrates structured project management with vulnerability scanning for comprehensive security analysis. The platform combines threat modeling with real-world vulnerability data from scanning tools like Rapid7, providing a cohesive view of your security posture.
 
+For project overview and recent changes, see the [CHANGELOG](./CHANGELOG.md).
+
 ## Key Features
 - **Project-Based Architecture**: Organize threat models by project, with structured components and safeguards for better organization and management.
 - **Interactive Threat Modeling**: Generate detailed threat scenarios with risk assessment matrices and mitigation strategies.

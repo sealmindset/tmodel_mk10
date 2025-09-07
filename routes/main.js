@@ -300,10 +300,8 @@ async function getRecentActivity(limit = 5) {
 }
 
 router.get('/report-templates', (req, res) => {
-  res.render('report-templates', {
-    user: req.session.username,
-    active: 'reportTemplates'
-  });
+  // Legacy route: redirect to RTG UI
+  return res.redirect(301, '/rtg/');
 });
 
 // Report Prompts Manager (UI that manages threat_model.report_prompts)

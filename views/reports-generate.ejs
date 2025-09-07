@@ -1,4 +1,4 @@
-<%- include('partials/header', { pageTitle: 'Generate Report', active: 'reports', extraCss: [] }) %>
+<%- include('partials/header', { pageTitle: 'Generate Report', active: 'reports', extraCss: ['/css/gfm-editor.css'] }) %>
 
 <div class="container mt-4">
   <div class="d-flex justify-content-between align-items-center mb-4">
@@ -90,7 +90,9 @@
 
       <div class="mt-4">
         <label for="resultMd" class="form-label">Generated Markdown (editable)</label>
-        <textarea id="resultMd" class="form-control" rows="18" placeholder="Generated report will appear here..." style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;"></textarea>
+        <textarea id="resultMd" class="form-control" rows="18" data-gfm-editor
+                  placeholder="Generated report will appear here..."
+                  style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;"></textarea>
       </div>
 
       <input type="hidden" id="postgrestBase" value="http://localhost:3010">
@@ -98,4 +100,17 @@
   </div>
 </div>
 
-<%- include('partials/footer', { extraJs: ['/js/reports-generate.js'] }) %>
+<%- include('partials/footer', { extraJs: ['/js/gfm-editor.js', '/js/reports-generate.js'] }) %>
+
+<script>
+  // Initialize the lightweight GFM editor on the generated markdown textarea
+  document.addEventListener('DOMContentLoaded', function() {
+    if (window.GFMEditor) {
+      try {
+        window.GFMEditor.autoInit('textarea[data-gfm-editor]');
+      } catch (e) {
+        console.warn('[reports/new] GFMEditor init failed:', e);
+      }
+    }
+  });
+  </script>

@@ -9,6 +9,23 @@ export default function TemplateList({ store }) {
     listTemplates(q, templatesList.limit, 0);
   };
 
+  const start = templatesList.offset + 1;
+  const end = templatesList.offset + templatesList.items.length;
+  const total = templatesList.total || 0;
+  const canPrev = templatesList.offset > 0 && !templatesList.loading;
+  const canNext = (templatesList.offset + templatesList.items.length) < total && !templatesList.loading;
+
+  const prevPage = () => {
+    if (!canPrev) return;
+    const newOffset = Math.max(0, templatesList.offset - templatesList.limit);
+    listTemplates(templatesList.q || '', templatesList.limit, newOffset);
+  };
+  const nextPage = () => {
+    if (!canNext) return;
+    const newOffset = templatesList.offset + templatesList.limit;
+    listTemplates(templatesList.q || '', templatesList.limit, newOffset);
+  };
+
   return (
     <div className="card mb-3">
       <div className="card-header d-flex justify-content-between align-items-center">
@@ -32,6 +49,13 @@ export default function TemplateList({ store }) {
             </li>
           ))}
         </ul>
+        <div className="d-flex justify-content-between align-items-center mt-2">
+          <small className="text-muted">{total > 0 ? `${start}–${end} of ${total}` : '0 of 0'}</small>
+          <div className="btn-group">
+            <button className="btn btn-sm btn-outline-secondary" onClick={prevPage} disabled={!canPrev}>Prev</button>
+            <button className="btn btn-sm btn-outline-secondary" onClick={nextPage} disabled={!canNext}>Next</button>
+          </div>
+        </div>
       </div>
     </div>
   );

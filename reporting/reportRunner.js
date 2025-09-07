@@ -141,13 +141,38 @@ const ReportRunner = {
                         if (Number.isNaN(numericId)) {
                             throw new Error(`Invalid templateId format: ${tidStr}`);
                         }
-                        console.log('[ReportRunner] Loading template by numeric id from reports.template');
-                        console.log(`[ReportRunner] Attempting to fetch template with ID: ${templateId}, type: ${typeof templateId}`);
-                        const { rows } = await db.query(
-                            'SELECT id, name, description, template_content FROM reports.template WHERE id = $1',
+                        // First, try RTG-managed templates in reports.report_templates by api_id
+                        console.log('[ReportRunner] Loading template by numeric id, trying reports.report_templates (RTG) by api_id');
+                        console.log(`[ReportRunner] Attempting to fetch RTG template with api_id: ${numericId}`);
+                        const { rows: rtgRows } = await db.query(
+                            `SELECT
+                               t.api_id,
+                               t.id AS uuid_id,
+                               t.name,
+                               t.description,
+                               v.content_md AS template_content
+                             FROM reports.report_templates t
+                             JOIN LATERAL (
+                               SELECT content_md
+                               FROM reports.report_template_versions vv
+                               WHERE vv.template_id = t.id
+                               ORDER BY vv.version DESC NULLS LAST, vv.created_at DESC
+                               LIMIT 1
+                             ) v ON TRUE
+                             WHERE t.api_id = $1`,
                             [numericId]
                         );
-                        const templateNumericResult = rows && rows[0];
+                        let templateNumericResult = rtgRows && rtgRows[0];
+                        console.log(`[ReportRunner] RTG api_id fetch result:`, templateNumericResult ? 'Found' : 'Not found');
+                        // Fallback to legacy reports.template if RTG not found
+                        if (!templateNumericResult || !templateNumericResult.template_content) {
+                            console.log('[ReportRunner] Falling back to legacy reports.template for numeric id');
+                            const { rows } = await db.query(
+                                'SELECT id, name, description, template_content FROM reports.template WHERE id = $1',
+                                [numericId]
+                            );
+                            templateNumericResult = rows && rows[0];
+                        }
                         console.log(`[ReportRunner] Numeric ID fetch result:`, templateNumericResult ? 'Found' : 'Not found');
                         templateRow = templateNumericResult;
                     }

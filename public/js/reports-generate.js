@@ -306,44 +306,25 @@
     }
   }
 
-  // Load templates via PostgREST
+  // Load RTG templates via PostgREST API view (api.report_templates)
   async function loadTemplates() {
     const base = $('postgrestBase')?.value || 'http://localhost:3010';
     const root = base.replace(/\/$/, '');
-    const urls = [
-      `${root}/template?select=id,name,description&order=created_at.desc`,
-      `${root}/reports.template?select=id,name,description&order=created_at.desc`,
-      `${root}/report_templates.template?select=id,name,description&order=created_at.desc`
-    ];
+    const url = `${root}/report_templates?select=id,name,description&order=name.asc`;
     try {
-      let data = null;
-      let lastErr = null;
-      for (const u of urls) {
-        try {
-          console.log('[reports-generate] loadTemplates trying', u);
-          data = await xhrJson('GET', u, null, 15000);
-          if (Array.isArray(data) ? data.length : (data?.data?.length)) {
-            console.log('[reports-generate] loadTemplates succeeded via', u);
-            break;
-          }
-        } catch (e) {
-          lastErr = e;
-          console.warn('[reports-generate] loadTemplates failed via', u, e);
-        }
-      }
-      if (!data) throw lastErr || new Error('No templates endpoint responded');
+      console.log('[reports-generate] loadTemplates fetching', url);
+      const data = await xhrJson('GET', url, null, 15000);
       const list = Array.isArray(data) ? data : (data?.data || []);
       const sel = $('templateId');
       if (!sel) return;
       sel.innerHTML = '';
       const def = document.createElement('option');
       def.value = '';
-      def.textContent = list.length ? 'Select a template…' : 'No templates found';
+      def.textContent = list.length ? 'Select a template…' : 'No RTG templates found';
       sel.appendChild(def);
       let validCount = 0;
       list.forEach(t => {
-        const id = (t && (t.id != null ? t.id : t.template_id))
-          ?? (t && t.templateId) ?? null;
+        const id = (t && (t.id != null ? t.id : null)); // API view exposes numeric id
         if (id == null || id === '') {
           console.warn('[REPORTS-GEN] Template missing id field, skipping:', t);
           return;
@@ -352,7 +333,7 @@
         const idStr = String(id);
         opt.value = idStr;
         opt.setAttribute('data-id', idStr);
-        // keep numeric hint if applicable
+        // API view id is numeric
         const numId = Number(idStr);
         if (!Number.isNaN(numId)) opt.setAttribute('data-numeric-id', String(numId));
         opt.textContent = t.name || ('Template ' + idStr);
@@ -370,16 +351,16 @@
         if (sel.value) clearAlert();
       });
     } catch (e) {
-      console.error('[REPORTS-GEN] Failed to load templates:', e);
+      console.error('[REPORTS-GEN] Failed to load RTG templates (api.report_templates):', e);
       const sel = $('templateId');
       if (sel) {
         sel.innerHTML = '';
         const o = document.createElement('option');
         o.value = '';
-        o.textContent = 'Error loading templates';
+        o.textContent = 'Error loading RTG templates';
         sel.appendChild(o);
       }
-      showAlert('Failed to load templates from PostgREST');
+      showAlert('Failed to load report templates');
     }
   }
 

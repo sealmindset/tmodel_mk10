@@ -44,29 +44,16 @@
 
   async function fetchTemplates(){
     const root = apiBase().replace(/\/$/, '');
-    const urls = [
-      `${root}/reports.report_templates?order=name.asc`,
-      `${root}/template?order=name.asc`,
-      `${root}/reports.template?order=name.asc`,
-      `${root}/report_templates.template?order=name.asc`
-    ];
-    let lastErr = null;
-    for (const u of urls) {
-      try {
-        console.log('[report-templates-select] fetching', u);
-        const res = await fetch(u, { headers: { Accept: 'application/json' } });
-        if(!res.ok) throw new Error(`HTTP ${res.status}`);
-        const rows = await res.json();
-        if (Array.isArray(rows)) {
-          console.log('[report-templates-select] loaded', rows.length, 'templates via', u);
-          return rows;
-        }
-      } catch (e) {
-        lastErr = e;
-        console.warn('[report-templates-select] fetch failed via', u, e);
-      }
+    const url = `${root}/api.report_templates?select=id,name,description&order=name.asc`;
+    console.log('[report-templates-select] fetching', url);
+    const res = await fetch(url, { headers: { Accept: 'application/json' } });
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const rows = await res.json();
+    if (Array.isArray(rows)) {
+      console.log('[report-templates-select] loaded', rows.length, 'templates via', url);
+      return rows;
     }
-    throw lastErr || new Error('No template endpoint available');
+    throw new Error('Unexpected response for RTG templates');
   }
 
   function renderRows(tbody, empty, items){
@@ -83,7 +70,8 @@
       const tdCb = document.createElement('td');
       const cb = document.createElement('input');
       cb.type='checkbox';
-      cb.setAttribute('data-id', t.id);
+      const apiId = (t && (t.id != null ? t.id : t.api_id));
+      cb.setAttribute('data-id', String(apiId));
       cb.setAttribute('data-name', t.name||'');
       cb.addEventListener('change', ()=>{ ensureSingle(tbody, cb); setAssignEnabled(cb.checked); });
       tdCb.appendChild(cb);
@@ -110,7 +98,7 @@
       }catch(err){
         console.error('[report-templates-select] load failed', err);
         renderRows(tbody, empty, []);
-        alert('Failed to load report templates.');
+        alert('Failed to load RTG report templates.');
       }
     });
 

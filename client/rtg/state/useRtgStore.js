@@ -2,12 +2,12 @@ import { useCallback, useMemo, useReducer } from 'react';
 import * as api from '../api/rtgClient';
 
 const initialState = {
-  templatesList: { items: [], total: 0, q: '', limit: 20, offset: 0, loading: false },
+  templatesList: { items: [], total: 0, q: '', limit: 5, offset: 0, loading: false },
   selectedTemplate: null,
   editor: { name: '', description: '', content: '', dirty: false },
   compile: { output: '', warnings: [], meta: null, loading: false, error: null },
   submit: { provider: '', model: '', filters: {}, loading: false, output: '', meta: null, error: null },
-  versions: { items: [], total: 0, loading: false, error: null },
+  versions: { items: [], total: 0, loading: false, error: null, limit: 5, offset: 0 },
   projects: { items: [], loading: false, error: null },
   selectedProjectUuid: '',
 };
@@ -60,15 +60,15 @@ export function useRtgStore() {
         selectedTemplate: t,
         editor: { name: t.name || '', description: t.description || '', content: t.content_md || '', dirty: false },
       });
-      await loadVersions(id);
+      await loadVersions(id, state.versions.limit || 5, 0);
     } catch (_) {}
-  }, []);
+  }, [state.versions.limit]);
 
   const newTemplate = useCallback(() => {
     setState({
       selectedTemplate: null,
       editor: { name: '', description: '', content: '', dirty: false },
-      versions: { items: [], total: 0, loading: false, error: null },
+      versions: { items: [], total: 0, loading: false, error: null, limit: 5, offset: 0 },
     });
   }, []);
 
@@ -127,13 +127,13 @@ export function useRtgStore() {
     setState({ selectedProjectUuid: uuid || '' });
   }, []);
 
-  const loadVersions = useCallback(async (id) => {
-    setState({ versions: { ...state.versions, loading: true, error: null } });
+  const loadVersions = useCallback(async (id, limit = state.versions.limit || 5, offset = state.versions.offset || 0) => {
+    setState({ versions: { ...state.versions, loading: true, error: null, limit, offset } });
     try {
-      const res = await api.listVersions(id, 20, 0);
-      setState({ versions: { ...res, loading: false } });
+      const res = await api.listVersions(id, limit, offset);
+      setState({ versions: { ...res, loading: false, limit, offset } });
     } catch (e) {
-      setState({ versions: { items: [], total: 0, loading: false, error: e?.message || String(e) } });
+      setState({ versions: { items: [], total: 0, loading: false, error: e?.message || String(e), limit, offset } });
     }
   }, [state.versions]);
 

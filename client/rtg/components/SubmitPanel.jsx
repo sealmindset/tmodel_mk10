@@ -23,8 +23,6 @@ export default function SubmitPanel({ store }) {
   const [provider, setProvider] = useState('openai');
   const [modelPreset, setModelPreset] = useState('gpt-4o-mini');
   const [customModel, setCustomModel] = useState('');
-  const [author, setAuthor] = useState('');
-  const [projectUuid, setProjectUuid] = useState('');
 
   // Load persisted
   useEffect(() => {
@@ -60,14 +58,7 @@ export default function SubmitPanel({ store }) {
   const onSubmit = async (e) => {
     e.preventDefault();
     if (!provider || !effectiveModel) return;
-    await submitAction({
-      provider,
-      model: effectiveModel,
-      filters: {
-        author: author || undefined,
-        projectUuid: projectUuid || undefined
-      }
-    });
+    await submitAction({ provider, model: effectiveModel });
   };
 
   return (
@@ -99,15 +90,6 @@ export default function SubmitPanel({ store }) {
                        value={customModel} onChange={e => setCustomModel(e.target.value)} />
               )}
             </div>
-          </div>
-
-          <div className="mb-2">
-            <label className="form-label">Author (optional)</label>
-            <input className="form-control" value={author} onChange={e => setAuthor(e.target.value)} />
-          </div>
-          <div className="mb-3">
-            <label className="form-label">Project UUID (optional)</label>
-            <input className="form-control" value={projectUuid} onChange={e => setProjectUuid(e.target.value)} />
           </div>
 
           <div className="d-flex gap-2">
