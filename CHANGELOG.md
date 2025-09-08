@@ -154,6 +154,7 @@ Primary goals:
 ### Fixed
 - Avoided `api.api.*` double schema prefix errors by using unqualified PostgREST paths
 - Minor lint issues in `views/rtg/index.ejs` after refactor (removed stray brace)
+- Reports Generate save path: switched PostgREST insert from `/reports.report` to unqualified `/report` to prevent 404s with current schema exposure order (file: `public/js/reports-generate.js`).
 
 ### Notes / Migration
 - Ensure PostgREST is running and accessible at the configured base (default `http://localhost:3010`)

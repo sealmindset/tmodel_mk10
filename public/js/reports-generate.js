@@ -19,6 +19,35 @@
     el.innerHTML = message || '';
     el.style.display = message ? 'block' : 'none';
   }
+  // Toast helper (Bootstrap 5). Falls back gracefully if Bootstrap unavailable.
+  function showToast(message, type = 'success', delayMs = 1500) {
+    try {
+      const container = document.getElementById('toastContainer');
+      if (!container) return; // no-op if container missing
+      const wrapper = document.createElement('div');
+      wrapper.className = 'toast align-items-center text-bg-' + (type === 'success' ? 'success' : (type === 'danger' ? 'danger' : 'secondary')) + ' border-0';
+      wrapper.setAttribute('role', 'status');
+      wrapper.setAttribute('aria-live', 'polite');
+      wrapper.setAttribute('aria-atomic', 'true');
+      wrapper.innerHTML = '<div class="d-flex">\
+        <div class="toast-body">' + (message || '') + '</div>\
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>\
+      </div>';
+      container.appendChild(wrapper);
+      // Bootstrap toast init if available
+      const Toast = window.bootstrap && window.bootstrap.Toast ? window.bootstrap.Toast : null;
+      if (Toast) {
+        const t = new Toast(wrapper, { delay: delayMs });
+        t.show();
+        // Clean up DOM after hidden
+        wrapper.addEventListener('hidden.bs.toast', () => { try { wrapper.remove(); } catch(_) {} });
+      } else {
+        // Fallback: simple auto-remove
+        wrapper.style.display = 'block';
+        setTimeout(() => { try { wrapper.remove(); } catch(_) {} }, delayMs);
+      }
+    } catch(_) {}
+  }
   function clearAlert() {
     const a = $('genAlert'); const i = $('genInfo');
     if (a) { a.style.display = 'none'; a.innerHTML = ''; }
@@ -310,7 +339,7 @@
   async function loadTemplates() {
     const base = $('postgrestBase')?.value || 'http://localhost:3010';
     const root = base.replace(/\/$/, '');
-    const url = `${root}/report_templates?select=id,name,description&order=name.asc`;
+    const url = `${root}/report_templates?select=id,uuid,name,description&order=name.asc`;
     try {
       console.log('[reports-generate] loadTemplates fetching', url);
       const data = await xhrJson('GET', url, null, 15000);
@@ -333,9 +362,10 @@
         const idStr = String(id);
         opt.value = idStr;
         opt.setAttribute('data-id', idStr);
-        // API view id is numeric
+        // API view id is numeric; also capture uuid for later insert into generated_reports
         const numId = Number(idStr);
         if (!Number.isNaN(numId)) opt.setAttribute('data-numeric-id', String(numId));
+        if (t && t.uuid) opt.setAttribute('data-uuid', String(t.uuid));
         opt.textContent = t.name || ('Template ' + idStr);
         sel.appendChild(opt);
         validCount++;
@@ -540,33 +570,62 @@
     if (!md) { showAlert('Nothing to save yet. Generate first.'); return; }
     if (!projectId || !isUuidV4(projectId)) { showAlert('Please enter a valid Project UUID.'); return; }
 
-    // PostgREST insert into reports.report (qualified path to avoid schema precedence issues)
-    const url = base.replace(/\/$/, '') + '/reports.report';
+    const root = base.replace(/\/$/, '');
+    const saveUrl = root + '/generated_reports';
     const templateIdVal = (templateId && !isNaN(Number(templateId))) ? Number(templateId) : null;
     if (!templateIdVal) { showAlert('Please select a Template before saving.'); return; }
+    // Resolve template UUID from the selected option
+    const tmplSel = $('templateId');
+    const tmplOpt = tmplSel && tmplSel.options[tmplSel.selectedIndex] ? tmplSel.options[tmplSel.selectedIndex] : null;
+    const templateUuid = tmplOpt ? (tmplOpt.getAttribute('data-uuid') || '') : '';
+    if (!templateUuid) {
+      showAlert('Template UUID not found. Please re-select the template.');
+      return;
+    }
+    // Resolve latest version for this template (fallback to 1 if lookup fails)
+    let latestVersion = 1;
+    try {
+      const verRows = await xhrJson('GET', `${root}/report_template_versions?template_id=eq.${encodeURIComponent(templateUuid)}&select=version&order=version.desc&limit=1`, null, 15000);
+      const arr = Array.isArray(verRows) ? verRows : (verRows?.data || []);
+      if (arr && arr[0] && typeof arr[0].version === 'number') latestVersion = arr[0].version;
+    } catch (e) {
+      console.warn('[REPORTS-GEN] Failed to fetch latest template version, defaulting to 1:', e);
+    }
     const body = {
-      project_uuid: projectId,
-      title: title,
-      template_id: templateIdVal,
-      content: { sections: { full: md } }
+      project_id: projectId,
+      template_id: templateUuid,
+      template_version: latestVersion,
+      output_md: md,
+      created_by: (window.__CURRENT_USER__ && window.__CURRENT_USER__.username) || undefined
     };
 
     setBusy(true);
+    // Show a brief progress bar for visual confirmation on save
+    showProgressArea();
+    updateProgress({ message: 'Saving…', progress: 60 });
     try {
-      const resp = await xhrJson('POST', url, body, 30000);
-      // PostgREST returns inserted row(s)
+      const resp = await xhrJson('POST', saveUrl, body, 30000);
+      // PostgREST returns inserted row(s). api.generated_reports exposes id as numeric api_id
       const inserted = Array.isArray(resp) ? resp[0] : (resp?.[0] || resp);
       const newId = inserted?.id || inserted?.report_id || null;
       if (newId) {
-        window.location.href = '/reports/view/' + encodeURIComponent(newId);
+        // Success: fill bar to 100%, show success toast, then redirect after a short delay
+        updateProgress({ message: 'Saved successfully', progress: 100 });
+        showToast('Report saved', 'success', 1400);
+        setTimeout(() => {
+          window.location.href = '/reports/view/' + encodeURIComponent(newId);
+        }, 1200);
       } else {
         showInfo('Saved, but could not determine report ID.');
       }
     } catch (e) {
       console.error('[REPORTS-GEN] Save failed:', e);
       showAlert('Save failed: ' + e.message);
+      updateProgress({ message: 'Save failed', progress: 0 });
     } finally {
+      // Keep the progress bar visible briefly for confirmation
       setBusy(false);
+      setTimeout(() => hideProgressArea(), 1500);
     }
   }
 
