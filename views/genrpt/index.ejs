@@ -1,0 +1,44 @@
+<%- include('../partials/header', {
+  pageTitle: 'Generate Report',
+  active: 'reportTemplates',
+  extraCss: [
+    '/css/rtg.css?v=' + Date.now(),
+    '/css/gfm-editor.css?v=' + Date.now()
+  ]
+}) %>
+
+<div class="container py-3">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">Generate Report</h1>
+    <div>
+      <a href="/projects" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back to Projects
+      </a>
+    </div>
+  </div>
+
+  <div id="rtg-root"></div>
+</div>
+
+<!-- Provide flags/config before the RTG bundle loads so it can render in genrpt mode -->
+<script>
+  window.__RTG_MODE__ = 'genrpt';
+  window.__RTG_FLAGS__ = Object.assign({ richMarkdown: true }, window.__RTG_FLAGS__ || {});
+  window.__POSTGREST_BASE__ = window.__POSTGREST_BASE__ || 'http://localhost:3010';
+  // Configure genrpt defaults; projectUuid set below separately
+  window.__GENRPT_CFG__ = Object.assign({
+    generateUrl: '/api/genrpt/generate?stream=true'
+  }, window.__GENRPT_CFG__ || {});
+  // Assign projectUuid separately to avoid parser issues
+  window.__GENRPT_CFG__.projectUuid = <%- JSON.stringify(typeof projectUuid !== 'undefined' ? projectUuid : '') %>;
+</script>
+
+<!-- Reuse RTG main bundle for identical UI/UX -->
+<script type="module" src="/js/rtg-ui.bundle.js?v=<%= Date.now() %>"></script>
+
+<%- include('../partials/footer', {
+  extraJs: [
+    '/js/gfm-editor.js?v=' + Date.now(),
+    '/js/rtg-modal.js?v=' + Date.now()
+  ]
+}) %>

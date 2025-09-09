@@ -71,6 +71,30 @@
         </div>
       </div>
 
+      <!-- Prompt selection + actions -->
+      <div class="row g-3 mt-3">
+        <div class="col-md-8">
+          <div class="d-flex align-items-center gap-2">
+            <button type="button" id="btnChoosePrompt" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#promptsSelectModal">
+              <i class="bi bi-chat-square-text me-1"></i>Choose Prompt
+            </button>
+            <input type="text" id="promptTitle" class="form-control" placeholder="No prompt selected" readonly style="max-width: 360px;">
+            <input type="hidden" id="promptId" value="">
+          </div>
+        </div>
+      </div>
+
+      <!-- Selected Prompt Preview (read-only) -->
+      <div id="promptPreviewSection" class="card mt-3 d-none">
+        <div class="card-header py-2 d-flex align-items-center">
+          <strong class="me-2">Selected Prompt (read-only)</strong>
+          <small class="text-muted">This is the LLM prompt that guides generation.</small>
+        </div>
+        <div class="card-body p-2">
+          <textarea id="promptPreviewText" class="form-control" rows="8" readonly placeholder="Prompt preview will appear here..."></textarea>
+        </div>
+      </div>
+
       <div class="d-flex align-items-center mt-4">
         <button id="btnGenerate" class="btn btn-primary me-2">
           <i class="bi bi-lightning me-1"></i>Generate
@@ -91,7 +115,19 @@
         <div id="progressText" class="form-text mt-1">Initializing...</div>
       </div>
 
+      <!-- Token toolbar for quick insertion -->
       <div class="mt-4">
+        <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
+          <div class="btn-group" role="group" aria-label="Insert token">
+            <button type="button" class="btn btn-sm btn-outline-secondary insert-token" data-token="{{PROJECT_JSON}}">{{PROJECT_JSON}}</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary insert-token" data-token="{{COMPONENT_TABLE}}">{{COMPONENT_TABLE}}</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary insert-token" data-token="{{THREAT_MODEL_DATA_JSON}}">{{THREAT_MODEL_DATA_JSON}}</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary insert-token" data-token="{{COMPONENT_DATA_JSON}}">{{COMPONENT_DATA_JSON}}</button>
+          </div>
+          <small id="tokenWarn" class="text-warning"></small>
+          <a href="/rtg/howto" class="ms-auto small" target="_blank" rel="noopener">How to use tokens</a>
+        </div>
+        <label for="resultMd" class="form-label">Generated Markdown (editable)</label>
         <label for="resultMd" class="form-label">Generated Markdown (editable)</label>
         <textarea id="resultMd" class="form-control" rows="18" data-gfm-editor
                   placeholder="Generated report will appear here..."
@@ -103,7 +139,10 @@
   </div>
 </div>
 
-<%- include('partials/footer', { extraJs: ['/js/gfm-editor.js', '/js/reports-generate.js'] }) %>
+<!-- Prompts selection modal -->
+<%- include('partials/prompts-select-table') %>
+
+<%- include('partials/footer', { extraJs: ['/js/gfm-editor.js', '/js/prompts-select.js', '/js/reports-generate.js'] }) %>
 
 <script>
   // Initialize the lightweight GFM editor on the generated markdown textarea

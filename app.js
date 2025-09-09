@@ -355,6 +355,9 @@ app.use('/api/reference-architecture',
   require('./src/server/routes/referenceArchitecture')({ pool: app.locals.dbPool })
 );
 app.use('/api/reports', require('./routes/api/reports'));
+// genrpt (Generate Report) UI and API
+app.use('/genrpt', require('./routes/genrpt'));
+app.use('/api/genrpt', require('./routes/api/genrpt'));
 app.use('/api/project-mapper', require('./routes/api/projectMapper')); // Project ID mapper for UUID-to-int conversion
 
 // Application Routes

@@ -57,6 +57,50 @@
   // Diagnostics for #resultMd content flow
   let _resultMdLast = null;
   let _resultMdMonitor = null;
+  // Token vocabulary aligned with RTG usage
+  const ALLOWED_TOKENS = new Set([
+    '{{PROJECT_JSON}}',
+    '{{COMPONENT_TABLE}}',
+    '{{THREAT_MODEL_DATA_JSON}}',
+    '{{COMPONENT_DATA_JSON}}'
+  ]);
+  function findTokens(text) {
+    const re = /\{\{[^}]+\}\}/g;
+    const found = new Set();
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      found.add(m[0]);
+    }
+    return Array.from(found);
+  }
+  function validateTokens(text) {
+    try {
+      const warnEl = document.getElementById('tokenWarn');
+      if (!warnEl) return;
+      const toks = findTokens(text);
+      const unknown = toks.filter(t => !ALLOWED_TOKENS.has(t));
+      if (unknown.length) {
+        warnEl.textContent = 'Unknown tokens: ' + unknown.join(', ');
+      } else {
+        warnEl.textContent = '';
+      }
+    } catch(_) {}
+  }
+  function insertAtCaret(textarea, insertText) {
+    if (!textarea) return;
+    const start = textarea.selectionStart || 0;
+    const end = textarea.selectionEnd || 0;
+    const before = textarea.value.slice(0, start);
+    const after = textarea.value.slice(end);
+    textarea.value = before + insertText + after;
+    const pos = start + insertText.length;
+    try {
+      textarea.selectionStart = pos;
+      textarea.selectionEnd = pos;
+      textarea.focus();
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    } catch(_) {}
+  }
   function setResultMd(text, source) {
     const el = $('resultMd');
     if (!el) { return; }
@@ -70,6 +114,7 @@
     } catch(_) {}
     el.value = t;
     _resultMdLast = t;
+    validateTokens(t);
   }
   function startResultMdMonitor(durationMs = 7000, intervalMs = 400) {
     const el = $('resultMd');
@@ -513,14 +558,22 @@
       const payload = {
         reportType,
         templateId: tid,
-        filters: { projectUuid: projectId, llmOverride: { provider: llmProviderValue, model: llmModelValue } }
+        // match RTG: include prompt and llm selections; map identifiers at boundary
+        promptId: (document.getElementById('promptId')?.value || '').trim() || undefined,
+        promptTitle: (document.getElementById('promptTitle')?.value || '').trim() || undefined,
+        filters: {
+          projectUuid: projectId,
+          llmOverride: { provider: llmProviderValue, model: llmModelValue }
+        }
       };
 
       console.log('[REPORTS-GEN] Starting report generation with streaming');
 
       // Use streaming for real-time updates
+      const cfg = (window.__GENRPT_CFG__ || {});
+      const genUrl = cfg.generateUrl || '/api/reports/generate?stream=true';
       await xhrStream(
-        '/api/reports/generate?stream=true',
+        genUrl,
         payload,
         // onMessage - handle progress updates
         (data) => {
@@ -670,9 +723,18 @@
           const v = resMd.value || '';
           console.log('[REPORTS-GEN] #resultMd user input', { length: v.length, preview: v.slice(0, 120) });
           _resultMdLast = v;
+          validateTokens(v);
         } catch(_) {}
       });
     }
+
+    // Token toolbar handlers
+    document.querySelectorAll('.insert-token').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const token = btn.getAttribute('data-token') || '';
+        insertAtCaret(resMd, token);
+      });
+    });
 
     // Prompts modal: prompts-select.js should dispatch a custom event when a prompt is chosen
     // Listen for a generic event and fill fields if present
@@ -681,6 +743,25 @@
         const detail = e.detail || {};
         if (detail.id) $('promptId').value = detail.id;
         if (detail.title) $('promptTitle').value = detail.title;
+        // Load preview text
+        const pid = (detail.id || '').trim();
+        if (pid) {
+          fetch(`/api/prompts/${encodeURIComponent(pid)}`)
+            .then(r => r.ok ? r.json() : Promise.reject(new Error('prompt_fetch_failed')))
+            .then(data => {
+              const txt = (data && data.prompt && (data.prompt.prompt_text || data.prompt.text)) || '';
+              const sec = document.getElementById('promptPreviewSection');
+              const ta = document.getElementById('promptPreviewText');
+              if (ta) ta.value = txt || '(empty prompt)';
+              if (sec) sec.classList.toggle('d-none', !txt);
+            })
+            .catch(() => {
+              const sec = document.getElementById('promptPreviewSection');
+              const ta = document.getElementById('promptPreviewText');
+              if (ta) ta.value = '';
+              if (sec) sec.classList.add('d-none');
+            });
+        }
       } catch(_) {}
     });
   });
