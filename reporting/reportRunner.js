@@ -505,6 +505,24 @@ const ReportRunner = {
         const vulnsJsonS = stringifyWithBudget(vulnerabilitiesSorted, BUDGET.vulnerabilities, 'vulnerabilities');
         const safeguardsJsonS = stringifyWithBudget(safeguardsSorted, BUDGET.safeguards, 'safeguards');
 
+        // Build a simple markdown table for components if needed by templates (COMPONENT_TABLE)
+        const componentTableMd = (() => {
+            try {
+                const rows = Array.isArray(componentsSorted) ? componentsSorted : [];
+                if (!rows.length) return '| Component Name | Description |\n|---|---|\n| _No component data provided in the context._ | |';
+                const header = '| Component Name | Description |';
+                const sep = '|---|---|';
+                const body = rows.map(c => {
+                    const name = String(c.name || c.title || c.component_name || 'Unknown').replace(/\n/g, ' ').trim();
+                    const desc = String(c.description || c.summary || '').replace(/\n/g, ' ').trim();
+                    return `| ${name} | ${desc} |`;
+                }).join('\n');
+                return [header, sep, body].join('\n');
+            } catch (_) {
+                return '| Component Name | Description |\n|---|---|\n| _No component data provided in the context._ | |';
+            }
+        })();
+
         const statistics = (()=>{
             const vulnCounts = { Critical:0, High:0, Medium:0, Low:0 };
             (Array.isArray(vulnerabilitiesSorted)?vulnerabilitiesSorted:[]).forEach(v=>{ const s=(v.severity||'').toString(); if (vulnCounts[s] != null) vulnCounts[s]++; });
@@ -595,8 +613,12 @@ const ReportRunner = {
             ['{{PROJECTS_COUNT}}', String(Array.isArray(projectsAll)?projectsAll.length:0)],
             ['{{PROJECT_NAMES_CSV}}', (Array.isArray(projectsAll)?projectsAll.map(p=>p.name).filter(Boolean).join(', '):'')],
             ['{{COMPONENTS_JSON}}', componentsJsonS.text],
+            // Parity aliases used by some RTG templates
+            ['{{COMPONENT_DATA_JSON}}', componentsJsonS.text],
+            ['{{COMPONENT_TABLE}}', componentTableMd],
             ['{{COMPONENTS_COUNT}}', String(Array.isArray(componentsAll)?componentsAll.length:0)],
             ['{{THREATS_JSON}}', threatsJsonS.text],
+            ['{{THREAT_MODEL_DATA_JSON}}', threatsJsonS.text],
             ['{{VULNERABILITIES_JSON}}', vulnsJsonS.text],
             ['{{THREAT_SAFEGUARDS_JSON}}', safeguardsJsonS.text],
             ['{{STATISTICS_JSON}}', JSON.stringify(statistics)],

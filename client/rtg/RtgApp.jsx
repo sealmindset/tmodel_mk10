@@ -17,6 +17,39 @@ export default function RtgApp() {
   // Run once on mount; do not depend on `init` identity which can change as store updates
   useEffect(() => { init(); }, []);
 
+  const isGenRpt = (typeof window !== 'undefined' && window.__RTG_MODE__ === 'genrpt');
+
+  if (isGenRpt) {
+    // Simplified Generate Report layout per mock: left templates, center controls + output, no editor/version sidebar
+    return (
+      <div
+        className="rtg-app container-fluid"
+        onSubmitCapture={(e) => {
+          const allow = e.target?.closest?.('[data-allow-submit]');
+          if (!allow) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }}
+      >
+        <div className="row">
+          <div className="col-3">
+            <TemplateList store={store} />
+            {/* Hide VersionHistory in genrpt mode */}
+          </div>
+          <div className="col-9">
+            <SubmitProgress store={store} />
+            <Toolbar store={store} />
+            {/* No TemplateEditor in genrpt mode */}
+            <ProjectsSelector store={store} />
+            <SubmitOutput store={store} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Default RTG authoring layout
   return (
     <div
       className="rtg-app container-fluid"

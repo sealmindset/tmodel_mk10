@@ -33,6 +33,9 @@
   window.__GENRPT_CFG__.projectUuid = <%- JSON.stringify(typeof projectUuid !== 'undefined' ? projectUuid : '') %>;
 </script>
 
+<!-- Ensure GFM editor is available before React mounts -->
+<script src="/js/gfm-editor.js?v=<%= Date.now() %>"></script>
+
 <!-- Reuse RTG main bundle for identical UI/UX -->
 <script type="module" src="/js/rtg-ui.bundle.js?v=<%= Date.now() %>"></script>
 

@@ -11,6 +11,7 @@ export default function Toolbar({ store }) {
   const { editor, submit, saveTemplate } = store;
   const submitting = (store.submitState && store.submitState.loading) || false;
   const canSave = editor.name && editor.content;
+  const isGenRpt = (typeof window !== 'undefined' && window.__RTG_MODE__ === 'genrpt');
 
   // Provider/Model controls (persisted)
   const [provider, setProvider] = useState('openai');
@@ -55,6 +56,12 @@ export default function Toolbar({ store }) {
 
   return (
     <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
+      {isGenRpt && (
+        <a href="/projects" className="btn btn-outline-secondary d-flex align-items-center gap-2">
+          <i className="bi bi-arrow-left"></i>
+          <span>Back to Projects</span>
+        </a>
+      )}
       <button className="btn btn-primary" disabled={!canSave || !editor.dirty} onClick={onSave}>Save</button>
 
       <div className="btn-group" role="group" aria-label="Provider">

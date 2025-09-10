@@ -1,9 +1,9 @@
-08/Sep/2025:19:00:04 -0500: Starting PostgREST 13.0.6...
-08/Sep/2025:19:00:04 -0500: API server listening on 0.0.0.0:3010
-08/Sep/2025:19:00:04 -0500: Listening for database notifications on the "pgrst" channel
-08/Sep/2025:19:00:04 -0500: Successfully connected to PostgreSQL 17.5 (Homebrew) on aarch64-apple-darwin24.4.0, compiled by Apple clang version 17.0.0 (clang-1700.0.13.3), 64-bit
-08/Sep/2025:19:00:04 -0500: Connection Pool initialized with a maximum size of 10 connections
-08/Sep/2025:19:00:04 -0500: Config reloaded
-08/Sep/2025:19:00:04 -0500: Schema cache queried in 1.6 milliseconds
-08/Sep/2025:19:00:04 -0500: Schema cache loaded 13 Relations, 20 Relationships, 0 Functions, 0 Domain Representations, 4 Media Type Handlers, 598 Timezones
-08/Sep/2025:19:00:04 -0500: Schema cache loaded in 0.4 milliseconds
+09/Sep/2025:18:11:54 -0500: Starting PostgREST 13.0.6...
+09/Sep/2025:18:11:54 -0500: API server listening on 0.0.0.0:3010
+09/Sep/2025:18:11:54 -0500: Listening for database notifications on the "pgrst" channel
+09/Sep/2025:18:11:54 -0500: Successfully connected to PostgreSQL 17.5 (Homebrew) on aarch64-apple-darwin24.4.0, compiled by Apple clang version 17.0.0 (clang-1700.0.13.3), 64-bit
+09/Sep/2025:18:11:54 -0500: Connection Pool initialized with a maximum size of 10 connections
+09/Sep/2025:18:11:54 -0500: Config reloaded
+09/Sep/2025:18:11:54 -0500: Schema cache queried in 1.4 milliseconds
+09/Sep/2025:18:11:54 -0500: Schema cache loaded 13 Relations, 20 Relationships, 0 Functions, 0 Domain Representations, 4 Media Type Handlers, 598 Timezones
+09/Sep/2025:18:11:54 -0500: Schema cache loaded in 0.4 milliseconds
