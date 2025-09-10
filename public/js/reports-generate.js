@@ -12,6 +12,56 @@
     el.innerHTML = message || '';
     el.style.display = message ? 'block' : 'none';
   }
+
+  // Resolve template UUID from a <select> option that may only contain numeric API id
+  async function resolveTemplateUuidFromOption(opt) {
+    if (!opt) return '';
+    const direct = opt.getAttribute('data-uuid') || '';
+    if (direct) return direct;
+    // Fallback: look up by numeric id via PostgREST
+    const numId = opt.getAttribute('data-numeric-id') || opt.value || '';
+    if (!numId) return '';
+    try {
+      const base = $('postgrestBase')?.value || 'http://localhost:3010';
+      const root = base.replace(/\/$/, '');
+      // First try API view (may expose uuid)
+      try {
+        const url1 = `${root}/report_templates?select=uuid&id=eq.${encodeURIComponent(String(numId))}`;
+        const rows1 = await xhrJson('GET', url1, null, 10000);
+        const arr1 = Array.isArray(rows1) ? rows1 : (rows1?.data || []);
+        const uuid1 = arr1 && arr1[0] && arr1[0].uuid ? String(arr1[0].uuid) : '';
+        if (uuid1) { try { opt.setAttribute('data-uuid', uuid1); } catch(_) {} return uuid1; }
+      } catch (_) {}
+      // Fallback to base schema: reports.report_templates exposes uuid primary key as id
+      const url2 = `${root}/reports.report_templates?select=id&id=eq.${encodeURIComponent(String(numId))}`;
+      const rows2 = await xhrJson('GET', url2, null, 10000);
+      const arr2 = Array.isArray(rows2) ? rows2 : (rows2?.data || []);
+      const uuid2 = arr2 && arr2[0] && arr2[0].id ? String(arr2[0].id) : '';
+      if (uuid2) { try { opt.setAttribute('data-uuid', uuid2); } catch(_) {} }
+      return uuid2;
+    } catch (e) {
+      console.warn('[REPORTS-GEN] Failed to resolve template UUID by numeric id via any schema:', e);
+      return '';
+    }
+  }
+
+  // Fetch latest template Markdown by template UUID from PostgREST and preview in output box
+  async function previewTemplateByUuid(templateUuid) {
+    if (!templateUuid) return;
+    try {
+      const base = $('postgrestBase')?.value || 'http://localhost:3010';
+      const root = base.replace(/\/$/, '');
+      const url = `${root}/report_template_versions?template_id=eq.${encodeURIComponent(templateUuid)}&select=version,content_md&order=version.desc&limit=1`;
+      const rows = await xhrJson('GET', url, null, 15000);
+      const arr = Array.isArray(rows) ? rows : (rows?.data || []);
+      const latest = arr && arr[0] ? arr[0] : null;
+      const md = latest && typeof latest.content_md === 'string' ? latest.content_md : '';
+      setResultMd(md || '', 'template_preview');
+      showInfo('Previewing selected template. Click Generate to produce output.');
+    } catch (e) {
+      console.warn('[REPORTS-GEN] Failed to load template preview:', e);
+    }
+  }
   function showInfo(message) {
     const el = $('genInfo');
     if (!el) { console.warn('[REPORTS-GEN] Missing #genInfo element'); return; }
@@ -422,8 +472,26 @@
         const opts = Array.from(sel.options).map(o => ({ value: o.value, text: o.textContent }));
         console.log('[REPORTS-GEN] Templates loaded options:', opts);
       } catch(_) {}
+      // If an option is currently selected (including auto-select when only one), preview it once
+      try {
+        const opt0 = sel && sel.options && sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex] : null;
+        if (opt0) {
+          const uuid0 = opt0.getAttribute('data-uuid') || await resolveTemplateUuidFromOption(opt0);
+          if (uuid0) previewTemplateByUuid(uuid0);
+        }
+      } catch(_) {}
       sel.addEventListener('change', () => {
         if (sel.value) clearAlert();
+        try {
+          const opt = sel.options && sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex] : null;
+          if (opt) {
+            const doPreview = async () => {
+              const uuid = opt.getAttribute('data-uuid') || await resolveTemplateUuidFromOption(opt);
+              if (uuid) previewTemplateByUuid(uuid);
+            };
+            doPreview();
+          }
+        } catch (_) {}
       });
     } catch (e) {
       console.error('[REPORTS-GEN] Failed to load RTG templates (api.report_templates):', e);

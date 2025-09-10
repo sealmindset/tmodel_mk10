@@ -56,13 +56,22 @@ export function useRtgStore() {
   const selectTemplate = useCallback(async (id) => {
     try {
       const t = await api.getTemplate(id);
+      try { console.log('[RTG] selectTemplate', { id, name: t?.name, hasContent: !!t?.content_md, contentLen: (t?.content_md || '').length }); } catch (_) {}
       setState({
         selectedTemplate: t,
         editor: { name: t.name || '', description: t.description || '', content: t.content_md || '', dirty: false },
       });
+      // In genrpt mode, show a preview in the same textarea used for output
+      try {
+        if (typeof window !== 'undefined' && window.__RTG_MODE__ === 'genrpt') {
+          const preview = t.content_md || '';
+          try { console.log('[RTG] preview -> submit.output', { length: preview.length, preview: preview.slice(0, 120) }); } catch (_) {}
+          setState({ submit: { ...state.submit, output: preview } });
+        }
+      } catch (_) {}
       await loadVersions(id, state.versions.limit || 5, 0);
     } catch (_) {}
-  }, [state.versions.limit]);
+  }, [state.versions.limit, state.submit]);
 
   const newTemplate = useCallback(() => {
     setState({

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
 export default function TemplateList({ store }) {
-  const { templatesList, listTemplates, selectTemplate, newTemplate } = store;
+  const { templatesList, listTemplates, selectTemplate } = store;
   const [q, setQ] = useState(templatesList.q || '');
 
   const onSearch = (e) => {
@@ -30,7 +30,6 @@ export default function TemplateList({ store }) {
     <div className="card mb-3">
       <div className="card-header d-flex justify-content-between align-items-center">
         <span>Templates</span>
-        <button className="btn btn-sm btn-primary" onClick={newTemplate}>New</button>
       </div>
       <div className="card-body">
         <form className="mb-2" onSubmit={onSearch}>

@@ -132,11 +132,12 @@ Primary goals:
   - Active nav state set via `active: 'reportTemplates'`
   - RTG bundles loaded as module: `/js/rtg-ui.bundle.js` with flags pre‑defined
 - Comprehensive change log added with project overview
- - Generate Report page parity features with RTG prompts/tokens:
-   - Prompt selection modal wired on `/projects/:uuid/reports/new` (files: `views/reports-generate.ejs`, `public/js/prompts-select.js`, `views/partials/prompts-select-table.ejs`)
-   - Read‑only Prompt Preview card shows the selected LLM prompt (fetched from `/api/prompts/:id`)
-   - Token toolbar above the Markdown editor with quick insert buttons (`{{PROJECT_JSON}}`, `{{COMPONENT_TABLE}}`, `{{THREAT_MODEL_DATA_JSON}}`, `{{COMPONENT_DATA_JSON}}`)
-   - Live token validation with inline warnings for unknown tokens
+- Generate Report page parity features with RTG prompts/tokens:
+  - Prompt selection modal wired on `/projects/:uuid/reports/new` (files: `views/reports-generate.ejs`, `public/js/prompts-select.js`, `views/partials/prompts-select-table.ejs`)
+  - Read‑only Prompt Preview card shows the selected LLM prompt (fetched from `/api/prompts/:id`)
+  - Token toolbar above the Markdown editor with quick insert buttons (`{{PROJECT_JSON}}`, `{{COMPONENT_TABLE}}`, `{{THREAT_MODEL_DATA_JSON}}`, `{{COMPONENT_DATA_JSON}}`)
+  - Live token validation with inline warnings for unknown tokens
+  - Template preview: when a template is selected, the latest version Markdown is fetched from PostgREST (`/report_template_versions`) and shown in the same `#resultMd` textarea as a preview. Clicking Generate overwrites that textarea with the produced output (file: `public/js/reports-generate.js`).
 
 ### Changed
 - Frontend template sources unified to RTG via PostgREST:

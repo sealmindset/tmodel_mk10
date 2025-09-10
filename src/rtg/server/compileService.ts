@@ -17,8 +17,11 @@ export const KNOWN_TOKENS = [
   '{{PROJECT_NAMES_CSV}}',
   '{{COMPONENTS_JSON}}',
   '{{COMPONENTS_COUNT}}',
+  '{{COMPONENT_TABLE}}',
   '{{THREATS_JSON}}',
+  '{{THREAT_MODEL_TABLE}}',
   '{{VULNERABILITIES_JSON}}',
+  '{{VULNERABILITY_TABLE}}',
   '{{THREAT_SAFEGUARDS_JSON}}',
   '{{STATISTICS_JSON}}',
   '{{PIPELINE_STEPS_JSON}}',
@@ -61,6 +64,27 @@ export async function compile(req: CompileRequest): Promise<CompileResult> {
   const componentsSorted = Array.isArray(componentsAll) ? [...componentsAll].sort(byName) : [];
   const threatsSorted = Array.isArray(threatsAll) ? [...threatsAll].sort(bySeverityThenTitle) : [];
   const vulnerabilitiesSorted = Array.isArray(vulnerabilitiesAll) ? [...vulnerabilitiesAll].sort(bySeverityThenCreatedDesc) : [];
+
+  // Simple Markdown table helpers
+  const toMarkdownTable = (headers: string[], rows: (string | number)[][]): string => {
+    if (!rows || rows.length === 0) return '';
+    const head = `| ${headers.join(' | ')} |`;
+    const sep = `| ${headers.map(() => '---').join(' | ')} |`;
+    const body = rows.map(r => `| ${r.map(v => String(v ?? '')).join(' | ')} |`).join('\n');
+    return `${head}\n${sep}\n${body}`;
+  };
+  const componentTableMd = toMarkdownTable(
+    ['Name', 'Type'],
+    (componentsSorted || []).map((c: any) => [c?.name || '', c?.type || c?.kind || c?.category || ''])
+  );
+  const threatsTableMd = toMarkdownTable(
+    ['Title', 'Severity'],
+    (threatsSorted || []).map((t: any) => [t?.title || t?.name || '', t?.severity || ''])
+  );
+  const vulnTableMd = toMarkdownTable(
+    ['Title', 'Severity'],
+    (vulnerabilitiesSorted || []).map((v: any) => [v?.title || v?.name || '', v?.severity || ''])
+  );
 
   // Budgeted JSON strings
   const BUDGET = buildBudgets();
@@ -141,8 +165,11 @@ export async function compile(req: CompileRequest): Promise<CompileResult> {
     ['{{PROJECT_NAMES_CSV}}', (Array.isArray(projectsAll) ? projectsAll.map((p: any) => p?.name).filter(Boolean).join(', ') : '')],
     ['{{COMPONENTS_JSON}}', componentsJsonS.text],
     ['{{COMPONENTS_COUNT}}', String(Array.isArray(componentsAll) ? componentsAll.length : 0)],
+    ['{{COMPONENT_TABLE}}', componentTableMd],
     ['{{THREATS_JSON}}', threatsJsonS.text],
+    ['{{THREAT_MODEL_TABLE}}', threatsTableMd],
     ['{{VULNERABILITIES_JSON}}', vulnsJsonS.text],
+    ['{{VULNERABILITY_TABLE}}', vulnTableMd],
     ['{{THREAT_SAFEGUARDS_JSON}}', safeguardsJsonS.text],
     ['{{STATISTICS_JSON}}', JSON.stringify(statistics)],
     ['{{PIPELINE_STEPS_JSON}}', JSON.stringify((filters && filters.pipeline_steps) || [])],
