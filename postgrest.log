@@ -1,9 +1,18 @@
-10/Sep/2025:07:30:25 -0500: Starting PostgREST 13.0.6...
-10/Sep/2025:07:30:25 -0500: API server listening on 0.0.0.0:3010
-10/Sep/2025:07:30:25 -0500: Listening for database notifications on the "pgrst" channel
-10/Sep/2025:07:30:25 -0500: Successfully connected to PostgreSQL 17.5 (Homebrew) on aarch64-apple-darwin24.4.0, compiled by Apple clang version 17.0.0 (clang-1700.0.13.3), 64-bit
-10/Sep/2025:07:30:25 -0500: Connection Pool initialized with a maximum size of 10 connections
-10/Sep/2025:07:30:25 -0500: Config reloaded
-10/Sep/2025:07:30:25 -0500: Schema cache queried in 1.4 milliseconds
-10/Sep/2025:07:30:25 -0500: Schema cache loaded 13 Relations, 20 Relationships, 0 Functions, 0 Domain Representations, 4 Media Type Handlers, 598 Timezones
-10/Sep/2025:07:30:25 -0500: Schema cache loaded in 0.3 milliseconds
+17/Oct/2025:08:50:43 -0500: Starting PostgREST 13.0.6...
+17/Oct/2025:08:50:43 -0500: API server listening on 0.0.0.0:3010
+17/Oct/2025:08:50:43 -0500: Listening for database notifications on the "pgrst" channel
+17/Oct/2025:08:50:43 -0500: Successfully connected to PostgreSQL 17.5 (Homebrew) on aarch64-apple-darwin24.4.0, compiled by Apple clang version 17.0.0 (clang-1700.0.13.3), 64-bit
+17/Oct/2025:08:50:43 -0500: Connection Pool initialized with a maximum size of 10 connections
+17/Oct/2025:08:50:43 -0500: Config reloaded
+17/Oct/2025:08:50:43 -0500: Schema cache queried in 2.6 milliseconds
+17/Oct/2025:08:50:43 -0500: Schema cache loaded 13 Relations, 20 Relationships, 0 Functions, 0 Domain Representations, 4 Media Type Handlers, 598 Timezones
+17/Oct/2025:08:50:43 -0500: Schema cache loaded in 0.7 milliseconds
+FATAL:  terminating connection due to unexpected postmaster exit
+21/Oct/2025:06:43:45 -0500: Failed listening for database notifications on the "pgrst" channel. server closed the connection unexpectedly This probably means the server terminated abnormally before or while processing the request.
+21/Oct/2025:06:43:45 -0500: Retrying listening for database notifications in 1 seconds...
+21/Oct/2025:06:43:47 -0500: Failed listening for database notifications on the "pgrst" channel. connection to server at "localhost" (::1), port 5432 failed: Connection refused Is the server running on that host and accepting TCP/IP connections? connection to server at "localhost" (127.0.0.1), port 5432 failed: Connection refused Is the server running on that host and accepting TCP/IP connections?
+21/Oct/2025:06:43:47 -0500: Failed listening for database notifications on the "pgrst" channel. ExitFailure 1
+21/Oct/2025:06:43:47 -0500: Retrying listening for database notifications in 2 seconds...
+21/Oct/2025:06:43:49 -0500: Failed listening for database notifications on the "pgrst" channel. connection to server at "localhost" (::1), port 5432 failed: Connection refused Is the server running on that host and accepting TCP/IP connections? connection to server at "localhost" (127.0.0.1), port 5432 failed: Connection refused Is the server running on that host and accepting TCP/IP connections?
+21/Oct/2025:06:43:49 -0500: Failed listening for database notifications on the "pgrst" channel. ExitFailure 1
+21/Oct/2025:06:43:49 -0500: Retrying listening for database notifications in 4 seconds...
